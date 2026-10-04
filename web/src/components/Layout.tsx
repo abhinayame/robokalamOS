@@ -20,7 +20,8 @@ const GROUPS: Group[] = [
     { to: '/batches?status=upcoming', label: 'Upcoming', icon: '◐', perm: 'batch:read' },
     { to: '/batches?status=completed', label: 'Completed', icon: '○', perm: 'batch:read' },
   ] },
-  { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '🏫', roles: ['learner', 'parent'] }] },
+  { label: 'Classroom', items: [{ to: '/classroom', label: 'Classroom', icon: '🏫', perm: 'classroom:read' }, { to: '/assignments', label: 'Assignments', icon: '📝', roles: ['learner', 'parent'] }] },
+  { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '📅', roles: ['learner', 'parent'] }] },
   { label: 'People', items: [{ to: '/teachers', label: 'Teachers', icon: '🎓', perm: 'teacher:read' }] },
   { label: 'Settings', items: [
     { to: '/settings/catalog', label: 'Programs & Courses', icon: '📚', perm: 'catalog:read', roles: STAFF },
@@ -47,8 +48,8 @@ export default function Layout(): ReactNode {
   const bottom: Item[] = isStaff
     ? [{ to: '/', label: 'Dashboard', icon: '▦', end: true }, { to: '/learners', label: 'Learners', icon: '👥' }, { to: '/batches', label: 'Batches', icon: '🗂️' }]
     : isTeacher
-      ? [{ to: '/', label: 'Home', icon: '▦', end: true }, { to: '/batches', label: 'Classes', icon: '🏫' }, { to: '/learners', label: 'Learners', icon: '👥' }]
-      : [{ to: '/', label: 'Home', icon: '▦', end: true }, { to: '/classes', label: 'Classes', icon: '🏫' }, { to: '/account', label: 'Profile', icon: '🙂' }];
+      ? [{ to: '/', label: 'Home', icon: '▦', end: true }, { to: '/classroom', label: 'Classroom', icon: '🏫' }, { to: '/learners', label: 'Learners', icon: '👥' }]
+      : [{ to: '/', label: 'Home', icon: '▦', end: true }, { to: '/classroom', label: 'Classroom', icon: '🏫' }, { to: '/assignments', label: 'Work', icon: '📝' }, { to: '/account', label: 'Profile', icon: '🙂' }];
   const cols = bottom.length + 1;
 
   return (

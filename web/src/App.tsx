@@ -11,6 +11,10 @@ import Dashboard from './pages/Dashboard';
 import Learner360 from './pages/Learner360';
 import Learners from './pages/Learners';
 import Login from './pages/Login';
+import Classrooms from './pages/Classrooms';
+import Classroom from './pages/Classroom';
+import Assignment from './pages/Assignment';
+import MyAssignments from './pages/MyAssignments';
 import MyClasses from './pages/MyClasses';
 import Organizations from './pages/Organizations';
 import Parents from './pages/Parents';
@@ -42,6 +46,10 @@ export default function App() {
         <Route path="batches" element={<Guard perm="batch:read"><Batches /></Guard>} />
         <Route path="batches/:id" element={<BatchDetail />} />
         <Route path="classes" element={<MyClasses />} />
+        <Route path="classroom" element={<Guard perm="classroom:read"><Classrooms /></Guard>} />
+        <Route path="classroom/:batchId" element={<Guard perm="classroom:read"><Classroom /></Guard>} />
+        <Route path="assignments" element={<Guard roles={['learner', 'parent']}><MyAssignments /></Guard>} />
+        <Route path="assignments/:id" element={<Guard perm="classroom:read"><Assignment /></Guard>} />
         <Route path="teachers" element={<Guard perm="teacher:read"><Teachers /></Guard>} />
         <Route path="settings/catalog" element={<Guard perm="catalog:read"><Catalog /></Guard>} />
         <Route path="settings/users" element={<Guard perm="user:manage"><Users /></Guard>} />

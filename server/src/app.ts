@@ -16,6 +16,9 @@ import authRoutes from './modules/auth/routes.js';
 import batchRoutes from './modules/batches/routes.js';
 import bulkRoutes from './modules/bulk/routes.js';
 import catalogRoutes from './modules/catalog/routes.js';
+import classroomRoutes from './modules/classroom/routes.js';
+import { assignmentsRouter, submissionsRouter } from './modules/classroom/assignments.js';
+import fileRoutes from './modules/files/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 import learnerRoutes from './modules/learners/routes.js';
 import orgRoutes from './modules/organizations/routes.js';
@@ -69,6 +72,10 @@ export function createApp() {
   app.use('/api/selection', selectionRoutes);
   app.use('/api/bulk', bulkRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/classrooms', classroomRoutes);
+  app.use('/api/assignments', assignmentsRouter);
+  app.use('/api/submissions', submissionsRouter);
+  app.use('/api/files', fileRoutes);
   app.use('/api/audit', auditRoutes);
   app.use('/api', catalogRoutes);                      // /branches /programs /courses
   app.use('/api', userRoutes);                         // /teachers /users
