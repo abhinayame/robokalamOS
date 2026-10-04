@@ -1,6 +1,6 @@
 import request from 'supertest';
 import { beforeAll, describe, expect, it } from 'vitest';
-import { query } from '../src/db/pool.js';
+import { exec, newId, query } from '../src/db/pool.js';
 import { app, buildWorld, client, enroll, login, newLearner, PASSWORD, uniq, type World } from './helpers.js';
 
 let w: World, other: World;
@@ -34,7 +34,7 @@ describe('tenant isolation', () => {
   });
 
   it('database composite foreign keys reject cross-tenant memberships even if the app is bypassed', async () => {
-    await expect(query(`INSERT INTO learner_batch_memberships (org_id, learner_id, batch_id) VALUES ($1,$2,$3)`, [other.orgId, ravi.id, other.batches.roboA])).rejects.toThrow();
+    await expect(exec(`INSERT INTO learner_batch_memberships (id, org_id, learner_id, batch_id) VALUES ($1,$2,$3,$4)`, [newId(), other.orgId, ravi.id, other.batches.roboA])).rejects.toThrow();
   });
 
   it('super admin must pick an organization; org users cannot override it with X-Org-Id', async () => {

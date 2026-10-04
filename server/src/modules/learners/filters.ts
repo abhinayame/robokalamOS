@@ -50,34 +50,35 @@ export type LearnerFilters = z.infer<typeof learnerFiltersBody>;
 export function learnerWhere(user: AuthUser, orgId: string, f: LearnerFilters, p: Params, defaultStatuses?: readonly string[]): string[] {
   const w: string[] = [`l.org_id = ${p.add(orgId)}`, `l.deleted_at IS NULL`];
   const statuses = f.status ?? defaultStatuses;
-  if (statuses?.length) w.push(`l.status = ANY(${p.add(statuses)}::text[])`);
+  if (statuses?.length) w.push(`l.status IN ${p.in(statuses)}`);
   const scope = learnerScope(user, p, 'l');
   if (scope) w.push(scope);
 
   if (f.q) {
-    const like = p.add(`%${f.q.replace(/[%_\\]/g, '\\$&')}%`);
-    w.push(`(l.full_name ILIKE ${like} OR l.learner_code ILIKE ${like} OR l.mobile ILIKE ${like} OR l.email ILIKE ${like}
+    const likeVal = `%${f.q.replace(/[%_\\]/g, '\\$&')}%`;
+    const like = p.add(likeVal);
+    w.push(`(l.full_name LIKE ${like} OR l.learner_code LIKE ${like} OR l.mobile LIKE ${like} OR l.email LIKE ${like}
       OR EXISTS (SELECT 1 FROM learner_parents lp JOIN parents pa ON pa.id = lp.parent_id
-                  WHERE lp.learner_id = l.id AND (pa.full_name ILIKE ${like} OR pa.mobile ILIKE ${like})))`);
+                  WHERE lp.learner_id = l.id AND (pa.full_name LIKE ${p.add(likeVal)} OR pa.mobile LIKE ${p.add(likeVal)})))`);
   }
-  if (f.branch_id?.length) w.push(`l.branch_id = ANY(${p.add(f.branch_id)}::uuid[])`);
-  if (f.enrolled_from) w.push(`l.enrolled_on >= ${p.add(f.enrolled_from)}::date`);
-  if (f.enrolled_to) w.push(`l.enrolled_on <= ${p.add(f.enrolled_to)}::date`);
+  if (f.branch_id?.length) w.push(`l.branch_id IN ${p.in(f.branch_id)}`);
+  if (f.enrolled_from) w.push(`l.enrolled_on >= ${p.add(f.enrolled_from)}`);
+  if (f.enrolled_to) w.push(`l.enrolled_on <= ${p.add(f.enrolled_to)}`);
 
   const m: string[] = [];
-  if (f.batch_id?.length) m.push(`m.batch_id = ANY(${p.add(f.batch_id)}::uuid[])`);
-  if (f.course_id?.length) m.push(`b.course_id = ANY(${p.add(f.course_id)}::uuid[])`);
-  if (f.program_id?.length) m.push(`b.program_id = ANY(${p.add(f.program_id)}::uuid[])`);
-  if (f.academic_year?.length) m.push(`b.academic_year = ANY(${p.add(f.academic_year)}::text[])`);
+  if (f.batch_id?.length) m.push(`m.batch_id IN ${p.in(f.batch_id)}`);
+  if (f.course_id?.length) m.push(`b.course_id IN ${p.in(f.course_id)}`);
+  if (f.program_id?.length) m.push(`b.program_id IN ${p.in(f.program_id)}`);
+  if (f.academic_year?.length) m.push(`b.academic_year IN ${p.in(f.academic_year)}`);
   if (f.teacher_id?.length) {
-    m.push(`EXISTS (SELECT 1 FROM teacher_batch_memberships t WHERE t.batch_id = m.batch_id AND t.status = 'active' AND t.teacher_user_id = ANY(${p.add(f.teacher_id)}::uuid[]))`);
+    m.push(`EXISTS (SELECT 1 FROM teacher_batch_memberships t WHERE t.batch_id = m.batch_id AND t.status = 'active' AND t.teacher_user_id IN ${p.in(f.teacher_id)})`);
   }
   if (m.length) {
     const ms = f.membership_status?.length ? f.membership_status : ['active'];
     w.push(`EXISTS (SELECT 1 FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id
-              WHERE m.learner_id = l.id AND m.status = ANY(${p.add(ms)}::text[]) AND ${m.join(' AND ')})`);
+              WHERE m.learner_id = l.id AND m.status IN ${p.in(ms)} AND ${m.join(' AND ')})`);
   } else if (f.membership_status?.length) {
-    w.push(`EXISTS (SELECT 1 FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status = ANY(${p.add(f.membership_status)}::text[]))`);
+    w.push(`EXISTS (SELECT 1 FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status IN ${p.in(f.membership_status)})`);
   }
   if (f.no_batch) w.push(`NOT EXISTS (SELECT 1 FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status = 'active')`);
   return w;

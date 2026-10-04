@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { query, queryOne, type Db } from '../../db/pool.js';
+import { exec, newId, queryOne, type Db } from '../../db/pool.js';
 import { badRequest } from '../../lib/errors.js';
 import { normalizeMobile } from '../../lib/phone.js';
 
@@ -22,22 +22,22 @@ export async function upsertParent(db: Db, orgId: string, input: ParentInput) {
     const existing = await queryOne(`SELECT id, full_name, mobile, email FROM parents WHERE org_id = $1 AND mobile = $2 AND deleted_at IS NULL`, [orgId, mobile], db);
     if (existing) return { parent: existing, created: false };
   }
-  const row = await queryOne(
-    `INSERT INTO parents (org_id, full_name, mobile, email) VALUES ($1,$2,$3,$4) RETURNING id, full_name, mobile, email`,
-    [orgId, input.full_name, mobile, input.email ?? null], db,
+  const id = newId();
+  await exec(
+    `INSERT INTO parents (id, org_id, full_name, mobile, email) VALUES ($1,$2,$3,$4,$5)`,
+    [id, orgId, input.full_name, mobile, input.email ?? null], db,
   );
-  return { parent: row!, created: true };
+  return { parent: { id, full_name: input.full_name, mobile, email: input.email ?? null }, created: true };
 }
 
 /** Link parent ↔ learner. The first linked parent becomes primary. */
 export async function linkParent(db: Db, orgId: string, learnerId: string, parentId: string, relationship: string, makePrimary = false) {
   const hasPrimary = !!(await queryOne(`SELECT 1 FROM learner_parents WHERE learner_id = $1 AND is_primary`, [learnerId], db));
   const primary = makePrimary || !hasPrimary;
-  if (primary) await query(`UPDATE learner_parents SET is_primary = false WHERE learner_id = $1 AND is_primary`, [learnerId], db);
-  await query(
+  if (primary) await exec(`UPDATE learner_parents SET is_primary = FALSE WHERE learner_id = $1 AND is_primary`, [learnerId], db);
+  await exec(
     `INSERT INTO learner_parents (learner_id, parent_id, org_id, relationship, is_primary) VALUES ($1,$2,$3,$4,$5)
-     ON CONFLICT (learner_id, parent_id) DO UPDATE SET relationship = EXCLUDED.relationship,
-       is_primary = CASE WHEN EXCLUDED.is_primary THEN true ELSE learner_parents.is_primary END`,
+     ON DUPLICATE KEY UPDATE relationship = VALUES(relationship), is_primary = IF(VALUES(is_primary), TRUE, is_primary)`,
     [learnerId, parentId, orgId, relationship, primary], db,
   );
 }

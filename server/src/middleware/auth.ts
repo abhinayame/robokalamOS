@@ -48,7 +48,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
     if (!claims) throw unauthorized('Your session has expired. Please sign in again.');
 
     const session = await queryOne(
-      `SELECT 1 FROM auth_sessions WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > now()`,
+      `SELECT 1 FROM auth_sessions WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL AND expires_at > NOW(3)`,
       [claims.sid, claims.sub],
     );
     if (!session) throw unauthorized('Your session has ended. Please sign in again.');
@@ -64,27 +64,27 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
       if (!org || org.status !== 'active') throw forbidden('This organization is not active.');
     }
 
-    const roleRows = await query<{ key: string; branch_id: string | null }>(
-      `SELECT r.key, ur.branch_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1`,
+    const roleRows = await query<{ code: string; branch_id: string | null }>(
+      `SELECT r.code, ur.branch_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1`,
       [u.id],
     );
-    const permRows = await query<{ key: string }>(
-      `SELECT DISTINCT p.key FROM user_roles ur
+    const permRows = await query<{ code: string }>(
+      `SELECT DISTINCT p.code FROM user_roles ur
          JOIN role_permissions rp ON rp.role_id = ur.role_id
          JOIN permissions p ON p.id = rp.permission_id
         WHERE ur.user_id = $1`,
       [u.id],
     );
 
-    const roles = [...new Set(roleRows.map((r) => r.key))];
+    const roles = [...new Set(roleRows.map((r) => r.code))];
     const isSuperAdmin = roles.includes('super_admin');
     const access: Access = { orgWide: isSuperAdmin, branchIds: [], teacher: false, ownLearnerIds: [] };
     for (const r of roleRows) {
-      if (['org_admin', 'counsellor', 'accountant'].includes(r.key)) {
+      if (['org_admin', 'counsellor', 'accountant'].includes(r.code)) {
         if (r.branch_id) access.branchIds.push(r.branch_id); else access.orgWide = true;
-      } else if (r.key === 'branch_admin') {
+      } else if (r.code === 'branch_admin') {
         if (r.branch_id) access.branchIds.push(r.branch_id);   // a branch admin without a branch has no scope
-      } else if (r.key === 'teacher') access.teacher = true;
+      } else if (r.code === 'teacher') access.teacher = true;
     }
     if (roles.includes('learner')) {
       const rows = await query(`SELECT id FROM learners WHERE user_id = $1 AND deleted_at IS NULL`, [u.id]);
@@ -103,7 +103,7 @@ export async function authenticate(req: Request, _res: Response, next: NextFunct
 
     req.user = {
       id: u.id, email: u.email, fullName: u.full_name, userOrgId: u.org_id, roles, isSuperAdmin,
-      permissions: new Set(permRows.map((p) => p.key)), access, sessionId: claims.sid,
+      permissions: new Set(permRows.map((p) => p.code)), access, sessionId: claims.sid,
     };
 
     // Resolve tenant: normal users are pinned to their own org; super admins pick one explicitly.

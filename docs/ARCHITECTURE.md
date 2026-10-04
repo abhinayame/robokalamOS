@@ -13,13 +13,13 @@ Contents: 1 System · 2 Diagram · 3 Database & ERD · 4 API · 5 Folder structu
 |---|---|---|
 | Runtime | Node.js 22, TypeScript (strict) | One language end-to-end; runs on Hostinger Cloud Node hosting. |
 | API | Express 5, REST + JSON | Boring, auditable, easy to hand over. Consistent envelope `{ok,data,meta}` / `{ok:false,error}`. |
-| Database | **PostgreSQL 16** | Composite foreign keys for tenant safety, partial unique indexes, `ON CONFLICT`, `jsonb`, trigram search, real transactions. |
-| Data access | `pg` + parameterised SQL (no ORM) | Complex set-based queries (dedupe, scope filters) stay explicit, fast and reviewable; SQL injection is prevented by construction (`Params` helper, whitelists for `ORDER BY`). |
+| Database | **MySQL 8 / MariaDB 10.6+** (InnoDB) | The database Hostinger provides. Composite foreign keys give tenant safety, generated columns emulate partial unique indexes, real transactions, `JSON` columns. Verified on MariaDB 10.11; written to the common subset of MySQL 8 and MariaDB. |
+| Data access | `mysql2` + parameterised SQL (no ORM) | Complex set-based queries (dedupe, scope filters) stay explicit, fast and reviewable; SQL injection is prevented by construction (`Params` helper, whitelists for `ORDER BY`). Ids are UUIDs generated in the app, so no `RETURNING`/vendor-specific features are needed. |
 | Validation | Zod on every request | Same schema = validation + typing. |
 | Auth | bcrypt (cost 12), short-lived JWT access token + rotating opaque refresh token in DB | Sessions are revocable (logout, disable user, password change). |
 | Frontend | React 19 + Vite + TypeScript, hand-written design system (CSS tokens) | Fast, no UI-kit lock-in, original Robokalam look. |
-| Hosting | One Node process serves API **and** the built SPA; Postgres alongside | Simple to operate on Hostinger (see §13). |
-| Background work (Phase 7) | Postgres-backed job queue (`SELECT … FOR UPDATE SKIP LOCKED`) inside the same Node app/worker | No Redis to run on shared/cloud hosting; can be swapped for BullMQ later behind the same interface. |
+| Hosting | One Node process serves API **and** the built SPA; MySQL from hPanel | Simple to operate on Hostinger (see §13). |
+| Background work (Phase 7) | MySQL-backed job queue (`SELECT … FOR UPDATE SKIP LOCKED`, MySQL 8 / MariaDB 10.6+) inside the same Node app/worker | No Redis to run on shared/cloud hosting; can be swapped for BullMQ later behind the same interface. |
 
 Request pipeline (every `/api/*` call):
 
@@ -51,7 +51,7 @@ flowchart LR
     API --> SEL --> BULK
     API -.-> JOBS
   end
-  API --> DB[(PostgreSQL 16)]
+  API --> DB[(MySQL / MariaDB)]
   JOBS --> DB
   JOBS -- "rate-limited" --> AI[AiSensy WhatsApp API]
   AI -- "delivery webhooks" --> API
@@ -62,7 +62,7 @@ Tenant model: `organization → branches → programs → courses → batches �
 
 ## 3. Database
 
-Phase 1 is implemented in `server/migrations/001_foundation.sql` (19 tables). The complete target schema for all phases is in `docs/database/later-phases-schema.sql` (33 more tables) and is verified to apply cleanly on top of 001 (52 tables total).
+Phase 1 is implemented in `server/migrations/001_foundation.sql` (19 tables). The complete target schema for all phases is in `docs/database/later-phases-schema.sql` (33 more tables) and is verified to apply cleanly on top of 001 on MariaDB (52 tables total).
 
 ### ERD (core — implemented)
 
@@ -129,14 +129,14 @@ erDiagram
 | Learner ID unique per org | `UNIQUE (org_id, learner_code)`; code allocated atomically from `org_counters` (`RK-LRN-000124`). |
 | One membership per learner+batch | `CONSTRAINT uq_learner_batch UNIQUE (learner_id, batch_id)`; re-joining re-activates the same row. |
 | No cross-tenant references | Composite FKs `(learner_id, org_id)`, `(batch_id, org_id)`, … |
-| No duplicate learner contact | Partial unique indexes on `(org_id, mobile)` and `(org_id, lower(email))` where not deleted. |
-| One parent per mobile (siblings share) | Partial unique `(org_id, mobile)` on `parents`. |
-| One primary parent / one lead teacher | Partial unique indexes. |
+| No duplicate learner contact | Unique `(org_id, mobile_key)` and `(org_id, email_key)`, where `*_key` is a generated column that is NULL for deleted rows (case-insensitive collation). |
+| One parent per mobile (siblings share) | Unique `(org_id, mobile_key)` on `parents` (same generated-column technique). |
+| One primary parent / one lead teacher | Unique generated columns (`primary_key_`, `lead_key`) that are NULL unless the row is primary / the active lead. |
 | Soft delete / history | `status` (active/inactive/archived) + `deleted_at`; memberships and activity are never deleted. |
-| Indexing | org_id, status, name, created_at, mobile, email (+ trigram on name/code/mobile/email); membership indexes on `(batch_id,status)` and `(learner_id,status)`. |
+| Indexing | org_id, status, name, created_at, mobile, email (substring search uses `LIKE`; a FULLTEXT index is the planned upgrade); membership indexes on `(batch_id,status)` and `(learner_id,status)`. |
 | Transactions | Enrolment, transfer, bulk actions, create-learner (profile + parent + enrolments + timeline + audit) each run in **one** transaction. |
 
-Migrations: plain numbered `.sql` files, applied by a tiny runner (`schema_migrations` table + advisory lock), forward-only.
+Migrations: plain numbered `.sql` files, applied by a tiny runner (`schema_migrations` table + `GET_LOCK`), forward-only.
 
 ## 4. API architecture
 
@@ -183,7 +183,7 @@ robokalam-learner-os/
 │  │  ├─ scripts/                 migrate, seed (super admin)
 │  │  ├─ app.ts  server.ts
 │  ├─ dev/                        DEV-ONLY seeders (demo org, 100k learners)
-│  └─ tests/                      vitest + supertest against a real Postgres
+│  └─ tests/                      vitest + supertest against a real MySQL/MariaDB
 └─ web/
    └─ src/{api,auth,format}.ts · components/{ui,Layout,BatchSelector}.tsx · pages/*
 ```
@@ -331,12 +331,12 @@ duplicates removed, recipients, template)  → [Confirm & Send]   (no confirmati
 
 ## 13. Hostinger deployment architecture
 
-See **`docs/DEPLOYMENT.md`** for the step-by-step runbook (Cloud/VPS Node.js hosting, PostgreSQL, env vars, build, migrations, domain + SSL, backups, logging).
+See **`docs/DEPLOYMENT.md`** for the step-by-step runbook (Hostinger Node.js app or VPS, MySQL, env vars, build, migrations, domain + SSL, backups, logging).
 
 ```
 Browser ──HTTPS(443)──▶ Hostinger edge / nginx (TLS, gzip) ──▶ Node :PORT (Express)
                                                        ├─ serves web/dist (SPA, immutable assets)
-                                                       └─ /api/* ──▶ PostgreSQL (private network / local socket)
+                                                       └─ /api/* ──▶ MySQL (localhost)
 ```
 
 ## 14. Phase-by-phase roadmap
@@ -357,7 +357,7 @@ Items from the brief that are deliberately **not** in Phase 1 (no placeholder UI
 
 ## 15. Decisions & trade-offs
 
-* **PostgreSQL over MySQL.** Hostinger's shared plans bundle MySQL; the Cloud/VPS tiers can run Postgres (or use a managed Postgres such as Neon/Supabase over TLS via `DATABASE_URL` + `DATABASE_SSL=true`). The tenancy guarantees (composite FKs, partial unique indexes, `ON CONFLICT … RETURNING`) are core to correctness here. If only MySQL is available, treat that as a new decision — it needs query and constraint changes.
+* **MySQL/MariaDB because that is what Hostinger offers.** The schema avoids features the two servers do not share: ids are app-generated UUIDs (`VARCHAR(36)`), "partial unique" rules use `STORED` generated columns that are `NULL` when a rule does not apply (a UNIQUE index ignores NULLs), upserts use `ON DUPLICATE KEY UPDATE`, there is no `RETURNING`, no `LATERAL`, no ordered `JSON_ARRAYAGG`. Every transaction runs `READ COMMITTED` and locks the batch row before capacity checks. MySQL cannot roll back DDL, so migrations are small forward-only files recorded after they succeed.
 * **Learner mobile/email are unique per organization.** A learner without their own number should be created without a mobile and reached through the parent. Shared family phones belong on the *parent*, which is deduplicated by mobile (siblings share one parent).
 * **Archive instead of delete.** `deleted_at` is reserved for future "created by mistake" removals by a super admin; normal lifecycle uses `status`.
 * **Offset pagination.** Fine to 100k+ learners with the indexes above (measured: list ≤ 0.4 s at 100k learners / 100k memberships, name-search ≈ 0.3 s). Keyset pagination is the planned upgrade if lists grow by an order of magnitude.

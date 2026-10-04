@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { Params, query, queryOne, tx, type Db } from '../../db/pool.js';
+import { Params, exec, newId, query, queryOne, tx, type Db } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { ok, paging, parse, uuid, wrap } from '../../lib/http.js';
@@ -18,7 +18,7 @@ const router = Router();
 router.use(requireOrg);
 
 const SORTS: Record<string, string> = {
-  name: 'lower(l.full_name)',
+  name: 'l.full_name',
   learner_code: 'l.learner_code',
   enrolled_on: 'l.enrolled_on',
   created_at: 'l.created_at',
@@ -50,11 +50,11 @@ async function assertBranch(db: Db, orgId: string, branchId: string | null | und
 
 async function findDuplicate(db: Db, orgId: string, mobile: string | null, email: string | null, exceptId?: string) {
   if (mobile) {
-    const d = await queryOne(`SELECT id, learner_code, full_name FROM learners WHERE org_id = $1 AND mobile = $2 AND deleted_at IS NULL AND ($3::uuid IS NULL OR id <> $3)`, [orgId, mobile, exceptId ?? null], db);
+    const d = await queryOne(`SELECT id, learner_code, full_name FROM learners WHERE org_id = $1 AND mobile = $2 AND deleted_at IS NULL AND ($3 IS NULL OR id <> $3)`, [orgId, mobile, exceptId ?? null], db);
     if (d) return { field: 'mobile', existing: d };
   }
   if (email) {
-    const d = await queryOne(`SELECT id, learner_code, full_name FROM learners WHERE org_id = $1 AND lower(email) = $2 AND deleted_at IS NULL AND ($3::uuid IS NULL OR id <> $3)`, [orgId, email, exceptId ?? null], db);
+    const d = await queryOne(`SELECT id, learner_code, full_name FROM learners WHERE org_id = $1 AND email = $2 AND deleted_at IS NULL AND ($3 IS NULL OR id <> $3)`, [orgId, email, exceptId ?? null], db);
     if (d) return { field: 'email', existing: d };
   }
   return null;
@@ -79,19 +79,22 @@ function assertWritable(req: Request, branchId: string | null) {
 async function enrich(rows: any[], orgId: string) {
   if (!rows.length) return rows;
   const ids = rows.map((r) => r.id);
+  const bp = new Params();
   const batches = await query(
     `SELECT m.learner_id, b.id, b.batch_code, b.name, b.status, c.name AS course_name, pr.name AS program_name,
-            (SELECT json_agg(json_build_object('id', u.id, 'full_name', u.full_name, 'role', t.role) ORDER BY t.role, u.full_name)
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', u.id, 'full_name', u.full_name, 'role', t.role))
                FROM teacher_batch_memberships t JOIN users u ON u.id = t.teacher_user_id
               WHERE t.batch_id = b.id AND t.status = 'active') AS teachers
        FROM learner_batch_memberships m
        JOIN batches b ON b.id = m.batch_id JOIN courses c ON c.id = b.course_id JOIN programs pr ON pr.id = b.program_id
-      WHERE m.learner_id = ANY($1::uuid[]) AND m.status = 'active' AND m.org_id = $2
-      ORDER BY b.name`, [ids, orgId]);
+      WHERE m.learner_id IN ${bp.in(ids)} AND m.status = 'active' AND m.org_id = ${bp.add(orgId)}
+      ORDER BY b.name`, bp.values);
+  const pp = new Params();
   const parents = await query(
     `SELECT lp.learner_id, pa.id, pa.full_name, pa.mobile FROM learner_parents lp JOIN parents pa ON pa.id = lp.parent_id
-      WHERE lp.learner_id = ANY($1::uuid[]) AND lp.is_primary AND pa.deleted_at IS NULL`, [ids]);
-  const acts = await query(`SELECT learner_id, max(occurred_at) AS last FROM learner_activity WHERE learner_id = ANY($1::uuid[]) GROUP BY learner_id`, [ids]);
+      WHERE lp.learner_id IN ${pp.in(ids)} AND lp.is_primary AND pa.deleted_at IS NULL`, pp.values);
+  const ap = new Params();
+  const acts = await query(`SELECT learner_id, MAX(occurred_at) AS last FROM learner_activity WHERE learner_id IN ${ap.in(ids)} GROUP BY learner_id`, ap.values);
   const branches = await query(`SELECT id, name FROM branches WHERE org_id = $1`, [orgId]);
   return rows.map((r) => {
     const bs = batches.filter((b) => b.learner_id === r.id);
@@ -119,7 +122,7 @@ router.get('/', requirePerm('learner:read'), wrap(async (req, res) => {
   const total = (await queryOne(`SELECT count(*) AS n FROM learners l WHERE ${where.join(' AND ')}`, p.values))!.n as number;
   const rows = await query(
     `SELECT l.* FROM learners l WHERE ${where.join(' AND ')}
-      ORDER BY ${SORTS[sort]} ${order === 'desc' ? 'DESC' : 'ASC'} NULLS LAST, l.id
+      ORDER BY (${SORTS[sort]}) IS NULL, ${SORTS[sort]} ${order === 'desc' ? 'DESC' : 'ASC'}, l.id
       LIMIT ${page_size} OFFSET ${(page - 1) * page_size}`, p.values);
   ok(res, await enrich(rows, orgIdOf(req)), { page, page_size, total, total_pages: Math.ceil(total / page_size) });
 }));
@@ -144,11 +147,13 @@ router.post('/', requirePerm('learner:create'), wrap(async (req, res) => {
     const code = await nextLearnerCode(db, orgId, org!.code_prefix);
     // Branch admins always create inside their own branch.
     const branchId = body.branch_id ?? (req.user!.access.orgWide ? null : req.user!.access.branchIds[0] ?? null);
-    const l = await queryOne(
-      `INSERT INTO learners (org_id, branch_id, learner_code, full_name, mobile, email, date_of_birth, gender, school, location, photo_url, enrolled_on, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,COALESCE($12::date, CURRENT_DATE),$13) RETURNING *`,
-      [orgId, branchId, code, body.full_name, mobile, body.email ?? null, body.date_of_birth ?? null, body.gender ?? null, body.school ?? null,
+    const newLearnerId = newId();
+    await exec(
+      `INSERT INTO learners (id, org_id, branch_id, learner_code, full_name, mobile, email, date_of_birth, gender, school, location, photo_url, enrolled_on, created_by)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13, CURRENT_DATE),$14)`,
+      [newLearnerId, orgId, branchId, code, body.full_name, mobile, body.email ?? null, body.date_of_birth ?? null, body.gender ?? null, body.school ?? null,
         body.location ?? null, body.photo_url ?? null, body.enrolled_on ?? null, req.user!.id], db);
+    const l = await queryOne(`SELECT * FROM learners WHERE id = $1`, [newLearnerId], db);
     await recordActivity(db, { orgId, learnerId: l!.id, type: 'learner.created', title: 'Joined Robokalam', description: `Learner profile ${code} created`, actorUserId: req.user!.id });
 
     if (body.parent) {
@@ -176,7 +181,7 @@ async function getLearner360(req: Request, id: string) {
     query(`SELECT m.id AS membership_id, m.status AS membership_status, m.joined_at, m.left_at, m.left_reason,
                   b.id AS batch_id, b.batch_code, b.name AS batch_name, b.status AS batch_status, b.academic_year, b.schedule,
                   b.start_date, b.end_date, c.id AS course_id, c.name AS course_name, pr.id AS program_id, pr.name AS program_name,
-                  (SELECT json_agg(json_build_object('id', u.id, 'full_name', u.full_name, 'role', t.role) ORDER BY t.role, u.full_name)
+                  (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', u.id, 'full_name', u.full_name, 'role', t.role))
                      FROM teacher_batch_memberships t JOIN users u ON u.id = t.teacher_user_id
                     WHERE t.batch_id = b.id AND t.status = 'active') AS teachers
              FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id
@@ -188,11 +193,12 @@ async function getLearner360(req: Request, id: string) {
     queryOne(`SELECT count(*) AS n FROM learner_activity WHERE learner_id = $1`, [id]),
   ]);
   const active = memberships.filter((m) => m.membership_status === 'active');
-  const { created_by, user_id, ...profile } = l;
-  void created_by;
+  const { created_by, user_id, mobile_key, email_key, ...profile } = l;
+  void created_by; void mobile_key; void email_key;
   return {
     ...profile,
-    branch, parents, memberships,
+    branch, memberships,
+    parents: parents.map((p: any) => ({ ...p, has_login: !!p.has_login })),
     login: login ? { email: login.email, status: login.status, last_login_at: login.last_login_at } : null,
     stats: {
       active_batches: active.length,
@@ -249,9 +255,10 @@ router.patch('/:id', requirePerm('learner:update'), wrap(async (req, res) => {
     if (mobile !== undefined) fields.mobile = mobile;
     const keys = Object.keys(fields).filter((k) => fields[k] !== undefined);
     if (!keys.length) return;
-    const next = await queryOne(
-      `UPDATE learners SET ${keys.map((k, i) => `${k} = $${i + 3}`).join(', ')} WHERE id = $1 AND org_id = $2 RETURNING *`,
+    await exec(
+      `UPDATE learners SET ${keys.map((k, i) => `${k} = $${i + 3}`).join(', ')} WHERE id = $1 AND org_id = $2`,
       [id, orgId, ...keys.map((k) => fields[k])], db);
+    const next = await queryOne(`SELECT * FROM learners WHERE id = $1`, [id], db);
     const changed = keys.filter((k) => String(prev[k] ?? '') !== String(next![k] ?? ''));
     if (!changed.length) return;
     await recordActivity(db, { orgId, learnerId: id, type: body.status && body.status !== prev.status ? 'learner.status_changed' : 'learner.updated',
@@ -270,7 +277,7 @@ router.delete('/:id', requirePerm('learner:delete'), wrap(async (req, res) => {
     const prev = await scopedLearner(req, id, db);
     assertWritable(req, prev.branch_id);
     if (prev.status === 'archived') return;
-    await queryOne(`UPDATE learners SET status = 'archived' WHERE id = $1`, [id], db);
+    await exec(`UPDATE learners SET status = 'archived' WHERE id = $1`, [id], db);
     // Archiving ends active memberships (kept as history, re-join on restore is explicit).
     const batches = await query(`SELECT batch_id FROM learner_batch_memberships WHERE learner_id = $1 AND status = 'active'`, [id], db);
     for (const b of batches) await removeLearners({ db, user: req.user!, orgId, req }, b.batch_id, [id], { reason: 'Learner archived' });
@@ -286,7 +293,7 @@ router.post('/:id/restore', requirePerm('learner:delete'), wrap(async (req, res)
   await tx(async (db) => {
     const prev = await scopedLearner(req, id, db);
     assertWritable(req, prev.branch_id);
-    await queryOne(`UPDATE learners SET status = 'active' WHERE id = $1`, [id], db);
+    await exec(`UPDATE learners SET status = 'active' WHERE id = $1`, [id], db);
     await recordActivity(db, { orgId, learnerId: id, type: 'learner.status_changed', title: 'Learner restored', actorUserId: req.user!.id });
     await audit({ orgId, actor: req.user, action: 'learner.restored', entityType: 'learner', entityId: id, previous: { status: prev.status }, next: { status: 'active' }, req }, db);
   });
@@ -360,10 +367,12 @@ router.delete('/:id/parents/:parentId', requirePerm('parent:manage'), wrap(async
   assertWritable(req, l.branch_id);
   const orgId = orgIdOf(req);
   await tx(async (db) => {
-    const r = await query(`DELETE FROM learner_parents WHERE learner_id = $1 AND parent_id = $2 AND org_id = $3 RETURNING parent_id, is_primary`, [id, parentId, orgId], db);
-    if (!r.length) throw notFound('Parent link');
-    if (r[0].is_primary) {
-      await query(`UPDATE learner_parents SET is_primary = true WHERE (learner_id, parent_id) IN (SELECT learner_id, parent_id FROM learner_parents WHERE learner_id = $1 ORDER BY created_at LIMIT 1)`, [id], db);
+    const link = await queryOne(`SELECT is_primary FROM learner_parents WHERE learner_id = $1 AND parent_id = $2 AND org_id = $3 FOR UPDATE`, [id, parentId, orgId], db);
+    if (!link) throw notFound('Parent link');
+    await exec(`DELETE FROM learner_parents WHERE learner_id = $1 AND parent_id = $2 AND org_id = $3`, [id, parentId, orgId], db);
+    if (link.is_primary) {
+      const next = await queryOne(`SELECT parent_id FROM learner_parents WHERE learner_id = $1 ORDER BY created_at LIMIT 1`, [id], db);
+      if (next) await exec(`UPDATE learner_parents SET is_primary = TRUE WHERE learner_id = $1 AND parent_id = $2`, [id, next.parent_id], db);
     }
     await recordActivity(db, { orgId, learnerId: id, type: 'parent.unlinked', title: 'Parent unlinked', actorUserId: req.user!.id });
     await audit({ orgId, actor: req.user, action: 'learner.parent_unlinked', entityType: 'learner', entityId: id, previous: { parent_id: parentId }, req }, db);
@@ -386,10 +395,11 @@ router.post('/:id/login', requirePerm('learner:login'), wrap(async (req, res) =>
   const hash = await hashPassword(password);
   const orgId = orgIdOf(req);
   await tx(async (db) => {
-    if (await queryOne(`SELECT 1 FROM users WHERE lower(email) = $1 AND deleted_at IS NULL`, [email], db)) throw conflict('A user with this email already exists.', 'DUPLICATE');
-    const u = await queryOne(`INSERT INTO users (org_id, email, mobile, password_hash, full_name, must_change_password) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`, [orgId, email, l.mobile, hash, l.full_name, !body.password], db);
-    await query(`INSERT INTO user_roles (user_id, role_id, org_id) SELECT $1, id, $2 FROM roles WHERE key = 'learner'`, [u!.id, orgId], db);
-    await query(`UPDATE learners SET user_id = $2 WHERE id = $1`, [id, u!.id], db);
+    if (await queryOne(`SELECT 1 FROM users WHERE email = $1 AND deleted_at IS NULL`, [email], db)) throw conflict('A user with this email already exists.', 'DUPLICATE');
+    const uid = newId();
+    await exec(`INSERT INTO users (id, org_id, email, mobile, password_hash, full_name, must_change_password) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [uid, orgId, email, l.mobile, hash, l.full_name, !body.password], db);
+    await exec(`INSERT INTO user_roles (id, user_id, role_id, org_id) SELECT $1, $2, id, $3 FROM roles WHERE code = 'learner'`, [newId(), uid, orgId], db);
+    await exec(`UPDATE learners SET user_id = $2 WHERE id = $1`, [id, uid], db);
     await audit({ orgId, actor: req.user, action: 'learner.login_created', entityType: 'learner', entityId: id, next: { email }, req }, db);
   });
   ok(res, { email, ...(body.password ? {} : { temporary_password: password }) }, undefined, 201);

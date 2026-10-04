@@ -1,7 +1,7 @@
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { migrate } from '../src/db/migrate.js';
-import { pool, query, queryOne } from '../src/db/pool.js';
+import { exec, newId, pool, queryOne } from '../src/db/pool.js';
 import { hashPassword } from '../src/lib/security.js';
 
 export const app = createApp();
@@ -18,8 +18,9 @@ export async function createSuperAdmin(email = 'owner@robokalam.test') {
   await ensureMigrated();
   const existing = await queryOne(`SELECT id FROM users WHERE email = $1`, [email]);
   if (existing) return;
-  const u = await queryOne(`INSERT INTO users (org_id, email, password_hash, full_name) VALUES (NULL,$1,$2,'Owner') RETURNING id`, [email, await hashPassword(PASSWORD)]);
-  await query(`INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE key = 'super_admin'`, [u!.id]);
+  const id = newId();
+  await exec(`INSERT INTO users (id, org_id, email, password_hash, full_name) VALUES ($1,NULL,$2,$3,'Owner')`, [id, email, await hashPassword(PASSWORD)]);
+  await exec(`INSERT INTO user_roles (id, user_id, role_id) SELECT $1, $2, id FROM roles WHERE code = 'super_admin'`, [newId(), id]);
 }
 
 export async function login(email: string, password = PASSWORD) {

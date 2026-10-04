@@ -2,7 +2,7 @@ import { Router, type Request, type Response } from 'express';
 import rateLimit from 'express-rate-limit';
 import { z } from 'zod';
 import { env, isProd } from '../../config/env.js';
-import { query, queryOne } from '../../db/pool.js';
+import { exec, newId, query, queryOne } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { AppError, badRequest, unauthorized } from '../../lib/errors.js';
 import { ok, parse, wrap } from '../../lib/http.js';
@@ -34,12 +34,13 @@ function clearAuthCookies(res: Response) {
 
 async function createSession(userId: string, req: Request) {
   const refresh = randomToken(48);
-  const row = await queryOne(
-    `INSERT INTO auth_sessions (user_id, refresh_token_hash, user_agent, ip, expires_at)
-     VALUES ($1,$2,$3,$4, now() + ($5 || ' days')::interval) RETURNING id`,
-    [userId, sha256(refresh), req.get('user-agent')?.slice(0, 300) ?? null, req.ip ?? null, String(env.REFRESH_TOKEN_TTL_DAYS)],
+  const sid = newId();
+  await exec(
+    `INSERT INTO auth_sessions (id, user_id, refresh_token_hash, user_agent, ip, expires_at)
+     VALUES ($1,$2,$3,$4,$5, DATE_ADD(NOW(3), INTERVAL $6 DAY))`,
+    [sid, userId, sha256(refresh), req.get('user-agent')?.slice(0, 300) ?? null, req.ip ?? null, env.REFRESH_TOKEN_TTL_DAYS],
   );
-  return { sid: row!.id as string, refresh };
+  return { sid, refresh };
 }
 
 async function profile(userId: string) {
@@ -50,11 +51,11 @@ async function profile(userId: string) {
     [userId],
   );
   const roles = await query(
-    `SELECT r.key, ur.branch_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1`,
+    `SELECT r.code, ur.branch_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1`,
     [userId],
   );
   const perms = await query(
-    `SELECT DISTINCT p.key FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
+    `SELECT DISTINCT p.code FROM user_roles ur JOIN role_permissions rp ON rp.role_id = ur.role_id
        JOIN permissions p ON p.id = rp.permission_id WHERE ur.user_id = $1 ORDER BY 1`,
     [userId],
   );
@@ -62,9 +63,9 @@ async function profile(userId: string) {
     id: u!.id, email: u!.email, full_name: u!.full_name, mobile: u!.mobile,
     organization: u!.org_id ? { id: u!.org_id, name: u!.org_name, slug: u!.org_slug, code_prefix: u!.code_prefix } : null,
     must_change_password: u!.must_change_password,
-    roles: [...new Set(roles.map((r) => r.key))],
+    roles: [...new Set(roles.map((r) => r.code))],
     branch_ids: roles.filter((r) => r.branch_id).map((r) => r.branch_id),
-    permissions: perms.map((p) => p.key),
+    permissions: perms.map((p) => p.code),
   };
 }
 
@@ -92,7 +93,7 @@ router.post('/login', loginLimiter, wrap(async (req, res) => {
   const valid = await verifyPassword(body.password, u.password_hash);
   if (!valid) {
     const lock = u.failed_login_count + 1 >= env.MAX_FAILED_LOGINS;
-    await query(
+    await exec(
       `UPDATE users SET failed_login_count = $2, locked_until = $3 WHERE id = $1`,
       [u.id, lock ? 0 : u.failed_login_count + 1, lock ? new Date(Date.now() + env.LOCKOUT_MINUTES * 60_000) : null],
     );
@@ -101,7 +102,7 @@ router.post('/login', loginLimiter, wrap(async (req, res) => {
   }
   if (u.status !== 'active') throw new AppError(403, 'ACCOUNT_DISABLED', 'This account is not active. Please contact your administrator.');
 
-  await query(`UPDATE users SET failed_login_count = 0, locked_until = NULL, last_login_at = now() WHERE id = $1`, [u.id]);
+  await exec(`UPDATE users SET failed_login_count = 0, locked_until = NULL, last_login_at = NOW(3) WHERE id = $1`, [u.id]);
   const { sid, refresh } = await createSession(u.id, req);
   const access = signAccess({ sub: u.id, sid });
   const csrf = randomToken(24);
@@ -115,12 +116,14 @@ router.post('/refresh', wrap(async (req, res) => {
   if (!token) throw unauthorized();
   const next = randomToken(48);
   // Rotate atomically: a refresh token can only be used once.
-  const s = await queryOne(
+  const rotated = await exec(
     `UPDATE auth_sessions SET refresh_token_hash = $2
-      WHERE refresh_token_hash = $1 AND revoked_at IS NULL AND expires_at > now()
-      RETURNING id, user_id`,
+      WHERE refresh_token_hash = $1 AND revoked_at IS NULL AND expires_at > NOW(3)`,
     [sha256(token), sha256(next)],
   );
+  const s = rotated.affectedRows === 1
+    ? await queryOne(`SELECT id, user_id FROM auth_sessions WHERE refresh_token_hash = $1`, [sha256(next)])
+    : null;
   if (!s) { clearAuthCookies(res); throw unauthorized('Your session has expired. Please sign in again.'); }
   const u = await queryOne(`SELECT status FROM users WHERE id = $1 AND deleted_at IS NULL`, [s.user_id]);
   if (!u || u.status !== 'active') { clearAuthCookies(res); throw unauthorized(); }
@@ -132,7 +135,7 @@ router.post('/refresh', wrap(async (req, res) => {
 
 router.post('/logout', wrap(async (req, res) => {
   const token = req.cookies?.[REFRESH_COOKIE];
-  if (token) await query(`UPDATE auth_sessions SET revoked_at = now() WHERE refresh_token_hash = $1`, [sha256(token)]);
+  if (token) await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE refresh_token_hash = $1`, [sha256(token)]);
   clearAuthCookies(res);
   ok(res, { signed_out: true });
 }));
@@ -148,9 +151,9 @@ router.post('/change-password', authenticate, wrap(async (req, res) => {
   if (problem) throw badRequest(problem);
   const u = await queryOne(`SELECT password_hash FROM users WHERE id = $1`, [req.user!.id]);
   if (!u || !(await verifyPassword(body.current_password, u.password_hash))) throw new AppError(400, 'INVALID_CREDENTIALS', 'Your current password is incorrect.');
-  await query(`UPDATE users SET password_hash = $2, must_change_password = false WHERE id = $1`, [req.user!.id, await hashPassword(body.new_password)]);
+  await exec(`UPDATE users SET password_hash = $2, must_change_password = FALSE WHERE id = $1`, [req.user!.id, await hashPassword(body.new_password)]);
   // Sign out every other device.
-  await query(`UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL`, [req.user!.id, req.user!.sessionId]);
+  await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL`, [req.user!.id, req.user!.sessionId]);
   await audit({ orgId: req.user!.userOrgId, actor: req.user, action: 'auth.password_changed', entityType: 'user', entityId: req.user!.id, req });
   ok(res, { changed: true });
 }));

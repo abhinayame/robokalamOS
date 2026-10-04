@@ -44,20 +44,20 @@ async function adminView(req: Request) {
   const bWhere = `b.org_id = $1 AND b.deleted_at IS NULL ${bs ? `AND ${bs}` : ''}`;
 
   const learners = await queryOne(
-    `SELECT count(*) FILTER (WHERE l.status <> 'archived') AS total,
-            count(*) FILTER (WHERE l.status = 'active') AS active,
-            count(*) FILTER (WHERE l.status = 'inactive') AS inactive,
-            count(*) FILTER (WHERE l.status = 'archived') AS archived,
-            count(*) FILTER (WHERE l.status = 'active' AND NOT EXISTS (SELECT 1 FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status = 'active')) AS without_batch,
-            count(*) FILTER (WHERE (SELECT count(*) FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status = 'active') >= 2) AS multi_batch
+    `SELECT COALESCE(SUM(l.status <> 'archived'), 0) AS total,
+            COALESCE(SUM(l.status = 'active'), 0) AS active,
+            COALESCE(SUM(l.status = 'inactive'), 0) AS inactive,
+            COALESCE(SUM(l.status = 'archived'), 0) AS archived,
+            COALESCE(SUM(l.status = 'active' AND NOT EXISTS (SELECT 1 FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status = 'active')), 0) AS without_batch,
+            COALESCE(SUM((SELECT COUNT(*) FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status = 'active') >= 2), 0) AS multi_batch
        FROM learners l WHERE ${lWhere}`, lp.values);
   const batches = await queryOne(
-    `SELECT count(*) FILTER (WHERE b.status <> 'archived') AS total, count(*) FILTER (WHERE b.status = 'active') AS active,
-            count(*) FILTER (WHERE b.status = 'upcoming') AS upcoming, count(*) FILTER (WHERE b.status = 'completed') AS completed,
-            count(*) FILTER (WHERE b.status = 'archived') AS archived FROM batches b WHERE ${bWhere}`, bp.values);
+    `SELECT COALESCE(SUM(b.status <> 'archived'), 0) AS total, COALESCE(SUM(b.status = 'active'), 0) AS active,
+            COALESCE(SUM(b.status = 'upcoming'), 0) AS upcoming, COALESCE(SUM(b.status = 'completed'), 0) AS completed,
+            COALESCE(SUM(b.status = 'archived'), 0) AS archived FROM batches b WHERE ${bWhere}`, bp.values);
   const teachers = await queryOne(
     `SELECT count(*) AS n FROM users u WHERE u.org_id = $1 AND u.deleted_at IS NULL AND u.status = 'active'
-        AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.key = 'teacher')`, [orgId]);
+        AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.code = 'teacher')`, [orgId]);
   const memberships = await queryOne(
     `SELECT count(*) AS n FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id WHERE m.status = 'active' AND ${bWhere.replace('b.org_id = $1', 'b.org_id = $1')}`, bp.values);
   const topBatches = await query(
@@ -65,8 +65,9 @@ async function adminView(req: Request) {
             (SELECT count(*) FROM learner_batch_memberships m WHERE m.batch_id = b.id AND m.status = 'active') AS active_learners
        FROM batches b WHERE ${bWhere} AND b.status IN ('active','upcoming') ORDER BY active_learners DESC, b.name LIMIT 6`, bp.values);
   const trend = await query(
-    `SELECT to_char(date_trunc('month', l.created_at), 'YYYY-MM') AS month, count(*) AS learners
-       FROM learners l WHERE ${lWhere} AND l.created_at >= date_trunc('month', now()) - interval '5 months' GROUP BY 1 ORDER BY 1`, lp.values);
+    `SELECT DATE_FORMAT(l.created_at, '%Y-%m') AS month, COUNT(*) AS learners
+       FROM learners l WHERE ${lWhere} AND l.created_at >= DATE_SUB(DATE_FORMAT(NOW(), '%Y-%m-01'), INTERVAL 5 MONTH)
+      GROUP BY DATE_FORMAT(l.created_at, '%Y-%m') ORDER BY month`, lp.values);
   const recent = await query(
     `SELECT a.id, a.type, a.title, a.occurred_at, l.id AS learner_id, l.full_name, l.learner_code
        FROM learner_activity a JOIN learners l ON l.id = a.learner_id
@@ -100,18 +101,21 @@ async function teacherView(req: Request) {
 
 async function learnerBatches(ids: string[], orgId: string) {
   if (!ids.length) return [];
-  return query(
+  const p = new Params();
+  const rows = await query(
     `SELECT m.learner_id, b.id, b.name, b.batch_code, b.status, b.schedule, b.start_date, b.end_date, c.name AS course_name,
-            (SELECT json_agg(json_build_object('id', u.id, 'full_name', u.full_name, 'role', t.role) ORDER BY t.role)
+            (SELECT JSON_ARRAYAGG(JSON_OBJECT('id', u.id, 'full_name', u.full_name, 'role', t.role))
                FROM teacher_batch_memberships t JOIN users u ON u.id = t.teacher_user_id WHERE t.batch_id = b.id AND t.status = 'active') AS teachers
        FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id JOIN courses c ON c.id = b.course_id
-      WHERE m.learner_id = ANY($1::uuid[]) AND m.status = 'active' AND m.org_id = $2 AND b.status <> 'archived' ORDER BY b.name`, [ids, orgId]);
+      WHERE m.learner_id IN ${p.in(ids)} AND m.status = 'active' AND m.org_id = ${p.add(orgId)} AND b.status <> 'archived' ORDER BY b.name`, p.values);
+  return rows.map((r) => ({ ...r, teachers: [...(r.teachers ?? [])].sort((a: any, b: any) => (a.role === b.role ? 0 : a.role === 'lead' ? -1 : 1)) }));
 }
 
 async function childView(req: Request, ids: string[]) {
   const orgId = orgIdOf(req);
   const tz = await orgTz(orgId);
-  const learners = ids.length ? await query(`SELECT id, learner_code, full_name, status, photo_url, enrolled_on FROM learners WHERE id = ANY($1::uuid[]) AND org_id = $2 AND deleted_at IS NULL ORDER BY full_name`, [ids, orgId]) : [];
+  const lp = new Params();
+  const learners = ids.length ? await query(`SELECT id, learner_code, full_name, status, photo_url, enrolled_on FROM learners WHERE id IN ${lp.in(ids)} AND org_id = ${lp.add(orgId)} AND deleted_at IS NULL ORDER BY full_name`, lp.values) : [];
   const batches = await learnerBatches(ids, orgId);
   return learners.map((l) => {
     const bs = batches.filter((b) => b.learner_id === l.id);

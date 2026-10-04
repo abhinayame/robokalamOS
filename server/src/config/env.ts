@@ -4,7 +4,7 @@ import { z } from 'zod';
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required').refine((u) => /^mysql:\/\//.test(u), 'DATABASE_URL must look like mysql://user:password@host:3306/database'),
   DATABASE_SSL: z.enum(['true', 'false']).default('false'),
   DATABASE_POOL_MAX: z.coerce.number().default(10),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),

@@ -22,11 +22,13 @@ LMS · virtual classroom · student information system · gamification · parent
 
 ## Quick start (development)
 
-Requires Node 22+ and PostgreSQL 14+.
+Requires Node 22+ and MySQL 8 or MariaDB 10.6+.
 
 ```bash
 npm install
-createdb rk_dev                                  # and a role, see server/.env.example
+# create a MySQL/MariaDB database and user (utf8mb4), e.g.:
+#   CREATE DATABASE rk_dev CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+#   CREATE USER 'rk'@'localhost' IDENTIFIED BY '…'; GRANT ALL ON rk_dev.* TO 'rk'@'localhost';
 cp server/.env.example server/.env               # set DATABASE_URL + JWT_SECRET
 npm run migrate                                  # apply SQL migrations
 npm run seed -w server                           # platform super admin from SUPER_ADMIN_* env
@@ -41,9 +43,9 @@ Scale test: `npm run seed:large -w server -- robokalam-demo 100000`.
 ## Tests
 
 ```bash
-# needs a database whose name ends in _test (it is wiped on every run)
-createdb rk_test
-npm test                 # 52 API/integration tests against real PostgreSQL
+# needs a MySQL/MariaDB database whose name ends in _test (it is DROPPED and recreated every run)
+# TEST_DATABASE_URL=mysql://rk:…@127.0.0.1:3306/rk_test   (the user needs CREATE/DROP rights)
+npm test                 # 52 API/integration tests against a real MySQL/MariaDB
 npm run typecheck        # server + web
 npx newman run postman/robokalam-learner-os.postman_collection.json \
   -e postman/robokalam-learner-os.postman_environment.json --env-var SUPER_ADMIN_PASSWORD=…
@@ -58,4 +60,4 @@ npm ci && npm run build
 npm run migrate:prod -w server && npm run seed:prod -w server
 node server/dist/server.js          # serves API + built web app
 ```
-Full instructions: [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+Full Hostinger instructions (hPanel Git deploy and VPS): [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).

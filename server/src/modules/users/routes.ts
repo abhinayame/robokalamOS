@@ -1,6 +1,6 @@
 import { Router, type Request } from 'express';
 import { z } from 'zod';
-import { Params, query, queryOne, tx } from '../../db/pool.js';
+import { Params, exec, newId, query, queryOne, tx } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { ok, paging, parse, uuid, wrap } from '../../lib/http.js';
@@ -38,8 +38,8 @@ const router = Router();
 router.use(['/teachers', '/users'], requireOrg);
 
 const userFields = `u.id, u.email, u.full_name, u.mobile, u.status, u.last_login_at, u.created_at,
-  COALESCE((SELECT json_agg(json_build_object('role', r.key, 'branch_id', ur.branch_id) ORDER BY r.key)
-              FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id), '[]'::json) AS roles`;
+  COALESCE((SELECT JSON_ARRAYAGG(JSON_OBJECT('role', r.code, 'branch_id', ur.branch_id))
+              FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id), JSON_ARRAY()) AS roles`;
 
 async function listStaff(req: Request, onlyRole?: string) {
   const q = parse(paging.extend({
@@ -51,15 +51,15 @@ async function listStaff(req: Request, onlyRole?: string) {
   const where = [`u.org_id = ${p.add(orgIdOf(req))}`, `u.deleted_at IS NULL`];
   const role = onlyRole ?? q.role;
   where.push(role
-    ? `EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.key = ${p.add(role)})`
-    : `EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.key = ANY(${p.add(STAFF_ROLES as unknown as string[])}))`);
+    ? `EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.code = ${p.add(role)})`
+    : `EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.code IN ${p.in(STAFF_ROLES)})`);
   if (q.status) where.push(`u.status = ${p.add(q.status)}`);
-  if (q.q) { const s = p.add(`%${q.q}%`); where.push(`(u.full_name ILIKE ${s} OR u.email ILIKE ${s} OR u.mobile ILIKE ${s})`); }
+  if (q.q) { const s = p.add(`%${q.q}%`); where.push(`(u.full_name LIKE ${s} OR u.email LIKE ${s} OR u.mobile LIKE ${s})`); }
   const total = (await queryOne(`SELECT count(*) AS n FROM users u WHERE ${where.join(' AND ')}`, p.values))!.n;
   const rows = await query(
     `SELECT ${userFields},
             (SELECT count(*) FROM teacher_batch_memberships t WHERE t.teacher_user_id = u.id AND t.status = 'active') AS active_batches
-       FROM users u WHERE ${where.join(' AND ')} ORDER BY lower(u.full_name), u.id
+       FROM users u WHERE ${where.join(' AND ')} ORDER BY u.full_name, u.id
       LIMIT ${q.page_size} OFFSET ${(q.page - 1) * q.page_size}`,
     p.values,
   );
@@ -85,15 +85,17 @@ async function createStaff(req: Request, forceRole?: z.infer<typeof roleGrant>) 
   if (problem) throw badRequest(problem);
   const hash = await hashPassword(password);
   const user = await tx(async (db) => {
-    if (await queryOne(`SELECT 1 FROM users WHERE lower(email) = $1 AND deleted_at IS NULL`, [body.email], db)) throw conflict('A user with this email already exists.', 'DUPLICATE');
-    const u = await queryOne(
-      `INSERT INTO users (org_id, email, mobile, password_hash, full_name, must_change_password) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id, email, full_name, mobile, status`,
-      [orgIdOf(req), body.email, mobile, hash, body.full_name, !body.password], db);
+    if (await queryOne(`SELECT 1 FROM users WHERE email = $1 AND deleted_at IS NULL`, [body.email], db)) throw conflict('A user with this email already exists.', 'DUPLICATE');
+    const id = newId();
+    await exec(
+      `INSERT INTO users (id, org_id, email, mobile, password_hash, full_name, must_change_password) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [id, orgIdOf(req), body.email, mobile, hash, body.full_name, !body.password], db);
     for (const g of grants) {
-      await query(`INSERT INTO user_roles (user_id, role_id, org_id, branch_id) SELECT $1, id, $2, $3 FROM roles WHERE key = $4`, [u!.id, orgIdOf(req), g.branch_id ?? null, g.role], db);
+      await exec(`INSERT INTO user_roles (id, user_id, role_id, org_id, branch_id) SELECT $1, $2, id, $3, $4 FROM roles WHERE code = $5`, [newId(), id, orgIdOf(req), g.branch_id ?? null, g.role], db);
     }
-    await audit({ orgId: orgIdOf(req), actor: req.user, action: 'user.created', entityType: 'user', entityId: u!.id, next: { email: u!.email, roles: grants }, req }, db);
-    return u!;
+    const u = { id, email: body.email, full_name: body.full_name, mobile, status: 'active' };
+    await audit({ orgId: orgIdOf(req), actor: req.user, action: 'user.created', entityType: 'user', entityId: id, next: { email: u.email, roles: grants }, req }, db);
+    return u;
   });
   return { ...user, roles: grants, ...(body.password ? {} : { temporary_password: password }) };
 }
@@ -110,7 +112,7 @@ router.get('/teachers/:id', requirePerm('teacher:read'), wrap(async (req, res) =
   const id = parse(uuid, req.params.id);
   const t = await queryOne(
     `SELECT ${userFields} FROM users u WHERE u.id = $1 AND u.org_id = $2 AND u.deleted_at IS NULL
-        AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.key = 'teacher')`,
+        AND EXISTS (SELECT 1 FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id AND r.code = 'teacher')`,
     [id, orgIdOf(req)]);
   if (!t) throw notFound('Teacher');
   const batches = await query(
@@ -145,11 +147,12 @@ router.patch('/users/:id', requirePerm('user:manage'), wrap(async (req, res) => 
     if (body.mobile && !mobile) throw badRequest('Enter a valid 10 digit Indian mobile number.');
   }
   const row = await tx(async (db) => {
-    const r = await queryOne(
-      `UPDATE users SET full_name = COALESCE($3, full_name), mobile = CASE WHEN $4::boolean THEN $5 ELSE mobile END, status = COALESCE($6, status)
-        WHERE id = $1 AND org_id = $2 RETURNING id, email, full_name, mobile, status`,
+    await exec(
+      `UPDATE users SET full_name = COALESCE($3, full_name), mobile = CASE WHEN $4 THEN $5 ELSE mobile END, status = COALESCE($6, status)
+        WHERE id = $1 AND org_id = $2`,
       [id, orgIdOf(req), body.full_name ?? null, mobile !== undefined, mobile ?? null, body.status ?? null], db);
-    if (body.status === 'disabled') await query(`UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [id], db);
+    const r = await queryOne(`SELECT id, email, full_name, mobile, status FROM users WHERE id = $1`, [id], db);
+    if (body.status === 'disabled') await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE user_id = $1 AND revoked_at IS NULL`, [id], db);
     await audit({ orgId: orgIdOf(req), actor: req.user, action: 'user.updated', entityType: 'user', entityId: id, previous: prev, next: r, req }, db);
     return r;
   });
@@ -165,11 +168,12 @@ router.put('/users/:id/roles', requirePerm('user:manage'), wrap(async (req, res)
   const result = await tx(async (db) => {
     const target = await queryOne(`SELECT id FROM users WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL FOR UPDATE`, [id, orgIdOf(req)], db);
     if (!target) throw notFound('User');
-    const prev = await query(`SELECT r.key AS role, ur.branch_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1`, [id], db);
+    const prev = await query(`SELECT r.code AS role, ur.branch_id FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1`, [id], db);
     // Roles outside the staff set (learner/parent portal roles) are never touched here.
-    await query(`DELETE FROM user_roles WHERE user_id = $1 AND role_id IN (SELECT id FROM roles WHERE key = ANY($2))`, [id, STAFF_ROLES as unknown as string[]], db);
+    const sp = new Params();
+    await exec(`DELETE FROM user_roles WHERE user_id = ${sp.add(id)} AND role_id IN (SELECT id FROM roles WHERE code IN ${sp.in(STAFF_ROLES)})`, sp.values, db);
     for (const g of roles) {
-      await query(`INSERT INTO user_roles (user_id, role_id, org_id, branch_id) SELECT $1, id, $2, $3 FROM roles WHERE key = $4`, [id, orgIdOf(req), g.branch_id ?? null, g.role], db);
+      await exec(`INSERT INTO user_roles (id, user_id, role_id, org_id, branch_id) SELECT $1, $2, id, $3, $4 FROM roles WHERE code = $5`, [newId(), id, orgIdOf(req), g.branch_id ?? null, g.role], db);
     }
     await audit({ orgId: orgIdOf(req), actor: req.user, action: 'permission.changed', entityType: 'user', entityId: id, previous: prev, next: roles, req }, db);
     return roles;
@@ -183,8 +187,8 @@ router.post('/users/:id/reset-password', requirePerm('user:manage'), wrap(async 
   if (!u) throw notFound('User');
   const pw = generatePassword();
   await tx(async (db) => {
-    await query(`UPDATE users SET password_hash = $2, must_change_password = true, failed_login_count = 0, locked_until = NULL WHERE id = $1`, [id, await hashPassword(pw)], db);
-    await query(`UPDATE auth_sessions SET revoked_at = now() WHERE user_id = $1 AND revoked_at IS NULL`, [id], db);
+    await exec(`UPDATE users SET password_hash = $2, must_change_password = TRUE, failed_login_count = 0, locked_until = NULL WHERE id = $1`, [id, await hashPassword(pw)], db);
+    await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE user_id = $1 AND revoked_at IS NULL`, [id], db);
     await audit({ orgId: orgIdOf(req), actor: req.user, action: 'user.password_reset', entityType: 'user', entityId: id, req }, db);
   });
   ok(res, { id, temporary_password: pw });

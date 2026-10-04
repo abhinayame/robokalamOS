@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query, queryOne } from '../../db/pool.js';
+import { exec, newId, query, queryOne } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { conflict, notFound } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
@@ -36,14 +36,14 @@ function crud(table: 'branches' | 'programs' | 'courses', label: string, extra: 
       const prog = await queryOne(`SELECT 1 FROM programs WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [body.program_id, orgIdOf(req)]);
       if (!prog) throw notFound('Program');
     }
-    let row;
+    const id = newId();
     try {
-      row = await queryOne(
-        `INSERT INTO ${table} (${cols.join(',')}) VALUES (${cols.map((_, i) => `$${i + 1}`).join(',')}) RETURNING *`, vals);
+      await exec(`INSERT INTO ${table} (id, ${cols.join(',')}) VALUES ($1, ${cols.map((_, i) => `$${i + 2}`).join(',')})`, [id, ...vals]);
     } catch (e: any) {
-      if (e.code === '23505') throw conflict(`A ${label} with this code already exists.`, 'DUPLICATE');
+      if (e.errno === 1062) throw conflict(`A ${label} with this code already exists.`, 'DUPLICATE');
       throw e;
     }
+    const row = await queryOne(`SELECT * FROM ${table} WHERE id = $1`, [id]);
     await audit({ orgId: orgIdOf(req), actor: req.user, action: `${label}.created`, entityType: label, entityId: row!.id, next: row, req });
     ok(res, row, undefined, 201);
   }));
@@ -55,15 +55,14 @@ function crud(table: 'branches' | 'programs' | 'courses', label: string, extra: 
     if (!keys.length) return ok(res, await queryOne(`SELECT * FROM ${table} WHERE id = $1 AND org_id = $2`, [id, orgIdOf(req)]));
     const prev = await queryOne(`SELECT * FROM ${table} WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [id, orgIdOf(req)]);
     if (!prev) throw notFound(label);
-    let row;
     try {
-      row = await queryOne(
-        `UPDATE ${table} SET ${keys.map((k, i) => `${k} = $${i + 3}`).join(',')} WHERE id = $1 AND org_id = $2 RETURNING *`,
+      await exec(`UPDATE ${table} SET ${keys.map((k, i) => `${k} = $${i + 3}`).join(',')} WHERE id = $1 AND org_id = $2`,
         [id, orgIdOf(req), ...keys.map((k) => body[k])]);
     } catch (e: any) {
-      if (e.code === '23505') throw conflict(`A ${label} with this code already exists.`, 'DUPLICATE');
+      if (e.errno === 1062) throw conflict(`A ${label} with this code already exists.`, 'DUPLICATE');
       throw e;
     }
+    const row = await queryOne(`SELECT * FROM ${table} WHERE id = $1`, [id]);
     await audit({ orgId: orgIdOf(req), actor: req.user, action: `${label}.updated`, entityType: label, entityId: id, previous: prev, next: row, req });
     ok(res, row);
   }));
