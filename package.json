@@ -2,14 +2,19 @@
   "name": "robokalam-learner-os",
   "private": true,
   "version": "0.1.0",
-  "description": "Robokalam Learner OS — One Operating System for Every Learner.",
-  "workspaces": ["server", "web"],
-  "engines": { "node": ">=20" },
+  "description": "Robokalam Learner OS \u2014 One Operating System for Every Learner.",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "dev:server": "npm run dev -w server",
     "dev:web": "npm run dev -w web",
-    "build": "npm run build -w server && npm run build -w web",
-    "start": "npm run start -w server",
+    "build": "npm install --include=dev --no-audit --no-fund && npm run build -w server && npm run build -w web",
+    "start": "npm run migrate:prod -w server && (npm run seed:prod -w server || true) && node server/dist/server.js",
     "migrate": "npm run migrate -w server",
     "test": "npm run test -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
