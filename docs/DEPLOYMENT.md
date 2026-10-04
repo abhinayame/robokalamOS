@@ -26,10 +26,10 @@ Pick the repository and use the **Review build settings** page like this:
 | Root directory | `./` |
 | Install command | `npm ci --include=dev` |
 | Build command | `npm run build` |
-| Start command | `npm run migrate:prod -w server && (npm run seed:prod -w server \|\| true) && node server/dist/server.js` |
+| Start command | `npm start` (or entry file `server.js`) |
 | Output directory | leave blank (the Node server serves the web app itself); if required, `web/dist` |
 
-The start command applies pending database migrations on every start and creates the platform owner login once (the seed is idempotent and skipped if the owner already exists).
+On every start the server applies pending database migrations and creates the platform owner login once, then listens (both steps are idempotent; set `AUTO_MIGRATE=false` to run them by hand with `npm run migrate:prod -w server`). The repo root has a `server.js` entry file and a `start` script, so any way the host launches the app works.
 
 ### 3. Environment variables (same page → Environment variables → Add)
 
@@ -67,7 +67,6 @@ SQL
 git clone https://github.com/abhinayame/robokalamos /var/www/robokalam && cd /var/www/robokalam
 cp server/.env.example server/.env && chmod 600 server/.env && nano server/.env     # same variables as the table above
 npm ci && npm run build
-npm run migrate:prod -w server && npm run seed:prod -w server
 pm2 start server/dist/server.js --name robokalam --cwd server && pm2 save && pm2 startup
 ```
 
