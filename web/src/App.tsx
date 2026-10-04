@@ -4,6 +4,7 @@ import Layout from './components/Layout';
 import { Skeleton } from './components/ui';
 import Account from './pages/Account';
 import Audit from './pages/Audit';
+import SystemStatus from './pages/SystemStatus';
 import BatchDetail from './pages/BatchDetail';
 import Batches from './pages/Batches';
 import Catalog from './pages/Catalog';
@@ -77,6 +78,7 @@ export default function App() {
         <Route path="teachers" element={<Guard perm="teacher:read"><Teachers /></Guard>} />
         <Route path="settings/catalog" element={<Guard perm="catalog:read"><Catalog /></Guard>} />
         <Route path="settings/users" element={<Guard perm="user:manage"><Users /></Guard>} />
+        <Route path="settings/system" element={<Guard perm="system:read"><SystemStatus /></Guard>} />
         <Route path="settings/audit" element={<Guard perm="audit:read"><Audit /></Guard>} />
         <Route path="organizations" element={<Guard roles={['super_admin']}><Organizations /></Guard>} />
         <Route path="account" element={<Account />} />

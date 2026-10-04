@@ -13,6 +13,7 @@
     "seed:prod": "node dist/scripts/seed.js",
     "seed:demo": "RATE_LIMIT_MAX=1000000 tsx dev/seed-demo.ts",
     "seed:large": "tsx dev/seed-large.ts",
+    "seed:perf": "tsx dev/seed-perf.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "backup": "tsx src/scripts/backup.ts",

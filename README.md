@@ -11,13 +11,21 @@ LMS · virtual classroom · student information system · gamification · parent
 | Phase | Scope | State |
 |---|---|---|
 | **1 Foundation** | Organizations, auth, RBAC, teachers/learners/parents, master learner DB, Learner 360°, batches, learner/teacher memberships, batch selection + unique-learner calc, bulk assign/remove/status/export, role dashboards, audit log | ✅ implemented & tested |
-| 2–9 | Classroom, assessment, gamification, attendance & parent, CRM, communication (AiSensy WhatsApp), analytics, hardening | designed in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md), **not built yet** |
+| **2 Classroom** | Posts, topics, materials, assignments, submissions, uploads | ✅ [`PHASE-2`](docs/PHASE-2-CLASSROOM.md) |
+| **3 Assessment** | Scores with full history, quizzes, gradebook | ✅ [`PHASE-3`](docs/PHASE-3-ASSESSMENT.md) |
+| **4 Gamification** | XP ledger, badges, levels, leaderboard | ✅ [`PHASE-4`](docs/PHASE-4-GAMIFICATION.md) |
+| **5 Attendance & portal** | Class sessions, attendance, learner & parent portal | ✅ [`PHASE-5`](docs/PHASE-5-ATTENDANCE-PARENT.md) |
+| **6 CRM** | Leads, activities, follow-ups, tags | ✅ [`PHASE-6`](docs/PHASE-6-CRM.md) |
+| **7 Communication** | AiSensy WhatsApp campaigns, webhooks, announcements | ✅ [`PHASE-7`](docs/PHASE-7-COMMUNICATION.md) |
+| **8 Analytics** | Batch comparison, reports registry, CSV/XLSX export | ✅ [`PHASE-8`](docs/PHASE-8-ANALYTICS.md) |
+| **9 Production hardening** | Security audit, observability, system status, backups, performance, Postman, runbooks | ✅ [`PHASE-9`](docs/PHASE-9-HARDENING.md) |
 
 ## Documentation
 
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system, diagrams, ERD, API, RBAC matrix, selection/dedupe, WhatsApp, CRM, security, roadmap
 * [`docs/database/later-phases-schema.sql`](docs/database/later-phases-schema.sql) — full schema for phases 2–9 (validated against migration 001)
-* [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Hostinger Cloud runbook, SSL, backups, logging
+* [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Hostinger runbook, env vars, SSL, backups & restore drill, secret rotation, monitoring
+* [`docs/SECURITY.md`](docs/SECURITY.md) · [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — security model and operations playbook
 * [`postman/`](postman) — collection + environment (34 requests, 61 assertions)
 
 ## Quick start (development)
