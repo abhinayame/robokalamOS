@@ -13,11 +13,12 @@
   "scripts": {
     "dev:server": "npm run dev -w server",
     "dev:web": "npm run dev -w web",
-    "build": "npm install --include=dev --no-audit --no-fund && npm run build -w server && npm run build -w web",
+    "build": "npm install --include=dev --ignore-scripts --no-audit --no-fund && npm run build -w server && npm run build -w web",
     "start": "node server.js",
     "migrate": "npm run migrate -w server",
     "test": "npm run test -w server",
-    "typecheck": "npm run typecheck -w server && npm run typecheck -w web"
+    "typecheck": "npm run typecheck -w server && npm run typecheck -w web",
+    "postinstall": "node scripts/postinstall.cjs"
   },
   "main": "server.js",
   "dependencies": {
