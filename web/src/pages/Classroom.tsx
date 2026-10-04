@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { fmtDateTime } from '../format';
 import { FileLinks, FilePicker, type FileRef } from '../components/Files';
+import Grades from './Grades';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, StatusBadge, Tabs, fieldErrors, useAction, useFetch } from '../components/ui';
 
-type Tab = 'stream' | 'classwork' | 'people';
+type Tab = 'stream' | 'classwork' | 'grades' | 'people';
 const STATE_TONE: Record<string, string> = { upcoming: '', due: 'warn', completed: 'ok', late: 'bad', returned: 'warn' };
 
 export default function Classroom() {
@@ -18,9 +19,10 @@ export default function Classroom() {
         <PageHead title={r.name} sub={<>{r.course_name} · {r.program_name} · Teacher: {r.teachers.map((t: any) => t.full_name).join(', ') || 'Not assigned'}</>}
           actions={<><StatusBadge s={r.status} /><Link className="btn sm" to="/classroom">All classrooms</Link></>} />
         {!r.writable && <div className="banner warn" role="status" style={{ marginBottom: 12 }}>This batch is {r.status}, so its classroom is read-only.</div>}
-        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'people', label: 'People', badge: r.counts.learners }]} />
+        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'grades', label: 'Grades' }, { id: 'people', label: 'People', badge: r.counts.learners }]} />
         {tab === 'stream' && <Stream room={r} />}
         {tab === 'classwork' && <Classwork room={r} />}
+        {tab === 'grades' && <Grades room={r} />}
         {tab === 'people' && <People room={r} />}
       </>
     )}</Async>
@@ -111,20 +113,21 @@ function Comments({ room, postId, onChange }: { room: any; postId: string; onCha
 /* ------------------------------------------------------------------ Classwork */
 function Classwork({ room }: { room: any }) {
   const q = useFetch(() => api.get(`/api/classrooms/${room.id}/classwork`).then((r) => r.data), [room.id]);
-  const [modal, setModal] = useState<null | 'material' | 'assignment' | 'topic'>(null);
+  const [modal, setModal] = useState<null | 'material' | 'assignment' | 'topic' | 'quiz'>(null);
+  const quizzes = useFetch(() => api.get(`/api/quizzes?batch_id=${room.id}`).then((r) => r.data), [room.id]);
   const { run } = useAction();
   const canEdit = room.can_manage && room.writable;
   return (
     <Async q={q}>{(d: any) => {
       const groups = [...d.topics.map((t: any) => ({ ...t })), { id: null, title: 'No topic' }];
-      const done = () => { setModal(null); q.reload(); };
+      const done = () => { setModal(null); q.reload(); quizzes.reload(); };
       const delTopic = (id: string) => confirm('Delete this topic? Its items are kept under "No topic".') && run(async () => { await api.del(`/api/classrooms/${room.id}/topics/${id}`); q.reload(); }, 'Topic deleted');
       const move = (type: 'material' | 'assignment', id: string, topic_id: string | null) => run(async () => { await api.post(`/api/classrooms/${room.id}/classwork/reorder`, { items: [{ type, id, topic_id, position: 9999 }] }); q.reload(); }, 'Moved');
       const delItem = (type: 'materials' | 'assignments', id: string) => confirm('Delete this item?') && run(async () => { await api.del(`/api/classrooms/${room.id}/${type}/${id}`); q.reload(); }, 'Deleted');
       const total = d.materials.length + d.assignments.length;
       return (
         <div className="stack">
-          {canEdit && <div className="row wrap"><button className="btn primary" onClick={() => setModal('assignment')}>＋ Assignment</button><button className="btn" onClick={() => setModal('material')}>＋ Material</button><button className="btn" onClick={() => setModal('topic')}>＋ Topic</button></div>}
+          {canEdit && <div className="row wrap"><button className="btn primary" onClick={() => setModal('assignment')}>＋ Assignment</button><button className="btn" onClick={() => setModal('quiz')}>＋ Quiz</button><button className="btn" onClick={() => setModal('material')}>＋ Material</button><button className="btn" onClick={() => setModal('topic')}>＋ Topic</button></div>}
           {!total && !d.topics.length && <div className="card"><Empty icon="📚" title="No classwork yet">{canEdit ? 'Add materials and assignments for your class.' : 'Your teacher has not added classwork yet.'}</Empty></div>}
           {groups.map((g: any) => {
             const mats = d.materials.filter((m: any) => (m.topic_id ?? null) === g.id);
@@ -148,11 +151,41 @@ function Classwork({ room }: { room: any }) {
                   </div>))}
               </div>);
           })}
+          {(quizzes.data?.length ?? 0) > 0 && <div className="card"><div className="card-head"><h2>Quizzes</h2></div>{quizzes.data.map((z: any) => (
+            <Link key={z.id} to={`/quizzes/${z.id}`} className="m-card" style={{ alignItems: 'center', color: 'inherit' }}>
+              <div className="grow"><b>❓ {z.title}</b><div className="muted small">{z.question_count} questions · {z.total_marks} marks{z.time_limit_minutes ? ` · ${z.time_limit_minutes} min` : ''}{z.closes_at ? ` · closes ${fmtDateTime(z.closes_at)}` : ''}</div></div>
+              {room.can_manage ? <><Badge tone={z.published ? 'ok' : 'warn'}>{z.published ? 'Published' : 'Draft'}</Badge><Badge>{z.taken} taken</Badge></> : z.my?.attempts ? <Badge tone="ok">Best {z.my.best}/{z.my.max}</Badge> : <Badge>Not taken</Badge>}
+            </Link>))}</div>}
+          {modal === 'quiz' && <QuizModal batchId={room.id} topics={d.topics} onClose={() => setModal(null)} />}
           {modal === 'topic' && <TopicModal batchId={room.id} onClose={() => setModal(null)} onDone={done} />}
           {modal === 'material' && <MaterialModal batchId={room.id} topics={d.topics} onClose={() => setModal(null)} onDone={done} />}
           {modal === 'assignment' && <AssignmentModal batchId={room.id} topics={d.topics} onClose={() => setModal(null)} onDone={done} />}
         </div>);
     }}</Async>
+  );
+}
+
+function QuizModal({ batchId, topics, onClose }: { batchId: string; topics: any[]; onClose: () => void }) {
+  const nav = useNavigate();
+  const { busy, run } = useAction();
+  const [f, setF] = useState({ title: '', instructions: '', time: '', attempts: '1', opens: '', closes: '', reveal: false, topic_id: '' });
+  const [errs, setErrs] = useState<Record<string, string>>({});
+  const save = () => { setErrs({}); return run(async () => {
+    try { const r = await api.post('/api/quizzes', { batch_id: batchId, title: f.title, instructions: f.instructions || null, time_limit_minutes: f.time ? Number(f.time) : null, max_attempts: Number(f.attempts) || 1, opens_at: f.opens ? new Date(f.opens).toISOString() : null, closes_at: f.closes ? new Date(f.closes).toISOString() : null, reveal_answers: f.reveal, topic_id: f.topic_id || null }); nav(`/quizzes/${r.data.id}`); }
+    catch (e) { setErrs(fieldErrors(e)); throw e; } }).catch(() => {}); };
+  return (
+    <Modal wide title="New quiz" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy} onClick={save}>Create & add questions</button></>}>
+      <div className="form-grid">
+        <Field label="Title" error={errs.title} className="full"><input className="input" autoFocus maxLength={255} value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></Field>
+        <Field label="Instructions" className="full"><textarea className="textarea" value={f.instructions} onChange={(e) => setF({ ...f, instructions: e.target.value })} /></Field>
+        <Field label="Time limit (minutes, optional)"><input className="input" type="number" min={1} value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} /></Field>
+        <Field label="Attempts allowed"><input className="input" type="number" min={1} max={20} value={f.attempts} onChange={(e) => setF({ ...f, attempts: e.target.value })} /></Field>
+        <Field label="Opens (optional)"><input className="input" type="datetime-local" value={f.opens} onChange={(e) => setF({ ...f, opens: e.target.value })} /></Field>
+        <Field label="Closes (optional)" error={errs.closes_at}><input className="input" type="datetime-local" value={f.closes} onChange={(e) => setF({ ...f, closes: e.target.value })} /></Field>
+        <Field label="Topic"><select className="select" value={f.topic_id} onChange={(e) => setF({ ...f, topic_id: e.target.value })}><option value="">No topic</option>{topics.map((t) => <option key={t.id} value={t.id}>{t.title}</option>)}</select></Field>
+        <label className="row small"><input type="checkbox" checked={f.reveal} onChange={(e) => setF({ ...f, reveal: e.target.checked })} /> Show correct answers after submitting</label>
+      </div>
+    </Modal>
   );
 }
 

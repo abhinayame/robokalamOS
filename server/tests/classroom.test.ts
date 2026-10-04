@@ -160,12 +160,12 @@ describe('assignments & submissions', () => {
     expect((await parent.get(`/api/submissions/${id}`)).status).toBe(200);
     expect((await t2.get(`/api/submissions/${id}`)).status).toBe(404);
     // review
-    expect((await rv.post(`/api/submissions/${id}/review`, { action: 'evaluate' })).status).toBe(404);
+    expect((await rv.post(`/api/submissions/${id}/review`, { action: 'evaluate', score: 10 })).status).toBe(404);
     expect((await t1.post(`/api/submissions/${id}/review`, { action: 'return' })).status).toBe(400);
     expect((await t1.post(`/api/submissions/${id}/review`, { action: 'return', feedback: 'Add wiring photo' })).body.data.status).toBe('returned');
     expect((await rv.get(`/api/assignments/${assignmentId}`)).body.data.can_submit).toBe(true);
     expect((await put(rv, { body: 'fixed', submit: true })).body.data.status).toBe('submitted');
-    expect((await t1.post(`/api/submissions/${id}/review`, { action: 'evaluate', feedback: 'Great' })).body.data.status).toBe('evaluated');
+    expect((await t1.post(`/api/submissions/${id}/review`, { action: 'evaluate', feedback: 'Great', score: 40 })).body.data.status).toBe('evaluated');
     expect((await put(rv, { body: 'too late', submit: true })).status).toBe(409);
     const sub = (await rv.get(`/api/submissions/${id}`)).body.data;
     expect(sub.version).toBe(2); expect(sub.feedback).toBe('Great');
@@ -181,7 +181,7 @@ describe('assignments & submissions', () => {
     expect(b.status).toBe(409);
     const open = await rv.get(`/api/assignments/${assignmentId}`);
     expect(open.body.data.can_submit).toBe(false);
-    expect((await t1.post(`/api/submissions/${s.body.data.id}/review`, { action: 'evaluate' })).status).toBe(200);   // reviewing stays possible
+    expect((await t1.post(`/api/submissions/${s.body.data.id}/review`, { action: 'evaluate', score: 10 })).status).toBe(200);   // reviewing stays possible
     await w.admin.patch(`/api/batches/${w.batches.roboA}`, { status: 'active' });
   });
   it('deleting an assignment hides it everywhere', async () => {

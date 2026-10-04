@@ -47,7 +47,7 @@ function LearnerPanel({ a, onChange }: { a: any; onChange: () => void }) {
     <div className="card card-pad stack">
       <h2 style={{ margin: 0 }}>Your work</h2>
       {s && s.status !== 'draft' ? <>
-        <div className="row wrap"><Badge tone={TONE[s.status]}>{cap(s.status)}</Badge>{s.submitted_at && <span className="muted small">Submitted {fmtDateTime(s.submitted_at)}</span>}</div>
+        <div className="row wrap"><Badge tone={TONE[s.status]}>{cap(s.status)}</Badge>{s.score != null && <b>Score {s.score}/{a.max_marks}</b>}{s.submitted_at && <span className="muted small">Submitted {fmtDateTime(s.submitted_at)}</span>}</div>
         {s.body && <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{s.body}</p>}
         {s.link_url && <a href={s.link_url} target="_blank" rel="noopener noreferrer nofollow">{s.link_url}</a>}
         <FileLinks files={s.files} />
@@ -85,7 +85,7 @@ function TeacherPanel({ a, onChange }: { a: any; onChange: () => void }) {
         <Async q={q} empty={(d: any[]) => !d.length}>{(rows: any[]) => rows.length ? rows.map((r) => (
           <div className="m-card" key={r.learner_id} style={{ alignItems: 'center' }}>
             <div className="grow"><Link to={`/learners/${r.learner_id}`}>{r.full_name}</Link><div className="muted small">{r.learner_code}{r.submitted_at ? ` · ${fmtDateTime(r.submitted_at)}` : ''}</div></div>
-            <Badge tone={TONE[r.status]}>{cap(r.status)}</Badge>
+            {r.score != null && <b>{r.score}/{a.max_marks}</b>}<Badge tone={TONE[r.status]}>{cap(r.status)}</Badge>
             {r.submission_id && r.status !== 'not_submitted' && <button className="btn sm" onClick={() => setReview(r.submission_id)}>{['submitted', 'late'].includes(r.status) ? 'Review' : 'View'}</button>}
           </div>)) : <Empty icon="📭" title="No learners match">Try a different filter.</Empty>}</Async>
       </div>
@@ -97,18 +97,26 @@ function TeacherPanel({ a, onChange }: { a: any; onChange: () => void }) {
 function ReviewModal({ id, onClose, onDone }: { id: string; onClose: () => void; onDone: () => void }) {
   const q = useFetch(() => api.get(`/api/submissions/${id}`).then((r) => r.data), [id]);
   const [fb, setFb] = useState<string | null>(null);
+  const [score, setScore] = useState<string | null>(null);
+  const [err, setErr] = useState('');
   const { busy, run } = useAction();
-  const act = (action: 'evaluate' | 'return') => run(async () => { await api.post(`/api/submissions/${id}/review`, { action, feedback: (fb ?? q.data?.feedback) || null }); onDone(); }, action === 'evaluate' ? 'Marked evaluated' : 'Returned to learner');
+  const act = (action: 'evaluate' | 'return') => {
+    setErr('');
+    const sv = score ?? (q.data?.score == null ? '' : String(q.data.score));
+    if (action === 'evaluate' && (sv === '' || Number.isNaN(Number(sv)) || Number(sv) < 0 || Number(sv) > q.data.max_marks)) { setErr(`Enter a score from 0 to ${q.data.max_marks}.`); return; }
+    return run(async () => { await api.post(`/api/submissions/${id}/review`, { action, feedback: (fb ?? q.data?.feedback) || null, ...(action === 'evaluate' ? { score: Number(sv) } : {}) }); onDone(); }, action === 'evaluate' ? 'Scored and marked evaluated' : 'Returned to learner');
+  };
   const s = q.data;
   return (
     <Modal wide title={s ? `${s.learner.name} · ${s.assignment_title}` : 'Submission'} onClose={onClose}
-      footer={s?.can_review ? <><button className="btn" disabled={busy} onClick={() => act('return')}>Return for changes</button><button className="btn primary" disabled={busy} onClick={() => act('evaluate')}>Mark evaluated</button></> : undefined}>
+      footer={s?.can_review ? <><button className="btn" disabled={busy} onClick={() => act('return')}>Return for changes</button><button className="btn primary" disabled={busy} onClick={() => act('evaluate')}>Score & mark evaluated</button></> : undefined}>
       <Async q={q}>{(s: any) => (
         <div className="stack">
-          <div className="row wrap"><Badge tone={TONE[s.status]}>{cap(s.status)}</Badge><span className="muted small">Submitted {fmtDateTime(s.submitted_at)} · version {s.version}</span></div>
+          <div className="row wrap"><Badge tone={TONE[s.status]}>{cap(s.status)}</Badge>{s.score != null && <b>{s.score}/{s.max_marks}</b>}<span className="muted small">Submitted {fmtDateTime(s.submitted_at)} · version {s.version}</span></div>
           {s.body ? <p style={{ whiteSpace: 'pre-wrap', margin: 0 }}>{s.body}</p> : <span className="muted">No written answer.</span>}
           {s.link_url && <a href={s.link_url} target="_blank" rel="noopener noreferrer nofollow">{s.link_url}</a>}
           <FileLinks files={s.files} />
+          {s.can_review && <Field label={`Score (out of ${s.max_marks})`} error={err}><input className="input" type="number" min={0} max={s.max_marks} style={{ maxWidth: 140 }} value={score ?? s.score ?? ''} onChange={(e) => setScore(e.target.value)} /></Field>}
           {s.can_review && <Field label="Feedback to learner" hint="Required when returning work for changes."><textarea className="textarea" value={fb ?? s.feedback ?? ''} onChange={(e) => setFb(e.target.value)} /></Field>}
         </div>)}</Async>
     </Modal>

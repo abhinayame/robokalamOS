@@ -14,6 +14,7 @@ import Login from './pages/Login';
 import Classrooms from './pages/Classrooms';
 import Classroom from './pages/Classroom';
 import Assignment from './pages/Assignment';
+import QuizPage from './pages/QuizPage';
 import MyAssignments from './pages/MyAssignments';
 import MyClasses from './pages/MyClasses';
 import Organizations from './pages/Organizations';
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="classroom" element={<Guard perm="classroom:read"><Classrooms /></Guard>} />
         <Route path="classroom/:batchId" element={<Guard perm="classroom:read"><Classroom /></Guard>} />
         <Route path="assignments" element={<Guard roles={['learner', 'parent']}><MyAssignments /></Guard>} />
+        <Route path="quizzes/:id" element={<Guard perm="classroom:read"><QuizPage /></Guard>} />
         <Route path="assignments/:id" element={<Guard perm="classroom:read"><Assignment /></Guard>} />
         <Route path="teachers" element={<Guard perm="teacher:read"><Teachers /></Guard>} />
         <Route path="settings/catalog" element={<Guard perm="catalog:read"><Catalog /></Guard>} />
