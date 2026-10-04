@@ -29,6 +29,7 @@ LMS · virtual classroom · student information system · gamification · parent
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system, diagrams, ERD, API, RBAC matrix, selection/dedupe, WhatsApp, CRM, security, roadmap
 * [`docs/database/later-phases-schema.sql`](docs/database/later-phases-schema.sql) — full schema for phases 2–9 (validated against migration 001)
 * [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Hostinger runbook, env vars, SSL, backups & restore drill, secret rotation, monitoring
+* [`docs/Robokalam-Learner-OS-Developer-Guide.pptx`](docs/Robokalam-Learner-OS-Developer-Guide.pptx) — 29-slide step-by-step onboarding deck for junior developers
 * [`docs/SECURITY.md`](docs/SECURITY.md) · [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — security model and operations playbook
 * [`postman/`](postman) — collection + environment (34 requests, 61 assertions)
 
@@ -57,7 +58,7 @@ Scale test: `npm run seed:large -w server -- robokalam-demo 100000`.
 ```bash
 # needs a MySQL/MariaDB database whose name ends in _test (it is DROPPED and recreated every run)
 # TEST_DATABASE_URL=mysql://rk:…@127.0.0.1:3306/rk_test   (the user needs CREATE/DROP rights)
-npm test                 # 52 API/integration tests against a real MySQL/MariaDB
+npm test                 # 158 API/integration tests against a real MySQL/MariaDB
 npm run typecheck        # server + web
 npx newman run postman/robokalam-learner-os.postman_collection.json \
   -e postman/robokalam-learner-os.postman_environment.json --env-var SUPER_ADMIN_PASSWORD=…
