@@ -6,6 +6,9 @@ import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { learnerScope } from '../../lib/scope.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { attendancePct } from '../attendance/time.js';
+import { batchMetrics, needsAttention } from './metrics.js';
+import { openRoom } from '../classroom/access.js';
+import { batchScope } from '../../lib/scope.js';
 import { batchVisibility } from '../attendance/routes.js';
 
 const router = Router();
@@ -79,6 +82,39 @@ router.get('/learner', wrap(async (req, res) => {
   const course_progress = [...courses.values()].map((c) => ({ ...c, pct: pctOf(c.assignments_done + c.sessions_attended, c.assignments_total + c.sessions_held), basis: 'assignments handed in + classes attended, out of assignments set + classes held' }));
   const all = assignment_completion.reduce((a, b) => ({ done: a.done + b.done, total: a.total + b.total }), { done: 0, total: 0 });
   ok(res, { learner_id: lid, months, performance, attendance, xp, badges, assignment_completion, assignment_completion_overall: { ...all, pct: pctOf(all.done, all.total) }, course_progress });
+}));
+
+
+// ------------------------------------------------------------------ batch analytics (teachers of the batch and admins)
+const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+router.get('/batch/:id', requirePerm('report:read'), wrap(async (req, res) => {
+  const q = parse(z.object({ from: isoDate.optional(), to: isoDate.optional() }), req.query);
+  const room = await openRoom(req, parse(uuid, req.params.id));
+  if (!room.canManage) throw notFound('Classroom');           // learners and parents see the leaderboard, not class-wide analytics
+  const m = (await batchMetrics([room.batch.id], q)).get(room.batch.id)!;
+  const teachers = await query(`SELECT u.id, u.full_name, t.role FROM teacher_batch_memberships t JOIN users u ON u.id = t.teacher_user_id WHERE t.batch_id = $1 AND t.status = 'active' ORDER BY t.role = 'lead' DESC, u.full_name`, [room.batch.id]);
+  const monthly = await query(`SELECT DATE_FORMAT(s.starts_at, '%Y-%m') AS month, SUM(a.status = 'present') AS present, SUM(a.status = 'late') AS late, SUM(a.status = 'absent') AS absent FROM attendance a JOIN class_sessions s ON s.id = a.session_id WHERE a.batch_id = $1 AND s.status <> 'cancelled' GROUP BY month ORDER BY month DESC LIMIT 12`, [room.batch.id]);
+  const dist = await queryOne(`SELECT COALESCE(SUM(p >= 85), 0) AS excellent, COALESCE(SUM(p >= 70 AND p < 85), 0) AS good, COALESCE(SUM(p >= 50 AND p < 70), 0) AS average, COALESCE(SUM(p < 50), 0) AS needs_attention
+      FROM (SELECT AVG(score / max_score * 100) AS p FROM scores WHERE batch_id = $1 AND deleted_at IS NULL GROUP BY learner_id) x`, [room.batch.id]);
+  ok(res, {
+    batch: { id: room.batch.id, name: room.batch.name, batch_code: room.batch.batch_code, status: room.batch.status }, teachers, metrics: m,
+    attendance_by_month: monthly.reverse().map((r) => { const c = { present: Number(r.present), late: Number(r.late), absent: Number(r.absent) }; return { month: r.month, pct: attendancePct(c), counted: c.present + c.late + c.absent }; }),
+    score_bands: { excellent: Number(dist!.excellent), good: Number(dist!.good), average: Number(dist!.average), needs_attention: Number(dist!.needs_attention) },
+    needs_attention: await needsAttention(room.batch.id),
+  });
+}));
+
+// ------------------------------------------------------------------ cross-batch comparison
+router.get('/compare', requirePerm('report:read'), wrap(async (req, res) => {
+  const q = parse(z.object({ batch_ids: z.string().min(1), from: isoDate.optional(), to: isoDate.optional() }), req.query);
+  const ids = [...new Set(q.batch_ids.split(',').map((x) => parse(uuid, x.trim())))];
+  if (ids.length < 2 || ids.length > 10) throw badRequest('Choose between 2 and 10 batches to compare.', [{ field: 'batch_ids', message: 'Pick 2 to 10 batches.' }]);
+  const p = new Params(); const sc = batchScope(req.user!, p, 'b');
+  const vis = await query(`SELECT b.id, b.name, b.batch_code, b.status, c.name AS course_name, pr.name AS program_name FROM batches b JOIN courses c ON c.id = b.course_id JOIN programs pr ON pr.id = b.program_id
+      WHERE b.org_id = ${p.add(orgIdOf(req))} AND b.deleted_at IS NULL AND b.id IN ${p.in(ids)} ${sc ? `AND ${sc}` : ''}`, p.values);
+  if (vis.length !== ids.length) throw notFound('Batch');
+  const ms = await batchMetrics(ids, q);
+  ok(res, ids.map((id) => ({ ...vis.find((v) => v.id === id)!, metrics: ms.get(id)! })), { from: q.from ?? null, to: q.to ?? null });
 }));
 
 export default router;

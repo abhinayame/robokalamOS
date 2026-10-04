@@ -3,7 +3,10 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { fmtDate, fmtDateTime, fmtNum, fmtSchedule } from '../format';
+import { BarRow } from '../components/Charts';
 import { Async, Avatar, Badge, Empty, PageHead, Progress, Stat, StatusBadge, Tabs, useFetch } from '../components/ui';
+
+const pct = (v: number | null | undefined) => (v == null ? '—' : `${v}%`);
 
 export default function Dashboard() {
   const { me, hasRole, activeOrg } = useAuth();
@@ -50,6 +53,19 @@ function AdminView({ d }: { d: any }) {
         <Stat label="Teachers" value={fmtNum(d.teachers)} />
         <Stat label="Active batch memberships" value={fmtNum(d.active_memberships)} sub={<>{fmtNum(d.learners.multi_batch)} learners in 2+ batches</>} />
       </div>
+      {d.kpis && <>
+        <div className="grid cols-4">
+          <Stat label="Attendance" value={pct(d.kpis.attendance_pct)} sub="Present or late, of marked classes" />
+          <Stat label="Average score" value={pct(d.kpis.avg_score_pct)} sub={`${fmtNum(d.kpis.scores_recorded)} scores recorded`} />
+          <Stat label="Waiting for evaluation" value={fmtNum(d.kpis.pending_evaluations)} />
+          <Stat label="Classes in the next 7 days" value={fmtNum(d.kpis.upcoming_classes_7d)} />
+          <Stat label="Total XP" value={fmtNum(d.kpis.total_xp)} />
+          <Stat label="Badges awarded" value={fmtNum(d.kpis.badges_awarded)} />
+          {d.kpis.crm && <Stat label="CRM leads" value={fmtNum(d.kpis.crm.leads)} sub={<Link to="/crm">{d.kpis.crm.open} open · {d.kpis.crm.converted} converted</Link>} />}
+          {d.kpis.campaigns && <Stat label="WhatsApp campaigns" value={fmtNum(d.kpis.campaigns.total)} sub={<Link to="/communication">{d.kpis.campaigns.active} running</Link>} />}
+        </div>
+        <div className="row wrap"><Link className="btn sm" to="/analytics">Compare batches</Link><Link className="btn sm" to="/reports">Reports</Link></div>
+      </>}
       {d.learners.without_batch > 0 && <div className="banner" style={{ borderRadius: 10, border: '1px solid var(--line)' }}>⚠️ {fmtNum(d.learners.without_batch)} active learners are not in any batch. <Link to="/learners?no_batch=true">Review them</Link></div>}
       <div className="grid cols-2">
         <div className="card"><div className="card-head"><h2>Fullest batches</h2><Link to="/batches" className="small">All batches</Link></div>
@@ -81,16 +97,39 @@ function TeacherView({ d }: { d: any }) {
       <div className="grid cols-4">
         <Stat label="My batches" value={d.my_batches.length} />
         <Stat label="My learners (unique)" value={fmtNum(d.unique_learners)} sub={<>{fmtNum(d.batch_memberships)} batch memberships</>} />
-        <Stat label="Classes today" value={d.today_classes.length} />
-        <Stat label="Next 7 days" value={d.today_classes.length + d.upcoming_classes.length} />
+        <Stat label="Waiting for evaluation" value={fmtNum(d.pending_evaluations_total)} />
+        <Stat label="Classes today" value={d.today_sessions.length || d.today_classes.length} />
+        <Stat label="Attendance" value={pct(d.attendance_pct)} />
+        <Stat label="Average score" value={pct(d.avg_score_pct)} />
+        <Stat label="Assignments" value={fmtNum(d.assignments_total)} />
+        <Stat label="Badges awarded (30 days)" value={fmtNum(d.badges_awarded_30d)} />
+      </div>
+      <div className="card card-pad"><b>Quick actions</b><div className="row wrap" style={{ marginTop: 8 }}>
+        {d.my_batches.length > 0 && <>
+          <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>＋ Assignment or material</Link><Link className="btn sm" to="/communication">Post announcement</Link>
+          <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Mark attendance</Link><Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Give score</Link><Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Award badge</Link></>}
+        {!d.my_batches.length && <span className="muted small">Quick actions appear once you are assigned to a batch.</span>}</div></div>
+      <div className="grid cols-2">
+        <div className="card"><div className="card-head"><h2>Today’s classes</h2></div>
+          {d.today_sessions.length ? d.today_sessions.map((c: any) => (
+            <div key={c.id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><Link to={`/classroom/${c.batch_id}`}><b>{c.batch_name}</b></Link><div className="muted small">{c.title ?? 'Class'} · {fmtDateTime(c.starts_at)}</div></div>
+              <Badge tone={c.marked ? 'ok' : 'warn'}>{c.marked ? `${c.marked} marked` : 'Attendance not marked'}</Badge>{c.meeting_url !== undefined || c.has_meeting ? <Badge>link set</Badge> : null}</div>))
+            : <Classes items={d.today_classes} title="Scheduled from batch timetable" />}</div>
+        <div className="card"><div className="card-head"><h2>Waiting for evaluation</h2></div>
+          {d.pending_evaluations.length ? d.pending_evaluations.map((a: any) => (
+            <Link key={a.assignment_id} to={`/assignments/${a.assignment_id}`} className="m-card" style={{ color: 'inherit', alignItems: 'center' }}><div className="grow"><b>{a.title}</b><div className="muted small">{a.batch_name} · oldest {fmtDateTime(a.oldest)}</div></div><Badge tone="warn">{a.n}</Badge></Link>))
+            : <Empty icon="✅" title="Nothing to evaluate">New hand-ins will appear here.</Empty>}</div>
       </div>
       <div className="grid cols-2">
-        <Classes items={d.today_classes} title="Today’s classes" />
+        <div className="card"><div className="card-head"><h2>Recent submissions</h2></div>
+          {d.recent_submissions.length ? d.recent_submissions.map((r: any) => (
+            <Link key={r.id} to={`/assignments/${r.assignment_id}`} className="m-card" style={{ color: 'inherit' }}><Avatar name={r.full_name} /><div className="grow"><b>{r.full_name}</b><div className="small">{r.title}</div><div className="muted small">{r.batch_name} · {fmtDateTime(r.submitted_at)}</div></div><StatusBadge s={r.status} /></Link>))
+            : <Empty icon="📥" title="No submissions yet" />}</div>
         <Classes items={d.upcoming_classes} title="Coming up" />
       </div>
       <div className="card"><div className="card-head"><h2>My batches</h2></div>
         {!d.my_batches.length ? <Empty icon="🗂️" title="No batches assigned yet">Your administrator will assign you to batches.</Empty> : d.my_batches.map((b: any) => (
-          <div key={b.id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><Link to={`/batches/${b.id}`}><b>{b.name}</b></Link><div className="muted small">{b.course_name} · {fmtSchedule(b.schedule)}</div></div><Badge>{b.active_learners} learners</Badge><StatusBadge s={b.status} /></div>))}
+          <div key={b.id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><Link to={`/classroom/${b.id}`}><b>{b.name}</b></Link><div className="muted small">{b.course_name} · {fmtSchedule(b.schedule)}</div></div><Badge>{b.active_learners} learners</Badge><StatusBadge s={b.status} /></div>))}
       </div>
     </>
   );
@@ -112,7 +151,26 @@ function ChildrenView({ d, parent }: { d: any; parent: boolean }) {
           <div><div className="l">Member since</div><div className="v" style={{ fontSize: 18 }}>{fmtDate(kid.enrolled_on)}</div></div>
         </div>
       </div>
-      <p className="muted small" style={{ margin: 0 }}>Scores, attendance, XP and badges will appear here as those features are switched on for your organization.</p>
+      {kid.progress && <div className="progress-card"><div className="l" style={{ marginBottom: 6 }}>MY PROGRESS</div>
+        <div className="grid cols-4">
+          <div><div className="l">XP</div><div className="v">{fmtNum(kid.progress.xp)}</div></div>
+          <div><div className="l">Level</div><div className="v" style={{ fontSize: 20 }}>{kid.progress.level}</div></div>
+          <div><div className="l">Badges</div><div className="v">{kid.progress.badges}</div></div>
+          <div><div className="l">Average score</div><div className="v">{pct(kid.progress.avg_score_pct)}</div></div>
+          <div><div className="l">Attendance</div><div className="v">{pct(kid.progress.attendance_pct)}</div></div>
+          <div><div className="l">Assignments</div><div className="v">{kid.progress.assignments.done}/{kid.progress.assignments.total}</div></div>
+          <div className="full" style={{ gridColumn: 'span 2' }}><BarRow label="Assignments completed" value={kid.progress.assignments.done} total={kid.progress.assignments.total} /></div></div>
+        <div className="muted small" style={{ marginTop: 6 }}>{kid.progress.next_level ? `${kid.progress.xp_to_next} XP to ${kid.progress.next_level}` : 'Top level reached'} · <Link to={parent ? '/portal' : '/achievements'}>{parent ? 'Open family portal' : 'My achievements'}</Link></div></div>}
+      {kid.progress && <div className="grid cols-2">
+        <div className="card"><div className="card-head"><h2>Pending assignments</h2><Link className="small" to="/assignments">All</Link></div>
+          {kid.progress.pending_assignments.length ? kid.progress.pending_assignments.map((a: any) => <Link key={a.id} to={`/assignments/${a.id}`} className="m-card" style={{ color: 'inherit' }}><div className="grow"><b>{a.title}</b><div className="muted small">{a.batch_name} · {a.due_at ? `due ${fmtDateTime(a.due_at)}` : 'no due date'}</div></div></Link>) : <Empty icon="🎉" title="All caught up" />}</div>
+        <div className="card"><div className="card-head"><h2>Recent scores</h2></div>
+          {kid.progress.recent_scores.length ? kid.progress.recent_scores.map((r: any, i: number) => <div key={i} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><b>{r.activity_name}</b><div className="muted small">{r.batch_name}</div></div><b>{r.score}/{r.max_score}</b></div>) : <Empty icon="📊" title="No scores yet" />}</div>
+        <div className="card"><div className="card-head"><h2>Upcoming classes</h2></div>
+          {kid.progress.upcoming_classes.length ? kid.progress.upcoming_classes.map((c: any) => <div key={c.id} className="m-card"><div className="grow"><b>{c.batch_name}</b><div className="muted small">{c.title ?? 'Class'} · {fmtDateTime(c.starts_at)}</div></div>{c.has_meeting && <Badge>Join link</Badge>}</div>) : <Empty icon="🗓️" title="No classes scheduled" />}</div>
+        <div className="card"><div className="card-head"><h2>Teacher feedback</h2></div>
+          {kid.progress.feedback.length ? kid.progress.feedback.map((f: any, i: number) => <div key={i} className="m-card"><div className="grow"><b>{f.title}</b><div>💬 {f.feedback}</div><div className="muted small">{f.by_teacher} · {fmtDate(f.at)}</div></div></div>) : <Empty icon="💬" title="No feedback yet" />}</div>
+      </div>}
       <div className="grid cols-2">
         <Classes items={kid.today_classes.length ? kid.today_classes : kid.upcoming_classes} title={kid.today_classes.length ? 'Today’s classes' : 'Upcoming classes'} />
         <div className="card"><div className="card-head"><h2>Batches</h2><Link className="small" to={`/learners/${kid.id}`}>Full profile</Link></div>

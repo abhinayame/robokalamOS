@@ -30,6 +30,7 @@ import { tagsRouter } from './modules/crm/tags.js';
 import whatsappRoutes from './modules/comms/routes.js';
 import webhookRoutes from './modules/comms/webhook.js';
 import announcementRoutes from './modules/comms/announcements.js';
+import reportRoutes from './modules/reports/routes.js';
 import fileRoutes from './modules/files/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 import learnerRoutes from './modules/learners/routes.js';
@@ -94,6 +95,7 @@ export function createApp() {
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/crm', crmRoutes);
   app.use('/api/whatsapp', whatsappRoutes);
+  app.use('/api/reports', reportRoutes);
   app.use('/api/announcements', announcementRoutes);
   app.use('/api/tags', tagsRouter);
   app.use('/api/scores', scoresRouter);

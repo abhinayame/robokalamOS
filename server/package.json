@@ -27,6 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "mysql2": "^3.24.5",
     "pino": "^10.4.0",
+    "write-excel-file": "^4.1.1",
     "zod": "^4.6.5"
   },
   "devDependencies": {

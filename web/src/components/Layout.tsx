@@ -25,6 +25,7 @@ const GROUPS: Group[] = [
   { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '📅', roles: ['learner', 'parent'] }] },
   { label: 'CRM', items: [{ to: '/crm', label: 'Leads', icon: '🎯', perm: 'crm:read', end: true }, { to: '/crm/follow-ups', label: 'Follow-ups', icon: '🔁', perm: 'crm:read' }] },
   { label: 'Communication', items: [{ to: '/communication', label: 'Communication', icon: '💬', perm: 'comms:announce' }] },
+  { label: 'Insights', items: [{ to: '/analytics', label: 'Compare batches', icon: '📈', perm: 'report:read' }, { to: '/reports', label: 'Reports', icon: '🧾', perm: 'report:read' }] },
   { label: 'People', items: [{ to: '/teachers', label: 'Teachers', icon: '🎓', perm: 'teacher:read' }] },
   { label: 'Settings', items: [
     { to: '/settings/catalog', label: 'Programs & Courses', icon: '📚', perm: 'catalog:read', roles: STAFF },

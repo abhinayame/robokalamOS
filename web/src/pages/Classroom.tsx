@@ -5,14 +5,16 @@ import { useAuth } from '../auth';
 import { fmtDateTime } from '../format';
 import { FileLinks, FilePicker, type FileRef } from '../components/Files';
 import Grades from './Grades';
+import { BatchInsights } from '../components/BatchInsights';
 import RoomAttendance from './Attendance';
 import { AwardBadgeModal, AwardXpModal, BadgeWall, Leaderboard, XpCard } from '../components/Gamify';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, StatusBadge, Tabs, fieldErrors, useAction, useFetch } from '../components/ui';
 
-type Tab = 'stream' | 'classwork' | 'attendance' | 'grades' | 'achievements' | 'people';
+type Tab = 'stream' | 'classwork' | 'attendance' | 'grades' | 'achievements' | 'insights' | 'people';
 const STATE_TONE: Record<string, string> = { upcoming: '', due: 'warn', completed: 'ok', late: 'bad', returned: 'warn' };
 
 export default function Classroom() {
+  const { can } = useAuth();
   const { batchId } = useParams();
   const [tab, setTab] = useState<Tab>('stream');
   const q = useFetch(() => api.get(`/api/classrooms/${batchId}`).then((r) => r.data), [batchId]);
@@ -22,12 +24,13 @@ export default function Classroom() {
         <PageHead title={r.name} sub={<>{r.course_name} · {r.program_name} · Teacher: {r.teachers.map((t: any) => t.full_name).join(', ') || 'Not assigned'}</>}
           actions={<><StatusBadge s={r.status} /><Link className="btn sm" to="/classroom">All classrooms</Link></>} />
         {!r.writable && <div className="banner warn" role="status" style={{ marginBottom: 12 }}>This batch is {r.status}, so its classroom is read-only.</div>}
-        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'attendance', label: 'Attendance' }, { id: 'grades', label: 'Grades' }, { id: 'achievements', label: 'Achievements' }, { id: 'people', label: 'People', badge: r.counts.learners }]} />
+        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'attendance', label: 'Attendance' }, { id: 'grades', label: 'Grades' }, { id: 'achievements', label: 'Achievements' }, ...(r.can_manage && can('report:read') ? [{ id: 'insights' as Tab, label: 'Insights' }] : []), { id: 'people', label: 'People', badge: r.counts.learners }]} />
         {tab === 'stream' && <Stream room={r} />}
         {tab === 'classwork' && <Classwork room={r} />}
         {tab === 'attendance' && <RoomAttendance room={r} />}
         {tab === 'grades' && <Grades room={r} />}
         {tab === 'achievements' && <RoomAchievements room={r} />}
+        {tab === 'insights' && <BatchInsights batchId={r.id} />}
         {tab === 'people' && <People room={r} />}
       </>
     )}</Async>
