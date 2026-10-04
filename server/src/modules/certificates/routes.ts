@@ -110,7 +110,8 @@ router.get('/', read, wrap(async (req, res) => {
   if (typeof req.query.design_id === 'string') w.push(`c.design_id = ${p.add(parse(uuid, req.query.design_id))}`);
   if (typeof req.query.q === 'string' && req.query.q.trim()) { const s = `%${req.query.q.trim().replace(/[%_\\]/g, '\\$&')}%`; w.push(`(c.recipient_name LIKE ${p.add(s)} OR c.code LIKE ${p.add(s)})`); }
   const pg = parse(paging, req.query); const lim = pg.page_size; const offset = (pg.page - 1) * lim;
-  ok(res, await query(`SELECT ${LIST_COLS} FROM certificates c JOIN learners l ON l.id = c.learner_id WHERE ${w.join(' AND ')} ORDER BY c.created_at DESC LIMIT ${lim} OFFSET ${offset}`, p.values));
+  const total = Number((await queryOne(`SELECT COUNT(*) AS n FROM certificates c JOIN learners l ON l.id = c.learner_id WHERE ${w.join(' AND ')}`, p.values))!.n);
+  ok(res, await query(`SELECT ${LIST_COLS} FROM certificates c JOIN learners l ON l.id = c.learner_id WHERE ${w.join(' AND ')} ORDER BY c.created_at DESC LIMIT ${lim} OFFSET ${offset}`, p.values), { page: pg.page, page_size: lim, total, total_pages: Math.max(1, Math.ceil(total / lim)) });
 }));
 router.get('/me', requireAnyPerm('portal:learner', 'portal:parent'), wrap(async (req, res) => {
   const ids = req.user!.access.ownLearnerIds; if (!ids.length) return ok(res, []);
@@ -134,7 +135,7 @@ router.get('/:id/pdf', requireAnyPerm('cert:read', 'portal:learner', 'portal:par
   const logo = design?.show_logo && org?.brand_logo_file_id ? (await queryOne(`SELECT data FROM files WHERE id = $1 AND org_id = $2 AND owner_type = 'branding' AND deleted_at IS NULL`, [org.brand_logo_file_id, orgId]))?.data : null;
   const verifyUrl = `${appUrl()}/verify/${c.code}`;
   const qr = await QRCode.toBuffer(verifyUrl, { margin: 1, width: 220 });
-  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margin: 50, info: { Title: `${c.title} - ${c.recipient_name}`, Author: org?.name ?? '' } });
+  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margins: { top: 50, left: 50, right: 50, bottom: 0 }, info: { Title: `${c.title} - ${c.recipient_name}`, Author: org?.name ?? '' } });
   res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="${c.code}.pdf"`); res.setHeader('Cache-Control', 'private, no-store');
   doc.pipe(res);
   const W = doc.page.width; const H = doc.page.height;

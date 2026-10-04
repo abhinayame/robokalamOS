@@ -55,6 +55,9 @@ Optional / feature variables:
 | `RAZORPAY_WEBHOOK_SECRET` | A secret you choose (8+ chars); enter the same value in Razorpay → Webhooks with URL `https://<domain>/api/webhooks/razorpay`, event *Payment Link: paid* |
 | `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET` | Zoom Server-to-Server OAuth app (see `PHASE-11-LIVE-CLASSES.md`). Empty = classes keep plain links, attendance stays manual |
 | `ZOOM_WEBHOOK_SECRET_TOKEN` | The event subscription's Secret Token (8+ chars); endpoint `https://<domain>/api/webhooks/zoom` |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASSWORD`, `SMTP_FROM` | Outgoing e-mail (password reset, e-mail reminders). Empty = e-mail stays off (see `PHASE-13-CERTIFICATES-CALENDAR-EMAIL.md`) |
+| `APP_URL` | Public address (e.g. `https://os.robokalam.in`) used in e-mail links, calendar feeds and certificate QR codes |
+| `EMAIL_WORKER` | `true` (default) runs the e-mail sender on this server |
 | `ZOOM_HOST_USER` | Optional: the host's e-mail (default: the account owner) |
 | `REMINDERS` | `true` (default) runs automatic reminders every 5 minutes; needs `COMMS_WORKER=true` |
 | `COMMS_WORKER` | `true` (default) runs the WhatsApp sender inside the app. Run it on exactly **one** instance |

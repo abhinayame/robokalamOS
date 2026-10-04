@@ -43,6 +43,10 @@ System Status → *Slowest routes* and the `slow query` warnings in logs (SQL te
 | "Create Zoom meeting" button missing | System Status → *Live classes*: Zoom key trio set? (all of `ZOOM_ACCOUNT_ID`, `ZOOM_CLIENT_ID`, `ZOOM_CLIENT_SECRET`) |
 | Meeting creation fails with a Zoom message | Marketplace app activated? scopes granted? A basic licence allows one meeting at a time per host |
 | Class never becomes "Live" / nobody is listed | Event subscription URL exactly `https://<domain>/api/webhooks/zoom`, events ticked, Secret Token equal to `ZOOM_WEBHOOK_SECRET_TOKEN`; Zoom → Event Subscriptions shows delivery status |
+| "Reset it by e-mail" missing on sign-in | `SMTP_HOST` and `SMTP_FROM` both set? System Status → e-mail |
+| E-mails stay "pending" or "failed" | `GET /api/email/outbox` (staff) shows the last error. Wrong port/secure pair (465 needs `SMTP_SECURE=true`), wrong password, or the sender address not allowed by the mailbox |
+| Reset / calendar / certificate links point to the wrong address | Set `APP_URL` to the public https address |
+| A person says they get no reminder e-mails | They may have clicked unsubscribe (`email_optouts`); account e-mails like password reset still reach them |
 | Many "who is this?" names | Learners join with a nickname. Match each once (it is remembered); ask them to join with their full name |
 | Integrity check "Zoom classes … never turned into attendance" ≠ 0 | Open the class → Zoom attendance → *Recalculate* |
 
