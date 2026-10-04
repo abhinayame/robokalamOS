@@ -21,17 +21,18 @@ export async function adminKpis(req: Request) {
   const bWhere = `b.org_id = ${bp.add(orgId)} AND b.deleted_at IS NULL ${bs ? `AND ${bs}` : ''}`;
   const lp = new Params(); const ls = learnerScope(user, lp, 'l');
   const lWhere = `l.org_id = ${lp.add(orgId)} AND l.deleted_at IS NULL ${ls ? `AND ${ls}` : ''}`;
-  const att = await queryOne(`SELECT COALESCE(SUM(a.status IN ('present','late')), 0) AS ok, COALESCE(SUM(a.status IN ('present','late','absent')), 0) AS n
+  const attP = queryOne(`SELECT COALESCE(SUM(a.status IN ('present','late')), 0) AS ok, COALESCE(SUM(a.status IN ('present','late','absent')), 0) AS n
       FROM attendance a JOIN class_sessions s ON s.id = a.session_id AND s.status <> 'cancelled' JOIN batches b ON b.id = a.batch_id WHERE ${bWhere}`, bp.values);
   const bp2 = new Params(); const bs2 = batchScope(user, bp2, 'b');
   const w2 = `b.org_id = ${bp2.add(orgId)} AND b.deleted_at IS NULL ${bs2 ? `AND ${bs2}` : ''}`;
-  const sc = await queryOne(`SELECT COUNT(*) AS n, AVG(s.score / s.max_score * 100) AS pct FROM scores s JOIN batches b ON b.id = s.batch_id WHERE s.deleted_at IS NULL AND ${w2}`, bp2.values);
+  const scP = queryOne(`SELECT COUNT(*) AS n, AVG(s.score / s.max_score * 100) AS pct FROM scores s JOIN batches b ON b.id = s.batch_id WHERE s.deleted_at IS NULL AND ${w2}`, bp2.values);
   const bp3 = new Params(); const bs3 = batchScope(user, bp3, 'b');
   const w3 = `b.org_id = ${bp3.add(orgId)} AND b.deleted_at IS NULL ${bs3 ? `AND ${bs3}` : ''}`;
-  const pend = await queryOne(`SELECT COUNT(*) AS n FROM submissions s JOIN assignments a ON a.id = s.assignment_id AND a.deleted_at IS NULL JOIN batches b ON b.id = a.batch_id WHERE s.status IN ('submitted','late') AND ${w3}`, bp3.values);
-  const xp = await queryOne(`SELECT COALESCE(SUM(x.points), 0) AS n FROM xp_transactions x JOIN batches b ON b.id = x.batch_id WHERE ${w3}`, bp3.values);
-  const bad = await queryOne(`SELECT COUNT(*) AS n FROM learner_badges lb JOIN learners l ON l.id = lb.learner_id WHERE lb.revoked_at IS NULL AND ${lWhere}`, lp.values);
-  const up = await queryOne(`SELECT COUNT(*) AS n FROM class_sessions s JOIN batches b ON b.id = s.batch_id WHERE s.status IN ('scheduled','started') AND s.starts_at > NOW(3) AND s.starts_at < DATE_ADD(NOW(3), INTERVAL 7 DAY) AND ${w3}`, bp3.values);
+  const pendP = queryOne(`SELECT COUNT(*) AS n FROM submissions s JOIN assignments a ON a.id = s.assignment_id AND a.deleted_at IS NULL JOIN batches b ON b.id = a.batch_id WHERE s.status IN ('submitted','late') AND ${w3}`, bp3.values);
+  const xpP = queryOne(`SELECT COALESCE(SUM(x.points), 0) AS n FROM xp_transactions x JOIN batches b ON b.id = x.batch_id WHERE ${w3}`, bp3.values);
+  const badP = queryOne(`SELECT COUNT(*) AS n FROM learner_badges lb JOIN learners l ON l.id = lb.learner_id WHERE lb.revoked_at IS NULL AND ${lWhere}`, lp.values);
+  const upP = queryOne(`SELECT COUNT(*) AS n FROM class_sessions s JOIN batches b ON b.id = s.batch_id WHERE s.status IN ('scheduled','started') AND s.starts_at > NOW(3) AND s.starts_at < DATE_ADD(NOW(3), INTERVAL 7 DAY) AND ${w3}`, bp3.values);
+  const [att, sc, pend, xp, bad, up] = await Promise.all([attP, scP, pendP, xpP, badP, upP]);
   const out: Record<string, unknown> = {
     pending_evaluations: Number(pend!.n), attendance_pct: attendancePct({ present: Number(att!.ok), late: 0, absent: Number(att!.n) - Number(att!.ok) }),
     avg_score_pct: sc!.pct == null ? null : r2(Number(sc!.pct)), scores_recorded: Number(sc!.n), total_xp: Number(xp!.n), badges_awarded: Number(bad!.n), upcoming_classes_7d: Number(up!.n),

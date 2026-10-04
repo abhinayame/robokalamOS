@@ -7,3 +7,4 @@ ALTER TABLE xp_transactions       ADD KEY idx_xp_batch_points (batch_id, points)
 ALTER TABLE learner_batch_memberships ADD KEY idx_lbm_cov (batch_id, learner_id, status);
 ALTER TABLE submissions           ADD KEY idx_sub_cov (assignment_id, learner_id, status);
 ALTER TABLE learner_badges        ADD KEY idx_lb_batch_active (batch_id, revoked_at);
+ALTER TABLE xp_transactions       ADD KEY idx_xp_org_cov (org_id, learner_id, batch_id, points);

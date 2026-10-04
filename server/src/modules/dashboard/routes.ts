@@ -137,7 +137,7 @@ router.get('/', requirePerm('dashboard:view'), wrap(async (req, res) => {
   if (!chosen) throw forbidden();
   if (!available.includes(chosen)) throw badRequest('That dashboard is not available for your account.');
   let data: unknown;
-  if (chosen === 'admin') data = { ...(await adminView(req)), kpis: await adminKpis(req) };
+  if (chosen === 'admin') { const [view, kpis] = await Promise.all([adminView(req), adminKpis(req)]); data = { ...view, kpis }; }   // independent aggregates: run side by side
   else if (chosen === 'teacher') data = { ...(await teacherView(req)), ...(await teacherExtras(req)) };
   else { const kids = await childView(req, u.access.ownLearnerIds); data = { children: await Promise.all(kids.map(async (k: any) => ({ ...k, progress: await childProgress(k.id, orgIdOf(req)) }))) }; }
   ok(res, { view: chosen, available_views: available, ...(data as object) });

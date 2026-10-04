@@ -23,7 +23,7 @@ async function main() {
   const perf = batches.filter((b) => b.name?.startsWith('Perf Batch'));
   const ids = perf.slice(0, 5).map((b) => b.id); const one = perf[0].id;
   const learner = (await call('GET', '/api/learners?page_size=1&search=Aarav')).json.data[0].id;
-  const wide = { batch_ids: perf.map((b) => b.id) };
+  await call('PUT', '/api/gamification/settings', { leaderboard_enabled: true });
   const cases: [string, string, string, unknown?][] = [
     ['learners list p1', 'GET', '/api/learners?page=1&page_size=25&sort=name&order=asc'],
     ['learners list deep page', 'GET', '/api/learners?page=3000&page_size=25&sort=name&order=asc'],
@@ -37,16 +37,16 @@ async function main() {
     ['bulk dry run (100 batches)', 'POST', '/api/bulk/learners', { action: 'change_status', status: 'inactive', dry_run: true, selection: { batch_ids: perf.slice(0, 100).map((b) => b.id) } }],
     ['learner 360', 'GET', `/api/learners/${learner}`],
     ['gradebook (one batch)', 'GET', `/api/classrooms/${one}/gradebook`],
-    ['attendance summary', 'GET', '/api/attendance/summary'],
-    ['leaderboard (org)', 'GET', '/api/gamification/leaderboard'],
-    ['gamification overview', 'GET', '/api/gamification/overview'],
+    ['attendance summary', 'GET', `/api/attendance/summary?learner_id=${learner}`],
+    ['leaderboard (batch)', 'GET', `/api/gamification/leaderboard?scope=batch&id=${one}`],
+    ['leaderboard (whole org)', 'GET', '/api/gamification/leaderboard?scope=all'],
+    ['gamification overview', 'GET', `/api/gamification/overview?learner_id=${learner}`],
     ['batch insights', 'GET', `/api/analytics/batch/${one}`],
     ['compare 10 batches', 'GET', `/api/analytics/compare?batch_ids=${perf.slice(0, 10).map((b) => b.id).join(',')}`],
     ['CRM leads list', 'GET', '/api/crm/leads?page_size=25'],
     ['CRM summary', 'GET', '/api/crm/summary'],
     ...['learner', 'batch', 'teacher', 'attendance', 'score', 'achievement', 'xp', 'crm', 'communication'].map((r) => [`report: ${r}`, 'GET', `/api/reports/${r}`] as [string, string, string]),
   ];
-  void wide;
   console.log('| Endpoint | Median | Max | Status | Size |\n|---|---:|---:|---:|---:|');
   let slow = 0;
   for (const [name, m, p, b] of cases) {

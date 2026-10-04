@@ -182,8 +182,10 @@ router.get('/leaderboard', wrap(async (req, res) => {
 
   const since = q.period === 'week' ? 7 : q.period === 'month' ? 30 : null;
   const xp = new Params();
+  // Whole-organization ranking for someone who sees every batch: use the (org, learner) covering index instead of a 1,000-id IN list.
+  const orgWide = q.scope === 'all' && !sc;
   const base = `FROM xp_transactions x JOIN learners l ON l.id = x.learner_id AND l.deleted_at IS NULL AND l.status = 'active'
-      WHERE x.batch_id IN ${xp.in(batchIds)} ${since ? `AND x.created_at >= DATE_SUB(NOW(3), INTERVAL ${since} DAY)` : ''} GROUP BY x.learner_id, l.full_name HAVING SUM(x.points) > 0`;
+      WHERE ${orgWide ? `x.org_id = ${xp.add(orgId)} AND x.batch_id IS NOT NULL` : `x.batch_id IN ${xp.in(batchIds)}`} ${since ? `AND x.created_at >= DATE_SUB(NOW(3), INTERVAL ${since} DAY)` : ''} GROUP BY x.learner_id, l.full_name HAVING SUM(x.points) > 0`;
   const top = batchIds.length ? await query(`SELECT x.learner_id, l.full_name, SUM(x.points) AS xp ${base} ORDER BY xp DESC, l.full_name, l.id LIMIT ${q.limit}`, xp.values) : [];
   const ids = top.map((r) => r.learner_id as string);
   const bc = new Map<string, number>();
