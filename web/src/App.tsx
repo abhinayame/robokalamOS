@@ -16,6 +16,9 @@ import Classroom from './pages/Classroom';
 import Assignment from './pages/Assignment';
 import Achievements from './pages/Achievements';
 import Gamification from './pages/Gamification';
+import Leads from './pages/Leads';
+import FollowUps from './pages/FollowUps';
+import Tags from './pages/Tags';
 import Notifications from './pages/Notifications';
 import Portal from './pages/Portal';
 import QuizPage from './pages/QuizPage';
@@ -56,6 +59,9 @@ export default function App() {
         <Route path="assignments" element={<Guard roles={['learner', 'parent']}><MyAssignments /></Guard>} />
         <Route path="achievements" element={<Guard roles={['learner', 'parent']}><Achievements /></Guard>} />
         <Route path="gamification" element={<Guard perm="gamification:award"><Gamification /></Guard>} />
+        <Route path="crm" element={<Guard perm="crm:read"><Leads /></Guard>} />
+        <Route path="crm/follow-ups" element={<Guard perm="crm:read"><FollowUps /></Guard>} />
+        <Route path="settings/tags" element={<Guard perm="tag:read"><Tags /></Guard>} />
         <Route path="notifications" element={<Notifications />} />
         <Route path="portal" element={<Guard roles={['parent', 'learner']}><Portal /></Guard>} />
         <Route path="quizzes/:id" element={<Guard perm="classroom:read"><QuizPage /></Guard>} />

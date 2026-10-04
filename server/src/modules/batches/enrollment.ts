@@ -101,6 +101,17 @@ export async function enrollLearners(
       next: { batch: batch.batch_code, count: toAdd.length, learner_ids: toAdd.slice(0, 200) }, req: c.req,
     }, c.db);
   }
+  // CRM: a lead who gets a batch is converted (same profile, nothing copied); the CRM timeline records it.
+  for (const part of chunk(toAdd)) {
+    const cp = new Params();
+    const open = await query(`SELECT learner_id FROM crm_leads WHERE learner_id IN ${cp.in(part)} AND lead_status NOT IN ('converted')`, cp.values, c.db);
+    for (const o of open) {
+      await exec(`UPDATE crm_leads SET lead_status = 'converted', lost_reason = NULL, converted_at = NOW(3) WHERE learner_id = $1`, [o.learner_id], c.db);
+      await exec(`UPDATE follow_ups SET status = 'cancelled', completed_at = NOW(3) WHERE learner_id = $1 AND status = 'open'`, [o.learner_id], c.db);
+      await exec(`UPDATE crm_leads SET next_follow_up_at = NULL WHERE learner_id = $1`, [o.learner_id], c.db);
+      await exec(`INSERT INTO crm_activities (id, org_id, learner_id, type, description, staff_user_id) VALUES ($1,$2,$3,'batch_assigned',$4,$5)`, [newId(), c.orgId, o.learner_id, `Assigned to ${batch.name}; lead converted`, c.user.id], c.db);
+    }
+  }
   return {
     requested: ids.length,
     joined: toInsert.length,

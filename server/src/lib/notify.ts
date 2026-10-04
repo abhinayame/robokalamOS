@@ -27,3 +27,11 @@ export async function notifyAbout(db: Db, n: NotifyInput) {
   }
   return sent;
 }
+
+/** In-app notification straight to staff users (e.g. a follow-up assigned to a counsellor). */
+export async function notifyUsers(db: Db, n: { orgId: string; userIds: string[]; kind: string; title: string; body?: string | null; link?: string | null; learnerId?: string | null }) {
+  for (const uid of [...new Set(n.userIds)]) {
+    await exec(`INSERT INTO notifications (id, org_id, user_id, learner_id, kind, title, body, link) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+      [newId(), n.orgId, uid, n.learnerId ?? null, n.kind, n.title.slice(0, 255), n.body?.slice(0, 1000) ?? null, n.link ?? null], db);
+  }
+}
