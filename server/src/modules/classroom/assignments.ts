@@ -7,6 +7,7 @@ import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { learnerScope } from '../../lib/scope.js';
 import { recordActivity } from '../../lib/timeline.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
+import { recordScore } from '../assessment/scoring.js';
 import { attachFiles, filesFor } from '../files/store.js';
 import { assertManage, assignmentState, openRoom, viewedLearner } from './access.js';
 
@@ -98,6 +99,10 @@ assignmentsRouter.get('/:id', wrap(async (req, res) => {
     const sf = s ? await filesFor('submission', [s.id]) : undefined;
     out.learner_id = learnerId;
     out.submission = shapeSubmission(s, sf);
+    if (out.submission) {
+      const sc = await queryOne(`SELECT score FROM scores WHERE learner_id = $1 AND source_type = 'assignment' AND source_id = $2 AND deleted_at IS NULL`, [learnerId, a.id]);
+      out.submission.score = s.status === 'evaluated' && sc ? Number(sc.score) : null;
+    }
     out.state = assignmentState(a, s);
     out.can_submit = room.canInteract && room.writable && room.learnerIds.includes(learnerId)
       && (!s || ['draft', 'returned'].includes(s.status) || (a.allow_resubmit && s.status !== 'evaluated'));
@@ -164,11 +169,12 @@ assignmentsRouter.get('/:id/submissions', wrap(async (req, res) => {
   else if (q.status === 'to_review') where.push(`s.status IN ('submitted','late')`);
   else if (q.status) where.push(`s.status = ${p.add(q.status)}`);
   const rows = await query(
-    `SELECT l.id AS learner_id, l.full_name, l.learner_code, s.id AS submission_id, COALESCE(s.status, 'not_submitted') AS status, s.submitted_at, s.evaluated_at, s.version
+    `SELECT l.id AS learner_id, l.full_name, l.learner_code, s.id AS submission_id, COALESCE(s.status, 'not_submitted') AS status, s.submitted_at, s.evaluated_at, s.version, sc.score
        FROM learner_batch_memberships m JOIN learners l ON l.id = m.learner_id
        LEFT JOIN submissions s ON s.learner_id = l.id AND s.assignment_id = ${p.add(a.id)}
+       LEFT JOIN scores sc ON sc.learner_id = l.id AND sc.source_type = 'assignment' AND sc.source_id = s.assignment_id AND sc.deleted_at IS NULL
       WHERE ${where.join(' AND ')} ORDER BY l.full_name, l.id LIMIT 1000`, p.values);
-  ok(res, rows.map((r) => ({ ...r, status: r.status === 'draft' ? 'not_submitted' : r.status })), { total: rows.length });
+  ok(res, rows.map((r) => ({ ...r, score: r.score == null ? null : Number(r.score), status: r.status === 'draft' ? 'not_submitted' : r.status })), { total: rows.length });
 }));
 
 // ------------------------------------------------------------------ submissions
@@ -182,23 +188,28 @@ submissionsRouter.get('/:id', wrap(async (req, res) => {
   const room = await openRoom(req, s.batch_id);
   if (!room.canManage && !req.user!.access.ownLearnerIds.includes(s.learner_id)) throw notFound('Submission');
   const files = await filesFor('submission', [s.id]);
-  ok(res, { ...shapeSubmission(s, files), assignment_title: s.assignment_title, max_marks: Number(s.max_marks), due_at: s.due_at, batch_id: s.batch_id,
+  const sc = await queryOne(`SELECT score, max_score FROM scores WHERE learner_id = $1 AND source_type = 'assignment' AND source_id = $2 AND deleted_at IS NULL`, [s.learner_id, s.assignment_id]);
+  ok(res, { ...shapeSubmission(s, files), score: sc ? Number(sc.score) : null, assignment_title: s.assignment_title, max_marks: Number(s.max_marks), due_at: s.due_at, batch_id: s.batch_id,
     learner: { id: s.learner_id, name: s.learner_name, ...(room.canManage ? { code: s.learner_code } : {}) }, can_review: room.canManage && ['submitted', 'late', 'evaluated', 'returned'].includes(s.status) });
 }));
 
 submissionsRouter.post('/:id/review', wrap(async (req, res) => {
   const orgId = orgIdOf(req);
-  const b = parse(z.object({ action: z.enum(['evaluate', 'return']), feedback: z.string().trim().max(10_000).nullish() }), req.body);
+  const b = parse(z.object({ action: z.enum(['evaluate', 'return']), feedback: z.string().trim().max(10_000).nullish(), score: z.number().min(0).max(100000).optional() }), req.body);
   if (b.action === 'return' && !b.feedback) throw badRequest('Tell the learner what to fix before returning the work.', [{ field: 'feedback', message: 'This is required to return work.' }]);
+  if (b.action === 'evaluate' && b.score === undefined) throw badRequest('Enter the score for this work.', [{ field: 'score', message: 'This is required to mark work evaluated.' }]);
   const out = await tx(async (db) => {
     const s = await queryOne(
-      `SELECT s.id, s.status, s.learner_id, a.batch_id, a.title FROM submissions s JOIN assignments a ON a.id = s.assignment_id
+      `SELECT s.id, s.status, s.learner_id, a.batch_id, a.title, a.max_marks, s.assignment_id FROM submissions s JOIN assignments a ON a.id = s.assignment_id
         WHERE s.id = $1 AND s.org_id = $2 AND a.deleted_at IS NULL FOR UPDATE`, [parse(uuid, req.params.id), orgId], db);
     if (!s) throw notFound('Submission');
     const room = await openRoom(req, s.batch_id, db);
     if (!room.canManage) throw notFound('Submission');
     if (!['submitted', 'late', 'evaluated'].includes(s.status)) throw conflict('Only submitted work can be reviewed.', 'NOT_SUBMITTED');
     const status = b.action === 'evaluate' ? 'evaluated' : 'returned';
+    if (b.action === 'evaluate') {
+      await recordScore(db, { orgId, actorId: req.user!.id, learnerId: s.learner_id, batchId: s.batch_id, sourceType: 'assignment', sourceId: s.assignment_id, name: s.title, category: 'Assignment', score: b.score!, max: Number(s.max_marks), feedback: b.feedback ?? null });
+    }
     await exec(`UPDATE submissions SET status = $1, feedback = $2, evaluated_at = NOW(3), evaluated_by = $3 WHERE id = $4`, [status, b.feedback ?? null, req.user!.id, s.id], db);
     await recordActivity(db, { orgId, learnerId: s.learner_id, batchId: s.batch_id, type: `assignment.${status}`,
       title: status === 'evaluated' ? `Evaluated: ${s.title}` : `Returned for changes: ${s.title}`, description: b.feedback ?? null, meta: { submission_id: s.id }, actorUserId: req.user!.id });

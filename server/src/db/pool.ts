@@ -3,7 +3,7 @@ import mysql, { type Pool, type PoolConnection, type ResultSetHeader } from 'mys
 import { db as dbConfig, env } from '../config/env.js';
 
 /** Columns that hold JSON. MariaDB stores JSON as text, so we parse by name as well as by type. */
-const JSON_COLUMNS = new Set(['settings', 'schedule', 'meta', 'previous_data', 'new_data', 'teachers', 'roles', 'children', 'payload', 'selector']);
+const JSON_COLUMNS = new Set(['settings', 'schedule', 'meta', 'previous_data', 'new_data', 'teachers', 'roles', 'children', 'payload', 'selector', 'options', 'answer_key', 'answers']);
 
 export const newId = () => randomUUID();
 

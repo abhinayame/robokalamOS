@@ -18,6 +18,8 @@ import bulkRoutes from './modules/bulk/routes.js';
 import catalogRoutes from './modules/catalog/routes.js';
 import classroomRoutes from './modules/classroom/routes.js';
 import { assignmentsRouter, submissionsRouter } from './modules/classroom/assignments.js';
+import { assessmentRouter, scoresRouter } from './modules/assessment/routes.js';
+import { quizzesRouter } from './modules/assessment/quizzes.js';
 import fileRoutes from './modules/files/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 import learnerRoutes from './modules/learners/routes.js';
@@ -72,7 +74,10 @@ export function createApp() {
   app.use('/api/selection', selectionRoutes);
   app.use('/api/bulk', bulkRoutes);
   app.use('/api/dashboard', dashboardRoutes);
+  app.use('/api/classrooms', assessmentRouter);       // before classroomRoutes: its catch-all '/' mount must not shadow these
   app.use('/api/classrooms', classroomRoutes);
+  app.use('/api/scores', scoresRouter);
+  app.use('/api/quizzes', quizzesRouter);
   app.use('/api/assignments', assignmentsRouter);
   app.use('/api/submissions', submissionsRouter);
   app.use('/api/files', fileRoutes);
