@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
+import { isConfigured as emailConfigured } from '../email/provider.js';
 import { isConfigured as zoomConfigured, isWebhookConfigured as zoomWebhook } from '../live/zoom.js';
 import { isConfigured as razorpayConfigured, isWebhookConfigured as razorpayWebhook } from '../fees/razorpay.js';
 import { env, isProd } from '../../config/env.js';
@@ -72,6 +73,7 @@ systemRouter.get('/status', wrap(async (req, res) => {
     process: { uptime_seconds: Math.round(process.uptime()), memory_mb: { rss: Math.round(mem.rss / 1048576), heap_used: Math.round(mem.heapUsed / 1048576) } },
     traffic: snapshot(),
     fees: { online_payments: razorpayConfigured(), webhook_configured: razorpayWebhook(), last_online_payment_at: (await queryOne(`SELECT MAX(paid_at) AS t FROM payments WHERE provider = 'razorpay'`))?.t ?? null },
+    email: { configured: emailConfigured(), worker: env.EMAIL_WORKER === 'true', pending: Number((await queryOne(`SELECT COUNT(*) AS n FROM email_outbox WHERE status IN ('pending','sending')`))!.n), failed_7d: Number((await queryOne(`SELECT COUNT(*) AS n FROM email_outbox WHERE status = 'failed' AND created_at > DATE_SUB(NOW(3), INTERVAL 7 DAY)`))!.n) },
     live: { zoom_configured: zoomConfigured(), webhook_configured: zoomWebhook(), last_event_at: (await queryOne(`SELECT MAX(received_at) AS t FROM webhook_events WHERE provider = 'zoom'`))?.t ?? null, classes_live_now: Number((await queryOne(`SELECT COUNT(*) AS n FROM class_sessions WHERE live_started_at IS NOT NULL AND live_ended_at IS NULL`))!.n) },
     reminders: { enabled_rules: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_rules WHERE enabled = TRUE`))!.n), queued_last_24h: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_log WHERE outcome = 'queued' AND created_at >= DATE_SUB(NOW(3), INTERVAL 24 HOUR)`))!.n) },
     imports: { running: Number((await queryOne(`SELECT COUNT(*) AS n FROM import_jobs WHERE status = 'running'`))!.n) },

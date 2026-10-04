@@ -36,6 +36,13 @@ describe('every route says who may call it', () => {
     'modules/branding/routes.ts: GET /branding': 'public by design (sign-in page): public branding fields only',
     'modules/branding/routes.ts: GET /orgs/:slug/logo': 'public by design: serves only the file the organization chose as its logo',
     'modules/branding/routes.ts: GET /orgs/:slug/manifest.webmanifest': 'public by design: the installable-app manifest',
+    'modules/calendar/routes.ts: GET /me': 'a user manages only their own calendar link',
+    'modules/calendar/routes.ts: POST /me/regenerate': 'a user manages only their own calendar link',
+    'modules/calendar/routes.ts: DELETE /me': 'a user manages only their own calendar link',
+    'modules/calendar/routes.ts: GET /session/:id.ics': 'only classes the caller teaches or attends (same filter as their feed)',
+    'modules/calendar/routes.ts: GET /calendar/:file': 'public by design: the unguessable per-user token is the credential; revocable and rate limited',
+    'modules/certificates/routes.ts: GET /verify/:code': 'public by design: returns only name, course, date and validity for a certificate code',
+    'modules/email/routes.ts: GET /unsubscribe/:token': 'public by design: HMAC-signed link, can only opt an address out',
     'modules/organizations/routes.ts: GET /current': 'returns only the caller\'s own organization',
   };
   it('each route file applies requirePerm / requireAnyPerm / requireSuperAdmin to every handler (or is on the reviewed allow-list)', () => {

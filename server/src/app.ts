@@ -46,6 +46,9 @@ import feeRoutes from './modules/fees/routes.js';
 import reminderRoutes from './modules/reminders/routes.js';
 import importRoutes from './modules/import/routes.js';
 import liveRoutes from './modules/live/routes.js';
+import emailRoutes, { publicEmail } from './modules/email/routes.js';
+import calendarRoutes, { publicCalendar } from './modules/calendar/routes.js';
+import certificateRoutes, { publicVerify } from './modules/certificates/routes.js';
 import { adminRouter as brandingAdmin, publicRouter as brandingPublic } from './modules/branding/routes.js';
 import zoomWebhook from './modules/live/webhook.js';
 import razorpayWebhook from './modules/fees/webhook.js';
@@ -95,6 +98,9 @@ export function createApp() {
   app.use('/api/webhooks', webhookRoutes);
   app.use('/api/webhooks', razorpayWebhook);
   app.use('/api/webhooks', zoomWebhook);              // public: guarded by a secret in the URL, not by a login
+  app.use('/api/public', publicVerify);                // certificate check: only the name, course and date on the certificate
+  app.use('/api/public', publicCalendar);              // personal calendar feed: the secret link is the credential
+  app.use('/api/public', publicEmail);                 // one-click unsubscribe from notification e-mails
   app.use('/api/public', brandingPublic);              // branding for the sign-in page and the app manifest: public fields only
   app.use('/api/auth', authRoutes);
   app.use('/api', authenticate);                       // everything below requires a valid session
@@ -129,6 +135,9 @@ export function createApp() {
   app.use('/api/import', importRoutes);
   app.use('/api/live', liveRoutes);
   app.use('/api/branding', brandingAdmin);
+  app.use('/api/email', emailRoutes);
+  app.use('/api/calendar', calendarRoutes);
+  app.use('/api/certificates', certificateRoutes);
   app.use('/api/system', systemRouter);
   app.use('/api', catalogRoutes);                      // /branches /programs /courses
   app.use('/api', userRoutes);                         // /teachers /users
