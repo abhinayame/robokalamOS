@@ -5,6 +5,7 @@ import { badRequest, forbidden } from '../../lib/errors.js';
 import { ok, parse, wrap } from '../../lib/http.js';
 import { batchScope, learnerScope } from '../../lib/scope.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
+import { adminKpis, childProgress, teacherExtras } from '../analytics/dashboard.js';
 
 const router = Router();
 router.use(requireOrg);
@@ -136,9 +137,9 @@ router.get('/', requirePerm('dashboard:view'), wrap(async (req, res) => {
   if (!chosen) throw forbidden();
   if (!available.includes(chosen)) throw badRequest('That dashboard is not available for your account.');
   let data: unknown;
-  if (chosen === 'admin') data = await adminView(req);
-  else if (chosen === 'teacher') data = await teacherView(req);
-  else data = { children: await childView(req, u.access.ownLearnerIds) };
+  if (chosen === 'admin') data = { ...(await adminView(req)), kpis: await adminKpis(req) };
+  else if (chosen === 'teacher') data = { ...(await teacherView(req)), ...(await teacherExtras(req)) };
+  else { const kids = await childView(req, u.access.ownLearnerIds); data = { children: await Promise.all(kids.map(async (k: any) => ({ ...k, progress: await childProgress(k.id, orgIdOf(req)) }))) }; }
   ok(res, { view: chosen, available_views: available, ...(data as object) });
 }));
 
