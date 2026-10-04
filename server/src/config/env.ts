@@ -20,6 +20,8 @@ const schema = z.object({
   MAX_FAILED_LOGINS: z.coerce.number().default(8),
   LOCKOUT_MINUTES: z.coerce.number().default(15),
   LOG_LEVEL: z.string().default('info'),
+  // Apply migrations and create the owner login on start (idempotent). Set to false to run them manually.
+  AUTO_MIGRATE: z.enum(['true', 'false']).default('true'),
   SUPER_ADMIN_EMAIL: z.string().optional(),
   SUPER_ADMIN_PASSWORD: z.string().optional(),
 });
