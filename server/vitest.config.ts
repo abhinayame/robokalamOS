@@ -13,6 +13,9 @@ export default defineConfig({
       BCRYPT_COST: '4',
       CORS_ORIGINS: 'http://localhost:5173',
       LOG_LEVEL: 'silent',
+      AISENSY_API_KEY: 'test-aisensy-key-0001',
+      AISENSY_WEBHOOK_SECRET: 'test-webhook-secret-123456',
+      COMMS_WORKER: 'false',
     },
   },
 });

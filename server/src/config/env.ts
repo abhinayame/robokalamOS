@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { z } from 'zod';
 
+/** An empty value in the host's environment panel means "not set", not "invalid". */
+const blank = (v: unknown) => (typeof v === 'string' && v.trim() === '' ? undefined : v);
+
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
@@ -30,6 +33,16 @@ const schema = z.object({
   // Max size of one uploaded file. Files are stored in the database, so keep this below your
   // MySQL max_allowed_packet / 2 (a binary value is sent as hex). 5 MB is safe on Hostinger.
   UPLOAD_MAX_MB: z.coerce.number().min(1).max(20).default(5),
+  // WhatsApp via AiSensy (backend only; never sent to the browser). Without AISENSY_API_KEY nothing is sent and the UI says so.
+  AISENSY_API_KEY: z.preprocess(blank, z.string().optional()),
+  AISENSY_BASE_URL: z.preprocess(blank, z.string().url().default('https://backend.aisensy.com')),
+  AISENSY_WA_NUMBER: z.preprocess(blank, z.string().optional()),
+  // Delivery-status webhooks are accepted only at /api/webhooks/aisensy/<this secret>. Use a long random value.
+  AISENSY_WEBHOOK_SECRET: z.preprocess(blank, z.string().min(16, 'must be at least 16 characters').optional()),
+  AISENSY_CAMPAIGN_PATH: z.preprocess(blank, z.string().startsWith('/').default('/campaign/t1/api/v2')),
+  WHATSAPP_RATE_PER_SECOND: z.coerce.number().min(0.1).max(50).default(5),
+  // The campaign sender runs inside this process. Set to false to run it elsewhere.
+  COMMS_WORKER: z.enum(['true', 'false']).default('true'),
   // Apply migrations and create the owner login on start (idempotent). Set to false to run them manually.
   AUTO_MIGRATE: z.enum(['true', 'false']).default('true'),
   SUPER_ADMIN_EMAIL: z.string().optional(),
