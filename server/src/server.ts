@@ -1,5 +1,5 @@
 import { createApp } from './app.js';
-import { env } from './config/env.js';
+import { db as dbConfig, env } from './config/env.js';
 import { migrate } from './db/migrate.js';
 import { pool } from './db/pool.js';
 import { ensureSuperAdmin } from './lib/bootstrap.js';
@@ -28,9 +28,11 @@ async function main() {
 process.on('unhandledRejection', (e) => logger.error({ err: e }, 'unhandledRejection'));
 main().catch((e) => {
   logger.error({ err: e }, 'Startup failed');
-  const hint = e?.errno === 1045 ? ' → The database rejected the login: check DB_USER / DB_PASSWORD (reset the user\'s password in hPanel and paste it again) and that the user is assigned to the database.'
+  // Never prints the password — only its length, so stray spaces / empty values are obvious.
+  const target = `[tried: host="${dbConfig.host}" port=${dbConfig.port} user="${dbConfig.user}" database="${dbConfig.database}" password_length=${dbConfig.password.length}]`;
+  const hint = e?.errno === 1045 ? ' → The database rejected the login. Check DB_USER / DB_PASSWORD, that the user is attached to the database, and — if DB_HOST is not localhost — that Remote MySQL allows this server (hPanel → Databases → Remote MySQL).'
     : e?.errno === 1049 ? ' → Unknown database: check DB_NAME.'
     : e?.code === 'ECONNREFUSED' || e?.code === 'ENOTFOUND' ? ' → Cannot reach the database server: check DB_HOST (try 127.0.0.1 or the host shown in hPanel).' : '';
-  console.error(`Startup failed: ${e?.message ?? e}${hint}`);
+  console.error(`Startup failed: ${e?.message ?? e}${hint} ${target}`);
   process.exit(1);
 });
