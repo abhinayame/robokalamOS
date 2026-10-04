@@ -44,7 +44,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
 export function Async<T>({ q, empty, children, rows = 6 }: { q: { data: T | null; loading: boolean; error: unknown; reload: () => void }; empty?: (d: T) => boolean; children: (d: T) => ReactNode; rows?: number }) {
   if (q.error && !q.data) return <ErrorState error={q.error} onRetry={q.reload} />;
   if (!q.data) return <SkeletonRows n={rows} />;
-  if (empty?.(q.data)) return null;
+  if (empty?.(q.data)) return null;   // opt-in: render nothing (the caller shows its own empty state elsewhere)
   return <>{children(q.data)}</>;
 }
 

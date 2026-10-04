@@ -72,7 +72,7 @@ function Attempts({ id }: { id: string }) {
   const q = useFetch(() => api.get(`/api/quizzes/${id}/attempts`).then((r) => r.data), [id]);
   return (
     <div className="card"><div className="card-head"><h2>Attempts</h2></div>
-      <Async q={q} rows={3} empty={(d: any[]) => !d.length}>{(rows: any[]) => rows.length ? rows.map((a) => (
+      <Async q={q} rows={3}>{(rows: any[]) => rows.length ? rows.map((a) => (
         <div key={a.id} className="m-card" style={{ alignItems: 'center' }}>
           <div className="grow"><Link to={`/learners/${a.learner_id}`}>{a.full_name}</Link><div className="muted small">Attempt {a.attempt_no} · {fmtDateTime(a.submitted_at ?? a.started_at)}</div></div>
           <Badge tone={a.status === 'submitted' ? 'ok' : a.status === 'expired' ? 'bad' : 'warn'}>{a.status.replace('_', ' ')}</Badge>

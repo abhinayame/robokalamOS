@@ -1,4 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react';
+import { Bell } from './Bell';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -20,7 +21,7 @@ const GROUPS: Group[] = [
     { to: '/batches?status=upcoming', label: 'Upcoming', icon: '◐', perm: 'batch:read' },
     { to: '/batches?status=completed', label: 'Completed', icon: '○', perm: 'batch:read' },
   ] },
-  { label: 'Classroom', items: [{ to: '/classroom', label: 'Classroom', icon: '🏫', perm: 'classroom:read' }, { to: '/assignments', label: 'Assignments', icon: '📝', roles: ['learner', 'parent'] }, { to: '/achievements', label: 'Achievements', icon: '🏅', roles: ['learner', 'parent'] }, { to: '/gamification', label: 'Gamification', icon: '🏅', perm: 'gamification:award' }] },
+  { label: 'Classroom', items: [{ to: '/classroom', label: 'Classroom', icon: '🏫', perm: 'classroom:read' }, { to: '/assignments', label: 'Assignments', icon: '📝', roles: ['learner', 'parent'] }, { to: '/portal', label: 'Family portal', icon: '👨‍👩‍👧', roles: ['parent'] }, { to: '/achievements', label: 'Achievements', icon: '🏅', roles: ['learner', 'parent'] }, { to: '/gamification', label: 'Gamification', icon: '🏅', perm: 'gamification:award' }] },
   { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '📅', roles: ['learner', 'parent'] }] },
   { label: 'People', items: [{ to: '/teachers', label: 'Teachers', icon: '🎓', perm: 'teacher:read' }] },
   { label: 'Settings', items: [
@@ -79,6 +80,7 @@ export default function Layout(): ReactNode {
               <option value="">Select organization…</option>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}
             </select>
           )}
+          <Bell />
           <div className="row gap-s"><Avatar name={me?.full_name ?? '?'} /><div className="small user-meta" style={{ lineHeight: 1.2 }}><b>{me?.full_name}</b><br /><span className="muted">{me?.roles.map((r) => r.replace('_', ' ')).join(', ')}</span></div></div>
           <button className="btn sm" onClick={() => logout().then(() => nav('/login'))}>Sign out</button>
         </header>

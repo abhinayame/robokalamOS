@@ -82,7 +82,7 @@ function TeacherPanel({ a, onChange }: { a: any; onChange: () => void }) {
         <div className="card-head"><h2>Submissions</h2>
           <div className="row wrap"><input className="input" style={{ width: 160 }} placeholder="Search learner" value={search} onChange={(e) => setSearch(e.target.value)} />
             <select className="select" style={{ width: 150 }} aria-label="Filter" value={filter} onChange={(e) => setFilter(e.target.value)}><option value="">All</option><option value="to_review">To review</option><option value="not_submitted">Not submitted</option><option value="evaluated">Evaluated</option><option value="returned">Returned</option><option value="late">Late</option></select></div></div>
-        <Async q={q} empty={(d: any[]) => !d.length}>{(rows: any[]) => rows.length ? rows.map((r) => (
+        <Async q={q}>{(rows: any[]) => rows.length ? rows.map((r) => (
           <div className="m-card" key={r.learner_id} style={{ alignItems: 'center' }}>
             <div className="grow"><Link to={`/learners/${r.learner_id}`}>{r.full_name}</Link><div className="muted small">{r.learner_code}{r.submitted_at ? ` · ${fmtDateTime(r.submitted_at)}` : ''}</div></div>
             {r.score != null && <b>{r.score}/{a.max_marks}</b>}<Badge tone={TONE[r.status]}>{cap(r.status)}</Badge>

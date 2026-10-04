@@ -91,7 +91,7 @@ function Activities({ room, onScore }: { room: any; onScore: (id: string) => voi
   const { run } = useAction();
   return (
     <div className="card"><div className="card-head"><h2>Manual activities</h2></div>
-      <Async q={q} rows={2} empty={(d: any[]) => !d.length}>{(rows: any[]) => rows.length ? rows.map((a) => (
+      <Async q={q} rows={2}>{(rows: any[]) => rows.length ? rows.map((a) => (
         <div className="m-card" key={a.id} style={{ alignItems: 'center' }}>
           <div className="grow"><b>{a.name}</b><div className="muted small">{a.category || 'Activity'} · max {a.max_score} · {a.scored} scored</div></div>
           <button className="btn sm" onClick={() => onScore(a.id)}>Score</button>
@@ -162,7 +162,7 @@ export function ScoreList({ learnerId }: { learnerId?: string }) {
       {q.data?.meta?.summary && <SummaryStats s={q.data.meta.summary} />}
       <div className="card">
         <div className="card-head"><h2>Scores</h2><select className="select" style={{ width: 150 }} aria-label="Type" value={type} onChange={(e) => setType(e.target.value)}><option value="">All types</option><option value="assignment">Assignments</option><option value="quiz">Quizzes</option><option value="activity">Activities</option></select></div>
-        <Async q={q as any} empty={(d: any) => !d.data.length}>{(d: any) => d.data.length ? d.data.map((s: any) => (
+        <Async q={q as any}>{(d: any) => d.data.length ? d.data.map((s: any) => (
           <div key={s.id} className="m-card" style={{ alignItems: 'center' }}>
             <div className="grow"><b>{s.activity_name}</b><div className="muted small">{s.batch_name} · {s.category || cap(s.source_type)} · {fmtDateTime(s.updated_at)}</div>{s.feedback && <div className="small" style={{ marginTop: 2 }}>💬 {s.feedback}</div>}</div>
             <div style={{ textAlign: 'right' }}><b>{fmt(s.score)}/{fmt(s.max_score)}</b><div><PerfBadge band={s.band} /></div></div>

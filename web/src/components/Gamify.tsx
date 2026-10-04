@@ -29,7 +29,7 @@ export function BadgeWall({ learnerId, onRevoked }: { learnerId?: string; onRevo
   const { run } = useAction();
   const revoke = (id: string) => { const reason = prompt('Why is this badge being taken back?'); if (reason && reason.trim().length >= 2) run(async () => { await api.post(`/api/gamification/learner-badges/${id}/revoke`, { reason }); q.reload(); onRevoked?.(); }, 'Badge revoked'); };
   return (
-    <Async q={q} rows={2} empty={(d: any[]) => !d.length}>{(rows: any[]) => rows.length ? (
+    <Async q={q} rows={2}>{(rows: any[]) => rows.length ? (
       <div className="grid cols-3">{rows.map((b) => (
         <div key={b.id} className="card card-pad stack" style={{ gap: 6 }}>
           <div className="row"><span style={{ fontSize: 34 }} aria-hidden>{b.icon}</span><div className="grow"><b>{b.name}</b>{b.category && <div className="muted small">{b.category}</div>}</div>{b.xp_awarded > 0 && <Badge tone="ok">+{b.xp_awarded} XP</Badge>}</div>
@@ -47,7 +47,7 @@ export function XpHistory({ learnerId }: { learnerId?: string }) {
   const q = useFetch(() => api.get(`/api/gamification/xp${qs({ learner_id: learnerId, page })}`), [learnerId, page]);
   return (
     <div className="card"><div className="card-head"><h2>XP history</h2>{q.data && <span className="muted small">Balance {q.data.meta.balance}</span>}</div>
-      <Async q={q as any} rows={3} empty={(d: any) => !d.data.length}>{(d: any) => d.data.length ? <>{d.data.map((x: any) => (
+      <Async q={q as any} rows={3}>{(d: any) => d.data.length ? <>{d.data.map((x: any) => (
         <div key={x.id} className="m-card" style={{ alignItems: 'center' }}>
           <div className="grow"><b>{x.reason}</b><div className="muted small">{fmtDateTime(x.created_at)}{x.awarded_by ? ` · ${x.awarded_by}` : ''}{x.batch_name ? ` · ${x.batch_name}` : ''}</div></div>
           <b style={{ color: x.points > 0 ? 'var(--ok)' : 'var(--bad)' }}>{x.points > 0 ? '+' : ''}{x.points}</b></div>))}
@@ -66,7 +66,7 @@ export function Leaderboard({ scope = 'batch', id }: { scope?: 'batch' | 'course
     <div className="card"><div className="card-head"><h2>Leaderboard</h2>
       {!off && <select className="select" style={{ width: 150 }} aria-label="Period" value={period} onChange={(e) => setPeriod(e.target.value)}><option value="all">All time</option><option value="month">Last 30 days</option><option value="week">Last 7 days</option></select>}</div>
       {off ? <Empty icon="🎯" title="Leaderboard is off">Your organization has not turned the leaderboard on. Keep learning at your own pace.</Empty> :
-        <Async q={q as any} rows={4} empty={(d: any) => !d.data.length && !d.meta.me.length}>{(d: any) => <>
+        <Async q={q as any} rows={4}>{(d: any) => <>
           {d.data.map((r: any) => <Row key={r.learner_id} r={r} />)}
           {d.meta.me.length > 0 && <><div className="m-card muted small">Your position</div>{d.meta.me.map((r: any) => <Row key={r.learner_id} r={r} />)}</>}</>}</Async>}
     </div>
@@ -121,7 +121,7 @@ export function AwardBadgeModal({ batches, learners, fixedLearner, onClose, onDo
   return (
     <Modal title={fixedLearner ? `Award a badge · ${fixedLearner.name}` : 'Award a badge'} onClose={onClose}
       footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !badgeId || !picked.length || (!batch && !admin)} onClick={submit}>{busy ? 'Awarding…' : 'Award badge'}</button></>}>
-      <Async q={badges} rows={2} empty={(d: any[]) => !d.length}>{(list: any[]) => list.length ? (
+      <Async q={badges} rows={2}>{(list: any[]) => list.length ? (
         <div className="form-grid">
           {(batches.length > 1 || admin) && <Field label={admin ? 'Classroom (optional)' : 'Classroom'} className="full"><select className="select" value={batch} onChange={(e) => setBatch(e.target.value)}>{admin ? <option value="">No classroom</option> : <option value="">Choose…</option>}{batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</select></Field>}
           <Field label="Badge" className="full"><select className="select" value={badgeId} onChange={(e) => setBadgeId(e.target.value)}><option value="">Choose a badge…</option>{list.map((b) => <option key={b.id} value={b.id}>{b.icon} {b.name}{b.xp_reward ? ` (+${b.xp_reward} XP)` : ''}</option>)}</select></Field>

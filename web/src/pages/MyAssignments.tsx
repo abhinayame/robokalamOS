@@ -14,7 +14,7 @@ export function AssignmentList({ learnerId }: { learnerId?: string }) {
   return (
     <>
       <Tabs value={state} onChange={setState} tabs={[{ id: '', label: 'All' }, ...(['due', 'upcoming', 'late', 'returned', 'completed'] as const).map((s) => ({ id: s as S, label: cap(s), badge: counts[s] ?? 0 }))]} />
-      <Async q={q as any} empty={(d: any) => !d.data.length}>{(d: any) => d.data.length ? <div className="card">{d.data.map((a: any) => (
+      <Async q={q as any}>{(d: any) => d.data.length ? <div className="card">{d.data.map((a: any) => (
         <Link key={a.id} to={`/assignments/${a.id}`} className="m-card" style={{ alignItems: 'center', color: 'inherit' }}>
           <div className="grow"><b>{a.title}</b><div className="muted small">{a.batch_name} · {a.due_at ? `Due ${fmtDateTime(a.due_at)}` : 'No due date'}</div></div><Badge tone={TONE[a.state]}>{cap(a.state)}</Badge></Link>))}</div>
         : <div className="card"><Empty icon="🎉" title="Nothing here">No assignments in this view.</Empty></div>}</Async>
