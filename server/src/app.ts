@@ -21,6 +21,10 @@ import { assignmentsRouter, submissionsRouter } from './modules/classroom/assign
 import { assessmentRouter, scoresRouter } from './modules/assessment/routes.js';
 import { quizzesRouter } from './modules/assessment/quizzes.js';
 import gamificationRoutes from './modules/gamification/routes.js';
+import { attendanceRouter, sessionsRouter } from './modules/attendance/routes.js';
+import notificationRoutes from './modules/notifications/routes.js';
+import portalRoutes from './modules/portal/routes.js';
+import analyticsRoutes from './modules/analytics/routes.js';
 import fileRoutes from './modules/files/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 import learnerRoutes from './modules/learners/routes.js';
@@ -76,7 +80,12 @@ export function createApp() {
   app.use('/api/bulk', bulkRoutes);
   app.use('/api/dashboard', dashboardRoutes);
   app.use('/api/classrooms', assessmentRouter);       // before classroomRoutes: its catch-all '/' mount must not shadow these
+  app.use('/api/classrooms', sessionsRouter);
   app.use('/api/classrooms', classroomRoutes);
+  app.use('/api/attendance', attendanceRouter);
+  app.use('/api/notifications', notificationRoutes);
+  app.use('/api/portal', portalRoutes);
+  app.use('/api/analytics', analyticsRoutes);
   app.use('/api/scores', scoresRouter);
   app.use('/api/quizzes', quizzesRouter);
   app.use('/api/gamification', gamificationRoutes);

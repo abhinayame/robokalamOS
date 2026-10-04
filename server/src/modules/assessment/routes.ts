@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { Params, exec, newId, query, queryOne, tx } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
+import { notifyAbout } from '../../lib/notify.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { learnerScope } from '../../lib/scope.js';
@@ -120,6 +121,7 @@ assessmentRouter.put('/:batchId/activities/:id/scores', wrap(async (req, res) =>
       }
       const r = await recordScore(db, { orgId, actorId: req.user!.id, learnerId: e.learner_id, batchId: room.batch.id, sourceType: 'activity', sourceId: a.id, name: a.name, category: a.category, score: e.score, max: Number(a.max_score), feedback: e.feedback });
       res2[r.action]++;
+      if (r.action !== 'unchanged') await notifyAbout(db, { orgId, learnerIds: [e.learner_id], kind: 'score.received', title: `Score: ${a.name}`, body: `${e.score}/${Number(a.max_score)}${e.feedback ? ` · ${e.feedback}` : ''}`, link: `/classroom/${room.batch.id}`, excludeUserId: req.user!.id });
       if (e.bonus_xp !== undefined) await setSourceXp(db, { orgId, learnerId: e.learner_id, batchId: room.batch.id, reason: `Bonus: ${a.name}`, sourceType: 'score', sourceId: r.id, target: e.bonus_xp, userId: req.user!.id });
     }
     return res2;

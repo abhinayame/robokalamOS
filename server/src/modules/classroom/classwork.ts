@@ -4,6 +4,7 @@ import { Params, exec, newId, query, queryOne, tx, type Db } from '../../db/pool
 import { audit } from '../../lib/audit.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
+import { notifyAbout } from '../../lib/notify.js';
 import { recordActivity } from '../../lib/timeline.js';
 import { orgIdOf } from '../../middleware/auth.js';
 import { attachFiles, filesFor, removeOwnerFiles } from '../files/store.js';
@@ -209,6 +210,7 @@ router.post('/:batchId/assignments', wrap(async (req, res) => {
         [newId(), orgId, room.batch.id, req.user!.id, b.title, id], db);
     }
     const members = await query(`SELECT learner_id FROM learner_batch_memberships WHERE batch_id = $1 AND status = 'active'`, [room.batch.id], db);
+    await notifyAbout(db, { orgId, learnerIds: members.map((m) => m.learner_id), kind: 'assignment.posted', title: `New assignment: ${b.title}`, body: `${room.batch.name}${b.due_at ? ` · due ${new Date(b.due_at).toISOString().slice(0, 10)}` : ''}`, link: `/assignments/${id}`, excludeUserId: req.user!.id });
     for (const m of members) {
       await recordActivity(db, { orgId, learnerId: m.learner_id, batchId: room.batch.id, type: 'assignment.posted', title: `New assignment: ${b.title}`, meta: { assignment_id: id }, actorUserId: req.user!.id });
     }

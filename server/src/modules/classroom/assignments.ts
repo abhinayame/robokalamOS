@@ -5,6 +5,7 @@ import { audit } from '../../lib/audit.js';
 import { badRequest, conflict, forbidden, notFound } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { learnerScope } from '../../lib/scope.js';
+import { notifyAbout } from '../../lib/notify.js';
 import { recordActivity } from '../../lib/timeline.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { recordScore } from '../assessment/scoring.js';
@@ -215,6 +216,7 @@ submissionsRouter.post('/:id/review', wrap(async (req, res) => {
     await exec(`UPDATE submissions SET status = $1, feedback = $2, evaluated_at = NOW(3), evaluated_by = $3 WHERE id = $4`, [status, b.feedback ?? null, req.user!.id, s.id], db);
     await recordActivity(db, { orgId, learnerId: s.learner_id, batchId: s.batch_id, type: `assignment.${status}`,
       title: status === 'evaluated' ? `Evaluated: ${s.title}` : `Returned for changes: ${s.title}`, description: b.feedback ?? null, meta: { submission_id: s.id }, actorUserId: req.user!.id });
+    await notifyAbout(db, { orgId, learnerIds: [s.learner_id], kind: `assignment.${status}`, title: status === 'evaluated' ? `Evaluated: ${s.title}` : `Returned for changes: ${s.title}`, body: b.feedback ?? null, link: `/assignments/${s.assignment_id}`, excludeUserId: req.user!.id });
     return { id: s.id, status };
   });
   await audit({ orgId, actor: req.user, action: `submission.${out.status}`, entityType: 'submission', entityId: out.id, req });
