@@ -6,6 +6,7 @@ import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { learnerScope } from '../../lib/scope.js';
 import { normalizeMobile } from '../../lib/phone.js';
+import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { selectorSchema, type Selector } from '../selection/resolver.js';
 import { isConfigured, isWebhookConfigured } from './aisensy.js';
@@ -176,7 +177,7 @@ router.post('/campaigns/:id/preview', campaign, wrap(async (req, res) => {
 }));
 
 /** Freeze the recipient snapshot and start (or schedule) sending. Needs the numbers the sender just reviewed. */
-router.post('/campaigns/:id/confirm', campaign, wrap(async (req, res) => {
+router.post('/campaigns/:id/confirm', limit('campaign', 10), campaign, wrap(async (req, res) => {
   const orgId = orgIdOf(req);
   const b = parse(z.object({ confirm: z.literal(true, { message: 'Review the audience and confirm to send.' }), expected_recipients: z.number().int().min(0) }), req.body);
   if (!isConfigured()) throw conflict('WhatsApp is not connected yet. An admin needs to set the AiSensy details on the server.', 'NOT_CONFIGURED');

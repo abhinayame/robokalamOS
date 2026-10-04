@@ -1,6 +1,7 @@
 import crypto from 'node:crypto';
 import { Router } from 'express';
 import { env } from '../../config/env.js';
+import { limit } from '../../middleware/limits.js';
 import { logger } from '../../lib/logger.js';
 import { processWebhook } from './delivery.js';
 
@@ -9,7 +10,7 @@ import { processWebhook } from './delivery.js';
  * shared secret (compared in constant time). Any other path or secret looks like a 404; the secret is never logged.
  */
 const router = Router();
-router.post('/aisensy/:secret', async (req, res) => {
+router.post('/aisensy/:secret', limit('webhook', 600), async (req, res) => {
   const want = env.AISENSY_WEBHOOK_SECRET;
   const got = String(req.params.secret ?? '');
   const ok = !!want && got.length === want.length && crypto.timingSafeEqual(Buffer.from(got), Buffer.from(want));

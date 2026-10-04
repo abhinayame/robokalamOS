@@ -32,6 +32,7 @@ const GROUPS: Group[] = [
     { to: '/settings/tags', label: 'Tags', icon: '🏷️', perm: 'tag:read', roles: STAFF },
     { to: '/settings/users', label: 'Staff & Roles', icon: '🔑', perm: 'user:manage' },
     { to: '/settings/audit', label: 'Audit Log', icon: '🧾', perm: 'audit:read' },
+    { to: '/settings/system', label: 'System Status', icon: '🩺', perm: 'system:read' },
   ] },
   { label: 'Platform', items: [{ to: '/organizations', label: 'Organizations', icon: '🏢', roles: ['super_admin'] }] },
 ];

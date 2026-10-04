@@ -9,6 +9,9 @@ import helmet from 'helmet';
 import { corsOrigins, env, isProd } from './config/env.js';
 import { query } from './db/pool.js';
 import { logger } from './lib/logger.js';
+import compression from 'compression';
+import { observe } from './middleware/observe.js';
+import { healthRouter, systemRouter } from './modules/system/routes.js';
 import { authenticate } from './middleware/auth.js';
 import { csrfProtection } from './middleware/csrf.js';
 import { errorHandler, notFoundHandler } from './middleware/error.js';
@@ -45,14 +48,18 @@ export function createApp() {
   app.disable('x-powered-by');
   if (env.TRUST_PROXY === 'true') app.set('trust proxy', 1);
 
+  app.use(observe);
+  app.use(compression());
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: true,
       directives: { 'img-src': ["'self'", 'data:', 'https:'], 'connect-src': ["'self'"] },
     },
     crossOriginEmbedderPolicy: false,
+    referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
     hsts: isProd ? undefined : false,
   }));
+  app.use((_req, res, next) => { res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()'); next(); });
   app.use(cors({
     origin(origin, cb) {
       if (!origin || corsOrigins.includes(origin)) return cb(null, true);
@@ -76,6 +83,7 @@ export function createApp() {
     catch (e) { logger.error({ err: e }, 'health check failed'); res.status(503).json({ ok: false, error: { code: 'DB_DOWN', message: 'Database unavailable.' } }); }
   });
 
+  app.use('/api/health', healthRouter);
   app.use('/api/webhooks', webhookRoutes);              // public: guarded by a secret in the URL, not by a login
   app.use('/api/auth', authRoutes);
   app.use('/api', authenticate);                       // everything below requires a valid session
@@ -105,6 +113,7 @@ export function createApp() {
   app.use('/api/submissions', submissionsRouter);
   app.use('/api/files', fileRoutes);
   app.use('/api/audit', auditRoutes);
+  app.use('/api/system', systemRouter);
   app.use('/api', catalogRoutes);                      // /branches /programs /courses
   app.use('/api', userRoutes);                         // /teachers /users
   app.use('/api', notFoundHandler);

@@ -1,7 +1,7 @@
 # Robokalam Learner OS — Architecture
 
 > **One Operating System for Every Learner.**
-> Status: **Phase 1 (Foundation) implemented and tested.** Phases 2–9 are designed here and intentionally **not** built yet.
+> Status: **Phases 1–9 implemented and tested.** This document is the original design; where it says "planned" or "designed, not built" the per-phase docs (`PHASE-2…9`) describe what was actually built and any deviations.
 
 Contents: 1 System · 2 Diagram · 3 Database & ERD · 4 API · 5 Folder structure · 6 RBAC matrix · 7 Learner–batch model · 8 Bulk selection · 9 Deduplication · 10 WhatsApp · 11 CRM · 12 Security · 13 Hostinger deployment · 14 Roadmap · 15 Decisions & trade-offs
 
@@ -201,7 +201,7 @@ Authorization has two parts: **permissions** (what actions a role may call) and 
 | Linked children | Parent (all children, all their batches) |
 | All organizations | Super Admin (must pick an org with `X-Org-Id`) |
 
-Permissions — ✅ implemented in Phase 1, ⏳ added by the named phase.
+Permissions — all listed features are implemented (Phases 1–9) except payments.
 
 | Capability | Super | Org Admin | Branch Admin | Teacher | Counsellor | Accountant | Learner | Parent |
 |---|---|---|---|---|---|---|---|---|
@@ -220,12 +220,12 @@ Permissions — ✅ implemented in Phase 1, ⏳ added by the named phase.
 | Bulk actions / export | ✅ | ✅ | branch | – | export only | – | – | – |
 | Audit log | ✅ | ✅ | ✅ | – | – | – | – | – |
 | Dashboards | ✅ | ✅ | ✅ | teacher | ✅ | ✅ | learner | parent |
-| Assignments, submissions, scores, badges, XP | ⏳P2–4 | ⏳ | ⏳ | assigned batches | – | – | own (read/submit) | children (read) |
-| Attendance | ⏳P5 | ⏳ | ⏳ | assigned batches | – | – | own (read) | children (read) |
-| CRM, tags, follow-ups | ⏳P6 | ⏳ | ⏳ | – | ✅ | – | – | – |
-| Communication / WhatsApp campaigns | ⏳P7 | ⏳ | ⏳ | announcements in own batches | campaigns for leads | – | – | – |
-| Payments / invoices | ⏳P6 | ⏳ | ⏳ | – | – | ✅ | – | – |
-| Reports | ⏳P8 | ⏳ | ⏳ | own batches | CRM | finance | – | – |
+| Assignments, submissions, scores, badges, XP | ✅ | ✅ | ✅ | assigned batches | – | – | own (read/submit) | children (read) |
+| Attendance | ✅ | ✅ | ✅ | assigned batches | – | – | own (read) | children (read) |
+| CRM, tags, follow-ups | ✅ | ✅ | ✅ | – | ✅ | – | – | – |
+| Communication / WhatsApp campaigns | ✅ | ✅ | ✅ | announcements in own batches | campaigns for leads | – | – | – |
+| Payments / invoices | not built (out of scope for the 9 phases) | | | | | | | |
+| Reports | ✅ | ✅ | ✅ | own batches | CRM | finance | – | – |
 
 The permission keys live in the `permissions` / `role_permissions` tables (seeded in 001, extended by later migrations).
 
@@ -287,7 +287,7 @@ The same module (`modules/selection/resolver.ts`) will feed WhatsApp, e-mail, an
 3. **Snapshot:** a campaign freezes its recipient list at confirmation time (`whatsapp_recipients`); later batch changes never alter an in-flight campaign.
 4. **Contact dedupe at creation:** learner mobile/email unique per org; parent unique per mobile.
 
-## 10. WhatsApp architecture (Phase 7 — designed, not built)
+## 10. WhatsApp architecture (Phase 7 — built; see PHASE-7-COMMUNICATION.md)
 
 ```
 Admin picks audience (selection engine) → Campaign REVIEW screen (batches, memberships, unique learners,

@@ -151,21 +151,31 @@ export const REPORTS: ReportDef[] = [
     id: 'attendance', title: 'Attendance report', description: 'Present, late, absent and excused per learner per batch. Batches are never merged.', filters: ['batch_id', 'course_id', 'program_id', 'branch_id', 'from', 'to'],
     columns: [t('batch', 'Batch'), t('code', 'Learner ID'), t('name', 'Learner'), n('present', 'Present'), n('late', 'Late'), n('absent', 'Absent'), n('excused', 'Excused'), pc('pct', 'Attendance %')],
     async run(c, f) {
-      const p = new Params(); const w = [batchWhere(c, f, p), `s.status <> 'cancelled'`, 'l.deleted_at IS NULL']; const ls = learnerScope(c.user, p, 'l'); if (ls) w.push(ls);
-      if (f.from) w.push(`s.starts_at >= ${p.add(day(f.from))}`); if (f.to) w.push(`s.starts_at < ${p.add(after(f.to))}`);
-      const rows = await query(`SELECT b.name AS batch, l.learner_code, l.full_name, SUM(a.status = 'present') AS present, SUM(a.status = 'late') AS late, SUM(a.status = 'absent') AS absent, SUM(a.status = 'excused') AS excused
-        FROM attendance a JOIN class_sessions s ON s.id = a.session_id JOIN batches b ON b.id = a.batch_id JOIN learners l ON l.id = a.learner_id WHERE ${w.join(' AND ')} GROUP BY a.batch_id, a.learner_id, b.name, l.learner_code, l.full_name ORDER BY b.name, l.full_name LIMIT ${c.limit}`, p.values);
-      return rows.map((r) => { const x = { present: Number(r.present), late: Number(r.late), absent: Number(r.absent) }; return { batch: r.batch, code: r.learner_code, name: r.full_name, ...x, excused: Number(r.excused), pct: attendancePct(x) }; });
+      // Batches are walked in name order, a few at a time, and the walk stops once the row limit is reached: an organization-wide
+      // report over hundreds of thousands of attendance rows never aggregates more than it will show.
+      const bp = new Params();
+      const ids = (await query(`SELECT b.id FROM batches b WHERE ${batchWhere(c, f, bp)} ORDER BY b.name, b.id`, bp.values)).map((r) => r.id as string);
+      const out: Row[] = [];
+      for (let i = 0; i < ids.length && out.length < c.limit; i += 20) {
+        const p = new Params(); const w = [`a.batch_id IN ${p.in(ids.slice(i, i + 20))}`, `s.status <> 'cancelled'`, 'l.deleted_at IS NULL']; const ls = learnerScope(c.user, p, 'l'); if (ls) w.push(ls);
+        if (f.from) w.push(`s.starts_at >= ${p.add(day(f.from))}`); if (f.to) w.push(`s.starts_at < ${p.add(after(f.to))}`);
+        const rows = await query(`SELECT b.name AS batch, l.learner_code, l.full_name, SUM(a.status = 'present') AS present, SUM(a.status = 'late') AS late, SUM(a.status = 'absent') AS absent, SUM(a.status = 'excused') AS excused
+          FROM attendance a JOIN class_sessions s ON s.id = a.session_id JOIN batches b ON b.id = a.batch_id JOIN learners l ON l.id = a.learner_id WHERE ${w.join(' AND ')} GROUP BY a.batch_id, a.learner_id, b.name, l.learner_code, l.full_name ORDER BY b.name, l.full_name`, p.values);
+        for (const r of rows) { const x = { present: Number(r.present), late: Number(r.late), absent: Number(r.absent) }; out.push({ batch: r.batch, code: r.learner_code, name: r.full_name, ...x, excused: Number(r.excused), pct: attendancePct(x) }); }
+      }
+      return out.slice(0, c.limit);
     },
   },
   {
     id: 'score', title: 'Score report', description: 'Every recorded score (assignments, quizzes, activities) with percentage and who scored it.', filters: ['batch_id', 'course_id', 'program_id', 'branch_id', 'type', 'from', 'to'],
     columns: [t('batch', 'Batch'), t('code', 'Learner ID'), t('name', 'Learner'), t('type', 'Type'), t('activity', 'Activity'), t('category', 'Category'), n('score', 'Score'), n('max', 'Maximum'), pc('pct', 'Percentage'), t('scored_by', 'Scored by'), dt('at', 'Updated')],
     async run(c, f) {
-      const p = new Params(); const w = [batchWhere(c, f, p), 's.deleted_at IS NULL', 'l.deleted_at IS NULL']; const ls = learnerScope(c.user, p, 'l'); if (ls) w.push(ls);
+      const p = new Params(); const w = [batchWhere(c, f, p), `s.org_id = ${p.add(c.orgId)}`, 's.deleted_at IS NULL', 'l.deleted_at IS NULL']; const ls = learnerScope(c.user, p, 'l'); if (ls) w.push(ls);
       if (f.type) w.push(`s.source_type = ${p.add(f.type)}`); if (f.from) w.push(`s.updated_at >= ${p.add(day(f.from))}`); if (f.to) w.push(`s.updated_at < ${p.add(after(f.to))}`);
+      // With no batch-level filter the newest rows come straight off the (org, updated_at) index instead of sorting every score.
+      const broad = !f.batch_id?.length && !f.course_id && !f.program_id && !f.branch_id && !f.status;
       const rows = await query(`SELECT b.name AS batch, l.learner_code, l.full_name, s.source_type, s.activity_name, s.category, s.score, s.max_score, s.updated_at, u.full_name AS by_name
-        FROM scores s JOIN batches b ON b.id = s.batch_id JOIN learners l ON l.id = s.learner_id JOIN users u ON u.id = s.teacher_user_id WHERE ${w.join(' AND ')} ORDER BY s.updated_at DESC, s.id LIMIT ${c.limit}`, p.values);
+        FROM scores s ${broad ? 'FORCE INDEX (idx_scores_org_updated)' : ''} JOIN batches b ON b.id = s.batch_id JOIN learners l ON l.id = s.learner_id JOIN users u ON u.id = s.teacher_user_id WHERE ${w.join(' AND ')} ORDER BY s.updated_at DESC, s.id DESC LIMIT ${c.limit}`, p.values);
       return rows.map((r) => ({ batch: r.batch, code: r.learner_code, name: r.full_name, type: r.source_type, activity: r.activity_name, category: r.category, score: Number(r.score), max: Number(r.max_score), pct: r2((Number(r.score) / Number(r.max_score)) * 100), scored_by: r.by_name, at: iso(r.updated_at) }));
     },
   },

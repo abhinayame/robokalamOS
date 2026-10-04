@@ -41,6 +41,6 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
   if ([1264, 1265, 1292, 1366, 1406].includes(err?.errno)) {
     return res.status(400).json({ ok: false, error: { code: 'BAD_REQUEST', message: 'One of the values has an invalid format.' } });
   }
-  logger.error({ err, path: req.path, method: req.method }, 'unhandled error');
-  res.status(500).json({ ok: false, error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.' } });
+  logger.error({ err, id: req.id, path: req.path, method: req.method }, 'unhandled error');
+  res.status(500).json({ ok: false, error: { code: 'INTERNAL', message: 'Something went wrong on our side. Please try again.', request_id: req.id } });
 }

@@ -4,6 +4,7 @@ import { audit } from '../../lib/audit.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { ok, parse, wrap } from '../../lib/http.js';
 import { csvCell } from '../../lib/security.js';
+import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { z } from 'zod';
 import { REPORTS, filterSchema, findReport, type Column, type ReportDef, type Row } from './registry.js';
@@ -42,7 +43,7 @@ router.get('/:id', wrap(async (req, res) => {
 const cell = (c: Column, v: Row[string]) => (v === null || v === undefined ? '' : c.kind === 'percent' && typeof v === 'number' ? `${v}` : v);
 const safeName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-router.post('/:id/export', wrap(async (req, res) => {
+router.post('/:id/export', limit('export', 12), wrap(async (req, res) => {
   const r = load(req, String(req.params.id));
   const body = parse(z.object({ format: z.enum(['csv', 'xlsx']), filters: z.record(z.string(), z.unknown()).default({}) }), req.body);
   const { f, rows } = await run(req, r, body.filters, EXPORT_MAX + 1);
