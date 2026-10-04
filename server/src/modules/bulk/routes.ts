@@ -6,6 +6,7 @@ import { AppError, badRequest, forbidden } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { notifyUsers } from '../../lib/notify.js';
 import { csvCell } from '../../lib/security.js';
+import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { ACTIVITY_TYPES, assertAssignable, createFollowUp, ensureLead, logCrmActivity } from '../crm/service.js';
 import { applyTags } from '../crm/tags.js';
@@ -36,7 +37,7 @@ const actionSchema = z.discriminatedUnion('action', [
  * de-duplicated by learner_id, tenant-isolated and RBAC-scoped BEFORE anything is executed.
  * Nothing runs without `confirm: true` (use `dry_run: true` to preview).
  */
-router.post('/learners', requireAnyPerm('learner:bulk', 'gamification:award', 'tag:apply', 'crm:manage'), wrap(async (req, res) => {
+router.post('/learners', limit('bulk action', 30), requireAnyPerm('learner:bulk', 'gamification:award', 'tag:apply', 'crm:manage'), wrap(async (req, res) => {
   const body = parse(z.object({ selection: selectorSchema, dry_run: z.boolean().default(false), confirm: z.boolean().default(false) }).and(actionSchema), req.body);
   const user = req.user!;
   const orgId = orgIdOf(req);
@@ -132,7 +133,7 @@ const EXPORT_COLS: Record<string, [string, string]> = {
 };
 
 /** CSV export of a (de-duplicated, permission-scoped) selection. Spreadsheet formulas are neutralised. */
-router.post('/learners/export', requirePerm('learner:export'), wrap(async (req, res) => {
+router.post('/learners/export', limit('export', 12), requirePerm('learner:export'), wrap(async (req, res) => {
   const body = parse(z.object({ selection: selectorSchema, columns: z.array(z.enum(Object.keys(EXPORT_COLS) as [string, ...string[]])).min(1).optional() }), req.body);
   const cols = body.columns ?? Object.keys(EXPORT_COLS);
   const a = buildAudience(req.user!, orgIdOf(req), body.selection);

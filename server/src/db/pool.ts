@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { logger } from '../lib/logger.js';
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader } from 'mysql2/promise';
 import { db as dbConfig, env } from '../config/env.js';
 
@@ -27,6 +28,7 @@ export const poolOptions = (): mysql.PoolOptions => ({
   bigNumberStrings: false,
   ssl: env.DATABASE_SSL === 'true' ? { rejectUnauthorized: false } : undefined,
   waitForConnections: true,
+  connectTimeout: 10_000,
   idleTimeout: 60_000,
   enableKeepAlive: true,
   typeCast(field, next) {
@@ -72,10 +74,19 @@ function translate(sql: string, params: unknown[]): { sql: string; values: unkno
   return { sql: out, values };
 }
 
+/** Queries slower than this are logged (SQL text only, never values) so slow spots show up in production logs. */
+const SLOW_QUERY_MS = 1500;
+function slow(sql: string, t0: number) {
+  const ms = Date.now() - t0;
+  if (ms >= SLOW_QUERY_MS) logger.warn({ ms, sql: sql.replace(/\s+/g, ' ').slice(0, 300) }, 'slow query');
+}
+
 /** SELECT → rows. (A write sent through here still runs; it just returns []. Use `exec` to get counts.) */
 export async function query<T = any>(sql: string, params: unknown[] = [], db: Db = pool): Promise<T[]> {
   const { sql: s, values } = translate(sql, params);
+  const t0 = Date.now();
   const [res] = await db.query(s, values);
+  slow(s, t0);
   return Array.isArray(res) ? (res as T[]) : [];
 }
 
@@ -86,7 +97,9 @@ export async function queryOne<T = any>(sql: string, params: unknown[] = [], db:
 /** INSERT / UPDATE / DELETE → { affectedRows }. */
 export async function exec(sql: string, params: unknown[] = [], db: Db = pool): Promise<ResultSetHeader> {
   const { sql: s, values } = translate(sql, params);
+  const t0 = Date.now();
   const [res] = await db.query(s, values);
+  slow(s, t0);
   return res as ResultSetHeader;
 }
 

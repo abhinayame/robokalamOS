@@ -6,10 +6,11 @@ import { exec, newId, query, queryOne } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { AppError, badRequest, unauthorized } from '../../lib/errors.js';
 import { ok, parse, wrap } from '../../lib/http.js';
-import {
+import { verifyAccess,
   hashPassword, passwordProblem, randomToken, sha256, signAccess, verifyPassword,
 } from '../../lib/security.js';
 import { ACCESS_COOKIE, authenticate } from '../../middleware/auth.js';
+import { limit } from '../../middleware/limits.js';
 import { CSRF_COOKIE } from '../../middleware/csrf.js';
 
 const REFRESH_COOKIE = 'rk_rt';
@@ -111,7 +112,7 @@ router.post('/login', loginLimiter, wrap(async (req, res) => {
   ok(res, { user: await profile(u.id), access_token: access, csrf_token: csrf });
 }));
 
-router.post('/refresh', wrap(async (req, res) => {
+router.post('/refresh', limit('refresh', 60), wrap(async (req, res) => {
   const token = req.cookies?.[REFRESH_COOKIE] ?? (typeof req.body?.refresh_token === 'string' ? req.body.refresh_token : null);
   if (!token) throw unauthorized();
   const next = randomToken(48);
@@ -134,8 +135,11 @@ router.post('/refresh', wrap(async (req, res) => {
 }));
 
 router.post('/logout', wrap(async (req, res) => {
-  const token = req.cookies?.[REFRESH_COOKIE];
+  const token = req.cookies?.[REFRESH_COOKIE] ?? (typeof req.body?.refresh_token === 'string' ? req.body.refresh_token : null);
   if (token) await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE refresh_token_hash = $1`, [sha256(token)]);
+  // A token-only client (no cookies) ends its session through the access token it is holding.
+  const bearer = req.get('authorization')?.startsWith('Bearer ') ? verifyAccess(req.get('authorization')!.slice(7)) : null;
+  if (bearer) await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE id = $1 AND user_id = $2`, [bearer.sid, bearer.sub]);
   clearAuthCookies(res);
   ok(res, { signed_out: true });
 }));
@@ -145,7 +149,7 @@ router.get('/me', authenticate, wrap(async (req, res) => {
   ok(res, { ...me, active_org_id: req.orgId ?? null });
 }));
 
-router.post('/change-password', authenticate, wrap(async (req, res) => {
+router.post('/change-password', authenticate, limit('password change', 10), wrap(async (req, res) => {
   const body = parse(z.object({ current_password: z.string().min(1), new_password: z.string() }), req.body);
   const problem = passwordProblem(body.new_password);
   if (problem) throw badRequest(problem);

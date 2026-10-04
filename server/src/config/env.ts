@@ -42,6 +42,8 @@ const schema = z.object({
   AISENSY_CAMPAIGN_PATH: z.preprocess(blank, z.string().startsWith('/').default('/campaign/t1/api/v2')),
   WHATSAPP_RATE_PER_SECOND: z.coerce.number().min(0.1).max(50).default(5),
   // The campaign sender runs inside this process. Set to false to run it elsewhere.
+  // Daily-ish clean-up of expired sessions, unattached uploads and old webhook payloads (see modules/system/maintenance.ts).
+  MAINTENANCE: z.enum(['true', 'false']).default('true'),
   COMMS_WORKER: z.enum(['true', 'false']).default('true'),
   // Apply migrations and create the owner login on start (idempotent). Set to false to run them manually.
   AUTO_MIGRATE: z.enum(['true', 'false']).default('true'),

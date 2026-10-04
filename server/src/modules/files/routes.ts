@@ -4,6 +4,7 @@ import { exec, newId, queryOne } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
+import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireAnyPerm, requireOrg } from '../../middleware/auth.js';
 import { openRoom } from '../classroom/access.js';
 import { ALLOWED, inspectFile, sanitizeName, sha256 } from './store.js';
@@ -16,6 +17,7 @@ router.use(requireOrg);
  * (Content-Type: application/octet-stream). Type is verified from content; size is capped.
  */
 router.post('/',
+  limit('upload', 40),
   requireAnyPerm('classroom:manage', 'classroom:interact'),
   express.raw({ type: () => true, limit: `${env.UPLOAD_MAX_MB}mb` }),
   wrap(async (req, res) => {
@@ -31,7 +33,7 @@ router.post('/',
     ok(res, { id, name, size: buf.length, mime: info.mime, kind: info.kind }, undefined, 201);
   }));
 
-router.get('/allowed', (_req, res) => ok(res, { extensions: Object.keys(ALLOWED), max_mb: env.UPLOAD_MAX_MB }));
+router.get('/allowed', requireAnyPerm('classroom:read', 'classroom:manage', 'classroom:interact'), (_req, res) => ok(res, { extensions: Object.keys(ALLOWED), max_mb: env.UPLOAD_MAX_MB }));
 
 /** Can this caller read the file? Derived from the thing it is attached to, never from the file id alone. */
 async function canRead(req: Request, f: { uploader_user_id: string; owner_type: string | null; owner_id: string | null }): Promise<boolean> {
