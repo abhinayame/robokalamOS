@@ -4,13 +4,17 @@ import { Params, exec, query, tx } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { AppError, badRequest, forbidden } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
+import { notifyUsers } from '../../lib/notify.js';
 import { csvCell } from '../../lib/security.js';
 import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middleware/auth.js';
+import { ACTIVITY_TYPES, assertAssignable, createFollowUp, ensureLead, logCrmActivity } from '../crm/service.js';
+import { applyTags } from '../crm/tags.js';
 import { awardBadge, awardXp, checkPoints, verifyTargets } from '../gamification/awards.js';
 import { enrollLearners, removeLearners } from '../batches/enrollment.js';
 import { LEARNER_STATUSES } from '../learners/filters.js';
 import { buildAudience, resolveLearnerIds, selectorSchema, summarizeAudience } from '../selection/resolver.js';
 
+const chunkIds = (a: string[], n = 500) => Array.from({ length: Math.ceil(a.length / n) }, (_, i) => a.slice(i * n, i * n + n));
 const router = Router();
 router.use(requireOrg);
 
@@ -20,6 +24,11 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('change_status'), status: z.enum(LEARNER_STATUSES) }),
   z.object({ action: z.literal('award_xp'), points: z.number().int(), reason: z.string().trim().min(2).max(255), batch_id: uuid.nullish(), request_id: uuid.optional() }),
   z.object({ action: z.literal('award_badge'), badge_id: uuid, reason: z.string().trim().max(500).nullish(), batch_id: uuid.nullish() }),
+  z.object({ action: z.literal('add_tag'), tag_id: uuid }),
+  z.object({ action: z.literal('remove_tag'), tag_id: uuid }),
+  z.object({ action: z.literal('assign_counsellor'), counsellor_id: uuid }),
+  z.object({ action: z.literal('create_crm_activity'), type: z.enum(ACTIVITY_TYPES), description: z.string().trim().max(5000).nullish() }),
+  z.object({ action: z.literal('create_follow_up'), due_at: z.string().datetime({ offset: true }), note: z.string().trim().max(500).nullish(), assigned_to: uuid }),
 ]);
 
 /**
@@ -27,11 +36,12 @@ const actionSchema = z.discriminatedUnion('action', [
  * de-duplicated by learner_id, tenant-isolated and RBAC-scoped BEFORE anything is executed.
  * Nothing runs without `confirm: true` (use `dry_run: true` to preview).
  */
-router.post('/learners', requireAnyPerm('learner:bulk', 'gamification:award'), wrap(async (req, res) => {
+router.post('/learners', requireAnyPerm('learner:bulk', 'gamification:award', 'tag:apply', 'crm:manage'), wrap(async (req, res) => {
   const body = parse(z.object({ selection: selectorSchema, dry_run: z.boolean().default(false), confirm: z.boolean().default(false) }).and(actionSchema), req.body);
   const user = req.user!;
   const orgId = orgIdOf(req);
-  const needs = body.action === 'change_status' ? 'learner:update' : body.action.startsWith('award_') ? 'gamification:award' : 'batch:enroll';
+  const needs = body.action === 'change_status' ? 'learner:update' : body.action.startsWith('award_') ? 'gamification:award' : body.action.endsWith('_tag') ? 'tag:apply' : ['assign_counsellor', 'create_crm_activity', 'create_follow_up'].includes(body.action) ? 'crm:manage' : 'batch:enroll';
+  if (body.action === 'create_follow_up' && new Date(body.due_at) <= new Date()) throw badRequest('Pick a time in the future.', [{ field: 'due_at', message: 'Must be in the future.' }]);
   if (body.action === 'award_xp') checkPoints(req, body.points);
   if (!user.isSuperAdmin && !user.permissions.has(needs)) throw forbidden();
 
@@ -55,6 +65,28 @@ router.post('/learners', requireAnyPerm('learner:bulk', 'gamification:award'), w
       const t = await verifyTargets(req, ids, body.batch_id, db);
       const r = await awardBadge(db, req, { badgeId: body.badge_id, ids: t.ids, batchId: body.batch_id, reason: body.reason });
       detail = { awarded: r.awarded, already_has: r.already_has, xp_granted: r.xp_granted, affected: r.awarded };
+    } else if (body.action === 'add_tag' || body.action === 'remove_tag') {
+      const r = await applyTags(db, req, body.action === 'add_tag' ? { learnerIds: ids, add: [body.tag_id] } : { learnerIds: ids, remove: [body.tag_id] });
+      detail = { ...r, affected: r.added + r.removed, already: ids.length - (r.added + r.removed) };
+    } else if (body.action === 'assign_counsellor') {
+      await assertAssignable(db, orgId, body.counsellor_id);
+      let assigned = 0; let leadsCreated = 0;
+      for (const part of chunkIds(ids)) {
+        for (const lid of part) {
+          if (await ensureLead(db, { orgId, learnerId: lid, actorId: user.id, fields: { counsellor_user_id: body.counsellor_id } })) { leadsCreated++; assigned++; continue; }
+          const r = await exec(`UPDATE crm_leads SET counsellor_user_id = $1 WHERE learner_id = $2 AND (counsellor_user_id IS NULL OR counsellor_user_id <> $1)`, [body.counsellor_id, lid], db);
+          assigned += r.affectedRows;
+        }
+      }
+      detail = { assigned, leads_created: leadsCreated, unchanged: ids.length - assigned, affected: assigned };
+    } else if (body.action === 'create_crm_activity') {
+      for (const lid of ids) await logCrmActivity(db, { orgId, learnerId: lid, type: body.type, description: body.description, staffId: user.id });
+      detail = { logged: ids.length, affected: ids.length };
+    } else if (body.action === 'create_follow_up') {
+      await assertAssignable(db, orgId, body.assigned_to);
+      for (const lid of ids) await createFollowUp(db, { orgId, learnerId: lid, assignedTo: body.assigned_to, dueAt: new Date(body.due_at), note: body.note, actorId: user.id, quiet: true });
+      if (body.assigned_to !== user.id) await notifyUsers(db, { orgId, userIds: [body.assigned_to], kind: 'followup.assigned', title: `${ids.length} follow-ups assigned to you`, body: body.note ?? null, link: '/crm/follow-ups' });
+      detail = { created: ids.length, affected: ids.length };
     } else if (body.action === 'remove_batch') {
       const r = await removeLearners(c, body.batch_id, ids, { reason: body.reason ?? 'Removed in bulk' });
       detail = { removed: r.removed, not_member: r.not_member, affected: r.removed };

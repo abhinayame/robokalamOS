@@ -25,6 +25,8 @@ import { attendanceRouter, sessionsRouter } from './modules/attendance/routes.js
 import notificationRoutes from './modules/notifications/routes.js';
 import portalRoutes from './modules/portal/routes.js';
 import analyticsRoutes from './modules/analytics/routes.js';
+import crmRoutes from './modules/crm/routes.js';
+import { tagsRouter } from './modules/crm/tags.js';
 import fileRoutes from './modules/files/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 import learnerRoutes from './modules/learners/routes.js';
@@ -86,6 +88,8 @@ export function createApp() {
   app.use('/api/notifications', notificationRoutes);
   app.use('/api/portal', portalRoutes);
   app.use('/api/analytics', analyticsRoutes);
+  app.use('/api/crm', crmRoutes);
+  app.use('/api/tags', tagsRouter);
   app.use('/api/scores', scoresRouter);
   app.use('/api/quizzes', quizzesRouter);
   app.use('/api/gamification', gamificationRoutes);

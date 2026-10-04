@@ -9,6 +9,7 @@ import { normalizeMobile } from '../../lib/phone.js';
 import { canWriteBranch, learnerScope } from '../../lib/scope.js';
 import { generatePassword, hashPassword, passwordProblem } from '../../lib/security.js';
 import { recordActivity } from '../../lib/timeline.js';
+import { tagsOf } from '../crm/service.js';
 import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { enrollLearners, removeLearners } from '../batches/enrollment.js';
 import { linkParent, parentInput, upsertParent } from '../parents/service.js';
@@ -96,6 +97,10 @@ async function enrich(rows: any[], orgId: string) {
   const ap = new Params();
   const acts = await query(`SELECT learner_id, MAX(occurred_at) AS last FROM learner_activity WHERE learner_id IN ${ap.in(ids)} GROUP BY learner_id`, ap.values);
   const branches = await query(`SELECT id, name FROM branches WHERE org_id = $1`, [orgId]);
+  const tp = new Params();
+  const tagRows = await query(`SELECT lt.learner_id, t.id, t.name, t.color FROM learner_tags lt JOIN tags t ON t.id = lt.tag_id WHERE lt.learner_id IN ${tp.in(ids)} ORDER BY t.name`, tp.values);
+  const lp = new Params();
+  const leads = await query(`SELECT learner_id, lead_status, temperature FROM crm_leads WHERE learner_id IN ${lp.in(ids)}`, lp.values);
   return rows.map((r) => {
     const bs = batches.filter((b) => b.learner_id === r.id);
     const teachers = new Map<string, any>();
@@ -109,6 +114,8 @@ async function enrich(rows: any[], orgId: string) {
       courses: [...new Set(bs.map((b) => b.course_name))],
       teachers: [...teachers.values()],
       last_activity: acts.find((a) => a.learner_id === r.id)?.last ?? null,
+      tags: tagRows.filter((t) => t.learner_id === r.id).map(({ learner_id, ...t }) => t),
+      lead: leads.find((l) => l.learner_id === r.id) ? { status: leads.find((l) => l.learner_id === r.id)!.lead_status, temperature: leads.find((l) => l.learner_id === r.id)!.temperature } : null,
     };
   });
 }
@@ -208,6 +215,8 @@ async function getLearner360(req: Request, id: string) {
       activity_events: counts!.n,
     },
     has_login: !!user_id,
+    // Tags are internal staff labels: never sent to learners or parents.
+    ...(req.user!.isSuperAdmin || req.user!.permissions.has('tag:read') ? { tags: await tagsOf(id) } : {}),
   };
 }
 

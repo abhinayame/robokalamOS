@@ -5,6 +5,7 @@ import { learnerScope } from '../../lib/scope.js';
 import type { AuthUser } from '../../middleware/auth.js';
 
 export const LEARNER_STATUSES = ['active', 'inactive', 'archived'] as const;
+export const LEAD_STATUSES = ['new', 'contacted', 'interested', 'demo_scheduled', 'demo_attended', 'follow_up', 'converted', 'not_interested', 'lost'] as const;
 export const MEMBERSHIP_STATUSES = ['active', 'completed', 'left', 'transferred'] as const;
 
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD.');
@@ -23,6 +24,11 @@ export const learnerFilterShape = {
   enrolled_from: date.optional(),
   enrolled_to: date.optional(),
   no_batch: z.boolean().optional(),
+  // CRM (Phase 6): the same engine filters learners by tag and by lead status.
+  tag_id: z.array(uuid).max(50).optional(),
+  lead_status: z.array(z.enum(LEAD_STATUSES)).max(9).optional(),
+  counsellor_id: z.array(uuid).max(200).optional(),
+  follow_up: z.enum(['overdue', 'today', 'week']).optional(),
 };
 export const learnerFiltersBody = z.object(learnerFilterShape);
 
@@ -37,6 +43,9 @@ export const learnerFiltersQuery = z.object({
   teacher_id: csvList(uuid),
   academic_year: csvList(z.string().max(20)),
   membership_status: csvList(z.enum(MEMBERSHIP_STATUSES)),
+  tag_id: csvList(uuid),
+  lead_status: csvList(z.enum(LEAD_STATUSES)),
+  counsellor_id: csvList(uuid),
   no_batch: z.preprocess((v) => (v === 'true' || v === true ? true : v === 'false' || v === false ? false : undefined), z.boolean().optional()),
 });
 
@@ -80,6 +89,12 @@ export function learnerWhere(user: AuthUser, orgId: string, f: LearnerFilters, p
   } else if (f.membership_status?.length) {
     w.push(`EXISTS (SELECT 1 FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status IN ${p.in(f.membership_status)})`);
   }
+  if (f.tag_id?.length) w.push(`EXISTS (SELECT 1 FROM learner_tags lt WHERE lt.learner_id = l.id AND lt.tag_id IN ${p.in(f.tag_id)})`);
+  const lead: string[] = [];
+  if (f.lead_status?.length) lead.push(`cl.lead_status IN ${p.in(f.lead_status)}`);
+  if (f.counsellor_id?.length) lead.push(`cl.counsellor_user_id IN ${p.in(f.counsellor_id)}`);
+  if (f.follow_up) lead.push(f.follow_up === 'overdue' ? `cl.next_follow_up_at < NOW(3)` : f.follow_up === 'today' ? `cl.next_follow_up_at >= NOW(3) AND cl.next_follow_up_at < DATE_ADD(DATE(NOW(3)), INTERVAL 1 DAY)` : `cl.next_follow_up_at >= NOW(3) AND cl.next_follow_up_at < DATE_ADD(NOW(3), INTERVAL 7 DAY)`);
+  if (lead.length) w.push(`EXISTS (SELECT 1 FROM crm_leads cl WHERE cl.learner_id = l.id AND ${lead.join(' AND ')})`);
   if (f.no_batch) w.push(`NOT EXISTS (SELECT 1 FROM learner_batch_memberships m WHERE m.learner_id = l.id AND m.status = 'active')`);
   return w;
 }
