@@ -27,6 +27,9 @@ const schema = z.object({
   MAX_FAILED_LOGINS: z.coerce.number().default(8),
   LOCKOUT_MINUTES: z.coerce.number().default(15),
   LOG_LEVEL: z.string().default('info'),
+  // Max size of one uploaded file. Files are stored in the database, so keep this below your
+  // MySQL max_allowed_packet / 2 (a binary value is sent as hex). 5 MB is safe on Hostinger.
+  UPLOAD_MAX_MB: z.coerce.number().min(1).max(20).default(5),
   // Apply migrations and create the owner login on start (idempotent). Set to false to run them manually.
   AUTO_MIGRATE: z.enum(['true', 'false']).default('true'),
   SUPER_ADMIN_EMAIL: z.string().optional(),

@@ -25,6 +25,9 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
   if (err?.type === 'entity.too.large') {
     return res.status(413).json({ ok: false, error: { code: 'TOO_LARGE', message: 'The request is too large.' } });
   }
+  if (err?.errno === 1153) {   // ER_NET_PACKET_TOO_LARGE: file bigger than the database accepts
+    return res.status(413).json({ ok: false, error: { code: 'TOO_LARGE', message: 'That file is too large. Please upload a smaller file.' } });
+  }
   if (err?.errno === 1062) {
     const key = /for key '(?:[^']*\.)?([^']+)'/.exec(String(err.sqlMessage ?? err.message))?.[1] ?? '';
     const message = KEY_MESSAGES[key] ?? 'That record already exists.';
