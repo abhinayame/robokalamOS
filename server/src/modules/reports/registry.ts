@@ -236,5 +236,31 @@ export const REPORTS: ReportDef[] = [
       return rows.map((r) => ({ name: r.name, template: r.template, audience: r.audience, status: String(r.status).replace(/_/g, ' '), unique_learners: Number(r.unique_learners), recipients: Number(r.total_recipients), sent: Number(r.sent), delivered: Number(r.delivered), read: Number(r.rd), failed: Number(r.failed), skipped: Number(r.skipped), created_by: r.by_name, created: iso(r.created_at), finished: iso(r.finished_at) }));
     },
   },
+  {
+    id: 'fees', title: 'Fee dues report', description: 'Every unpaid installment with the learner, batch, parent mobile and how many days it is overdue.', filters: ['batch_id', 'from', 'to', 'status'], needs: 'fee:read',
+    columns: [t('code', 'Learner ID'), t('name', 'Learner'), t('batch', 'Batch'), t('fee', 'Fee'), t('installment', 'Installment'), dt('due', 'Due date'), n('amount', 'Amount'), n('paid', 'Paid'), n('balance', 'Balance'), n('days_overdue', 'Days overdue'), t('parent_mobile', 'Parent mobile')],
+    async run(c, f) {
+      const tz = (await queryOne(`SELECT timezone FROM organizations WHERE id = $1`, [c.orgId]))?.timezone ?? 'Asia/Kolkata';
+      const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+      const p = new Params(); const w = [`i.org_id = ${p.add(c.orgId)}`, `f.status = 'active'`, `i.status IN ('pending','partial')`, 'l.deleted_at IS NULL']; const ls = learnerScope(c.user, p, 'l'); if (ls) w.push(ls);
+      if (f.batch_id?.length) w.push(`f.batch_id IN ${p.in(f.batch_id)}`); if (f.from) w.push(`i.due_date >= ${p.add(f.from)}`); if (f.to) w.push(`i.due_date <= ${p.add(f.to)}`);
+      if (f.status === 'overdue') w.push(`i.due_date < ${p.add(today)}`); else if (f.status === 'upcoming') w.push(`i.due_date >= ${p.add(today)}`);
+      const rows = await query(`SELECT l.learner_code, l.full_name, b.name AS batch, f.title, i.label, i.due_date, i.amount, i.paid_amount, DATEDIFF(${p.add(today)}, i.due_date) AS od,
+          (SELECT pa.mobile FROM learner_parents lp JOIN parents pa ON pa.id = lp.parent_id AND pa.deleted_at IS NULL WHERE lp.learner_id = l.id ORDER BY lp.is_primary DESC, pa.id LIMIT 1) AS pm
+        FROM fee_installments i JOIN learner_fees f ON f.id = i.learner_fee_id JOIN learners l ON l.id = i.learner_id LEFT JOIN batches b ON b.id = f.batch_id
+        WHERE ${w.join(' AND ')} ORDER BY i.due_date, l.full_name, i.id LIMIT ${c.limit}`, p.values);
+      return rows.map((r) => ({ code: r.learner_code, name: r.full_name, batch: r.batch, fee: r.title, installment: r.label, due: String(r.due_date).slice(0, 10), amount: Number(r.amount), paid: Number(r.paid_amount), balance: r2(Number(r.amount) - Number(r.paid_amount)), days_overdue: Math.max(Number(r.od), 0), parent_mobile: r.pm }));
+    },
+  },
+  {
+    id: 'collections', title: 'Fee collections report', description: 'Every payment received in the period: receipt, learner, method, amount, refunds and net.', filters: ['from', 'to'], needs: 'fee:read',
+    columns: [t('receipt', 'Receipt'), dt('paid_at', 'Paid on'), t('code', 'Learner ID'), t('name', 'Learner'), t('method', 'Method'), t('source', 'Source'), n('amount', 'Amount'), n('refunded', 'Refunded'), n('net', 'Net'), t('reference', 'Reference')],
+    async run(c, f) {
+      const p = new Params(); const w = [`p.org_id = ${p.add(c.orgId)}`, 'l.deleted_at IS NULL']; const ls = learnerScope(c.user, p, 'l'); if (ls) w.push(ls);
+      if (f.from) w.push(`p.paid_at >= ${p.add(day(f.from))}`); if (f.to) w.push(`p.paid_at < ${p.add(after(f.to))}`);
+      const rows = await query(`SELECT p.receipt_no, p.paid_at, l.learner_code, l.full_name, p.method, p.provider, p.amount, p.refunded_amount, p.reference FROM payments p JOIN learners l ON l.id = p.learner_id WHERE ${w.join(' AND ')} ORDER BY p.paid_at DESC, p.id LIMIT ${c.limit}`, p.values);
+      return rows.map((r) => ({ receipt: r.receipt_no, paid_at: iso(r.paid_at), code: r.learner_code, name: r.full_name, method: String(r.method).replace('_', ' '), source: r.provider === 'razorpay' ? 'online' : 'recorded', amount: Number(r.amount), refunded: Number(r.refunded_amount), net: r2(Number(r.amount) - Number(r.refunded_amount)), reference: r.reference }));
+    },
+  },
 ];
 export const findReport = (id: string) => REPORTS.find((r) => r.id === id);

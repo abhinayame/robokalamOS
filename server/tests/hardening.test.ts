@@ -18,7 +18,7 @@ describe('every route says who may call it', () => {
     const authAt = src.indexOf("app.use('/api', authenticate)");
     expect(authAt).toBeGreaterThan(0);
     const before = [...src.slice(0, authAt).matchAll(/app\.use\('(\/api[^']*)'/g)].map((m) => m[1]);
-    expect(before.sort()).toEqual(['/api/auth', '/api/health', '/api/webhooks'].sort());
+    expect([...new Set(before)].sort()).toEqual(['/api/auth', '/api/health', '/api/webhooks'].sort());
     const publicRoutes = [...src.slice(0, authAt).matchAll(/app\.(get|post)\('(\/api[^']*)'/g)].map((m) => m[2]);
     expect(publicRoutes).toEqual(['/api/health']);
   });
@@ -28,6 +28,7 @@ describe('every route says who may call it', () => {
     'modules/auth/routes.ts': 'sign-in, refresh, logout, me and change-password act only on the caller\'s own account',
     'modules/notifications/routes.ts': 'a user can only ever read and change their own notifications',
     'modules/comms/webhook.ts': 'guarded by the secret in the URL',
+    'modules/fees/webhook.ts': 'guarded by the Razorpay HMAC signature over the raw body',
     'modules/system/routes.ts': 'health/ready is public by design; the system status router carries system:read',
     'modules/dashboard/routes.ts': 'dashboard:view on the route',
     'modules/classroom/classwork.ts': 'mounted inside classroom/routes.ts, which applies classroom:read; every write calls assertManage on the batch',
@@ -44,7 +45,10 @@ describe('every route says who may call it', () => {
         if (new RegExp(`${r}\\.use\\([^;]*(requirePerm|requireAnyPerm|requireSuperAdmin)`).test(src)) continue;       // gated for the whole router
         for (const m of src.matchAll(new RegExp(`${r}\\.(get|post|put|patch|delete)\\(\\s*['"\`]([^'"\`]*)['"\`]([\\s\\S]*?)(?:wrap\\(|async\\s*\\()`, 'g'))) {
           if (ALLOW[`${rel}: ${m[1].toUpperCase()} ${m[2]}`]) continue;
-          if (!/(requirePerm|requireAnyPerm|requireSuperAdmin|\bmanage\b|\baward\b|\bcampaign\b)/.test(m[3])) offenders.push(`${rel}: ${m[1].toUpperCase()} ${m[2]}`);
+          // a gate is requirePerm(...) etc. written inline, or a const in this file that was assigned one (e.g. const manage = requirePerm('x'))
+          const gates = [...src.matchAll(/(?:const|let)\s+(\w+)\s*=\s*(?:requirePerm|requireAnyPerm|requireSuperAdmin)\(/g)].map((g) => g[1]);
+          const gated = /(requirePerm|requireAnyPerm|requireSuperAdmin)/.test(m[3]) || gates.some((g) => new RegExp(`\\b${g}\\b`).test(m[3]));
+          if (!gated) offenders.push(`${rel}: ${m[1].toUpperCase()} ${m[2]}`);
         }
       }
     }

@@ -43,6 +43,17 @@ export async function adminKpis(req: Request) {
         FROM crm_leads cl JOIN learners l ON l.id = cl.learner_id WHERE l.org_id = ${cp.add(orgId)} AND l.deleted_at IS NULL ${cs ? `AND ${cs}` : ''}`, cp.values);
     out.crm = { leads: Number(row!.total), open: Number(row!.open), converted: Number(row!.converted) };
   }
+  if (user.isSuperAdmin || user.permissions.has('fee:read')) {
+    const tz = (await queryOne(`SELECT timezone FROM organizations WHERE id = $1`, [orgId]))?.timezone ?? 'Asia/Kolkata';
+    const today = new Intl.DateTimeFormat('en-CA', { timeZone: tz }).format(new Date());
+    const fp = new Params(); const fs = learnerScope(user, fp, 'l');
+    const row = await queryOne(`SELECT COALESCE(SUM(i.amount - i.paid_amount), 0) AS outstanding, COALESCE(SUM(IF(i.due_date < ${fp.add(today)}, i.amount - i.paid_amount, 0)), 0) AS overdue
+        FROM fee_installments i JOIN learner_fees f ON f.id = i.learner_fee_id AND f.status = 'active' JOIN learners l ON l.id = i.learner_id AND l.deleted_at IS NULL
+        WHERE i.org_id = ${fp.add(orgId)} AND i.status IN ('pending','partial') ${fs ? `AND ${fs}` : ''}`, fp.values);
+    const mp = new Params(); const ms = learnerScope(user, mp, 'l');
+    const paid = await queryOne(`SELECT COALESCE(SUM(p.amount - p.refunded_amount), 0) AS n FROM payments p JOIN learners l ON l.id = p.learner_id WHERE p.org_id = ${mp.add(orgId)} AND p.paid_at >= ${mp.add(`${today.slice(0, 7)}-01 00:00:00`)} ${ms ? `AND ${ms}` : ''}`, mp.values);
+    out.fees = { outstanding: Number(row!.outstanding), overdue: Number(row!.overdue), collected_this_month: Number(paid!.n) };
+  }
   if (user.isSuperAdmin || user.permissions.has('comms:read')) {
     const p = new Params(); const own = user.isSuperAdmin || user.access.orgWide ? '' : `AND created_by = ${p.add(user.id)}`;
     const row = await queryOne(`SELECT COUNT(*) AS total, COALESCE(SUM(status IN ('scheduled','processing')), 0) AS active FROM whatsapp_campaigns WHERE org_id = ${p.add(orgId)} AND status <> 'draft' ${own}`, p.values);
