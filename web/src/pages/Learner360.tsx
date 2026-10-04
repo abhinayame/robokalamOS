@@ -12,7 +12,7 @@ import { ScoreList } from './Grades';
 import { AssignmentList } from './MyAssignments';
 import { cap, fmtDate, fmtDateTime, fmtMobile, fmtSchedule } from '../format';
 
-type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'crm' | 'timeline';
+type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'crm' | 'messages' | 'timeline';
 
 export default function Learner360() {
   const { id } = useParams();
@@ -54,7 +54,7 @@ export default function Learner360() {
           {l.tags && <div className="card card-pad"><TagEditor learnerId={l.id} tags={l.tags} onChange={q.reload} /></div>}
           <Tabs value={tab} onChange={setTab} tabs={[
             { id: 'overview', label: 'Overview' }, { id: 'personal', label: 'Personal information' }, { id: 'parents', label: 'Parents', badge: l.parents.length },
-            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('crm:read') ? [{ id: 'crm' as Tab, label: 'CRM' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
+            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('crm:read') ? [{ id: 'crm' as Tab, label: 'CRM' }] : []), ...(can('comms:read') ? [{ id: 'messages' as Tab, label: 'Messages' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
           ]} />
 
           {tab === 'overview' && (
@@ -92,6 +92,7 @@ export default function Learner360() {
           {tab === 'courses' && <div className="card">{!courses.length ? <Empty icon="📚" title="No active courses">Courses appear when the learner is in an active batch.</Empty> : courses.map((c: any) => (
             <div key={c.course_id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><b>{c.course_name}</b><div className="muted small">{c.program_name} · via {active.filter((m: any) => m.course_id === c.course_id).map((m: any) => m.batch_name).join(', ')}</div></div></div>))}</div>}
 
+          {tab === 'messages' && <LearnerMessages learnerId={l.id} />}
           {tab === 'crm' && <LearnerCrm learnerId={l.id} />}
           {tab === 'attendance' && <AttendanceSummary learnerId={l.id} />}
           {tab === 'analytics' && <LearnerAnalytics learnerId={l.id} />}
@@ -216,5 +217,14 @@ function Achv({ l }: { l: any }) {
       {modal === 'xp' && <AwardXpModal batches={batches} fixedLearner={me} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'badge' && <AwardBadgeModal batches={batches} fixedLearner={me} onClose={() => setModal(null)} onDone={done} />}
     </div>
+  );
+}
+
+function LearnerMessages({ learnerId }: { learnerId: string }) {
+  const q = useFetch(() => api.get(`/api/whatsapp/learners/${learnerId}/messages`).then((r) => r.data as any[]), [learnerId]);
+  return (
+    <div className="card"><div className="card-head"><h2>WhatsApp messages</h2></div>
+      <Async q={q} rows={3}>{(rows: any[]) => rows.length ? rows.map((m) => (
+        <div key={m.id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><Link to={`/communication/campaigns/${m.campaign_id}`}><b>{m.campaign}</b></Link><div className="muted small">{m.phone} · {m.sent_at ? fmtDateTime(m.sent_at) : 'not sent yet'}{m.last_error ? ` · ${m.last_error}` : ''}</div></div><Badge tone={m.status === 'failed' ? 'bad' : ['delivered', 'read'].includes(m.status) ? 'ok' : ''}>{cap(m.status)}</Badge></div>)) : <Empty icon="💬" title="No messages">Campaign messages sent to this learner's family appear here. Siblings sharing a number receive one message, shown on the first child.</Empty>}</Async></div>
   );
 }

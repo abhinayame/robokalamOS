@@ -24,6 +24,7 @@ const GROUPS: Group[] = [
   { label: 'Classroom', items: [{ to: '/classroom', label: 'Classroom', icon: '🏫', perm: 'classroom:read' }, { to: '/assignments', label: 'Assignments', icon: '📝', roles: ['learner', 'parent'] }, { to: '/portal', label: 'Family portal', icon: '👨‍👩‍👧', roles: ['parent'] }, { to: '/achievements', label: 'Achievements', icon: '🏅', roles: ['learner', 'parent'] }, { to: '/gamification', label: 'Gamification', icon: '🏅', perm: 'gamification:award' }] },
   { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '📅', roles: ['learner', 'parent'] }] },
   { label: 'CRM', items: [{ to: '/crm', label: 'Leads', icon: '🎯', perm: 'crm:read', end: true }, { to: '/crm/follow-ups', label: 'Follow-ups', icon: '🔁', perm: 'crm:read' }] },
+  { label: 'Communication', items: [{ to: '/communication', label: 'Communication', icon: '💬', perm: 'comms:announce' }] },
   { label: 'People', items: [{ to: '/teachers', label: 'Teachers', icon: '🎓', perm: 'teacher:read' }] },
   { label: 'Settings', items: [
     { to: '/settings/catalog', label: 'Programs & Courses', icon: '📚', perm: 'catalog:read', roles: STAFF },
