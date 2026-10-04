@@ -134,3 +134,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .report-sheet table { font-size: 11px; } .report-sheet th, .report-sheet td { padding: 3px 6px; }
   body { background: #fff !important; }
 }
+
+/* Phase 10 */
+.err { color: var(--bad); }

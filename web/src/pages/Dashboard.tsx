@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
-import { fmtDate, fmtDateTime, fmtNum, fmtSchedule } from '../format';
+import { fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtSchedule } from '../format';
 import { BarRow } from '../components/Charts';
 import { Async, Avatar, Badge, Empty, PageHead, Progress, Stat, StatusBadge, Tabs, useFetch } from '../components/ui';
 
@@ -62,6 +62,7 @@ function AdminView({ d }: { d: any }) {
           <Stat label="Total XP" value={fmtNum(d.kpis.total_xp)} />
           <Stat label="Badges awarded" value={fmtNum(d.kpis.badges_awarded)} />
           {d.kpis.crm && <Stat label="CRM leads" value={fmtNum(d.kpis.crm.leads)} sub={<Link to="/crm">{d.kpis.crm.open} open · {d.kpis.crm.converted} converted</Link>} />}
+          {d.kpis.fees && <Stat label="Fees outstanding" value={fmtMoney(d.kpis.fees.outstanding)} sub={<Link to="/fees">{fmtMoney(d.kpis.fees.overdue)} overdue · {fmtMoney(d.kpis.fees.collected_this_month)} collected this month</Link>} />}
           {d.kpis.campaigns && <Stat label="WhatsApp campaigns" value={fmtNum(d.kpis.campaigns.total)} sub={<Link to="/communication">{d.kpis.campaigns.active} running</Link>} />}
         </div>
         <div className="row wrap"><Link className="btn sm" to="/analytics">Compare batches</Link><Link className="btn sm" to="/reports">Reports</Link></div>

@@ -32,6 +32,9 @@ Only in environment variables (Hostinger panel). Never in git, logs, API respons
 ## WhatsApp-specific
 Opt-outs are honoured before sending; a recipient list is deduplicated by learner and by phone per campaign (enforced by a unique key); campaigns need an explicit confirm step showing the unique-learner count; delivery webhooks are idempotent and unmatched events are kept for replay.
 
+## Money (Phase 10)
+Payments are applied under a row lock with idempotency keys, so retries and repeated webhooks cannot double-record. The Razorpay webhook is trusted only with a valid HMAC signature over the raw body (constant-time compare); card data never reaches us because payment happens on Razorpay's hosted page. Fee, payment and refund permissions are separate (`fee:read`, `fee:manage`, `payment:record`, `payment:refund`) and every change is audited. Two integrity checks on System Status flag any installment or payment that does not add up. Imports go through the same creation code as the form, run under the importer's branch rights, and defuse spreadsheet formulas in the problem file.
+
 ## Dependencies
 `npm audit --omit=dev` reports 0 vulnerabilities at the time of Phase 9. Re-run before each release.
 

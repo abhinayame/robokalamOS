@@ -12,3 +12,6 @@ export const fmtSchedule = (s: any) => {
 export const statusTone = (s: string): 'ok' | 'warn' | 'bad' | 'info' | '' =>
   ({ active: 'ok', upcoming: 'info', completed: '', archived: 'warn', inactive: 'warn', left: 'warn', transferred: 'info', disabled: 'bad' } as any)[s] ?? '';
 export const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
+
+/** Rupees from a DECIMAL string or number: ₹3,600 or ₹3,600.50. */
+export const fmtMoney = (v?: string | number | null) => { if (v == null || v === '') return '—'; const n = Number(v); return `₹${n.toLocaleString('en-IN', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2 })}`; };
