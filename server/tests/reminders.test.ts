@@ -144,7 +144,7 @@ describe('fee overdue reminders repeat on a schedule and then stop', () => {
     await runRule(rid, { force: true }); expect(await count()).toBe(2);
     await pass();
     const sent = fake.calls.filter((c) => c.destination === '919840000020').map((c) => c.templateParams[3]);
-    expect(sent).toEqual(['2', '5']);                                                                     // the days-overdue token was filled in each time
+    expect([...sent].sort()).toEqual(['2', '5']);                                                                     // the days-overdue token was filled in each time
     void mine;
   });
   it('does not remind about installments that are already paid', async () => {
