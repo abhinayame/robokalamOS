@@ -142,9 +142,11 @@ describe('failures, retry, cancel, schedule, opt-out', () => {
     const conf = await co.post(`/api/whatsapp/campaigns/${id}/confirm`, { confirm: true, expected_recipients: 2 }); expect(conf.status).toBe(200);
     fake.script.push({ ok: false, retriable: true, code: 'HTTP_503', message: 'unavailable' }, { ok: false, retriable: false, code: 'HTTP_400', message: 'Invalid template' });
     expect(await pass()).toMatchObject({ claimed: 2, retried: 1, failed: 1, sent: 0 });
-    const rows = await query(`SELECT status, attempts, next_attempt_at, last_error FROM whatsapp_recipients WHERE campaign_id = $1 ORDER BY phone`, [id]);
-    expect(rows[0]).toMatchObject({ status: 'pending', attempts: 1 }); expect(rows[0].next_attempt_at).toBeTruthy();
-    expect(rows[1]).toMatchObject({ status: 'failed', attempts: 1 }); expect(rows[1].last_error).toMatch(/Invalid template/);
+    // Rows are claimed in id order (random UUIDs), so which person got which scripted answer is not fixed: check the pair.
+    const rows = await query(`SELECT status, attempts, next_attempt_at, last_error FROM whatsapp_recipients WHERE campaign_id = $1 ORDER BY status`, [id]);
+    const failedRow = rows.find((r) => r.status === 'failed')!; const retryRow = rows.find((r) => r.status === 'pending')!;
+    expect(retryRow).toMatchObject({ attempts: 1 }); expect(retryRow.next_attempt_at).toBeTruthy();
+    expect(failedRow).toMatchObject({ attempts: 1 }); expect(failedRow.last_error).toMatch(/Invalid template/);
     expect((await pass()).claimed).toBe(0);                                                         // not due yet
     await exec(`UPDATE whatsapp_recipients SET next_attempt_at = DATE_SUB(NOW(3), INTERVAL 1 MINUTE) WHERE campaign_id = $1 AND status = 'pending'`, [id]);
     expect(await pass()).toMatchObject({ claimed: 1, sent: 1 });
