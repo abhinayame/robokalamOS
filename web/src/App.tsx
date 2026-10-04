@@ -1,0 +1,55 @@
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { useAuth } from './auth';
+import Layout from './components/Layout';
+import { Skeleton } from './components/ui';
+import Account from './pages/Account';
+import Audit from './pages/Audit';
+import BatchDetail from './pages/BatchDetail';
+import Batches from './pages/Batches';
+import Catalog from './pages/Catalog';
+import Dashboard from './pages/Dashboard';
+import Learner360 from './pages/Learner360';
+import Learners from './pages/Learners';
+import Login from './pages/Login';
+import MyClasses from './pages/MyClasses';
+import Organizations from './pages/Organizations';
+import Parents from './pages/Parents';
+import Teachers from './pages/Teachers';
+import Users from './pages/Users';
+import { ErrorState } from './components/ui';
+import { ApiError } from './api';
+import type { ReactNode } from 'react';
+
+function Guard({ perm, roles, children }: { perm?: string; roles?: string[]; children: ReactNode }) {
+  const { can, hasRole } = useAuth();
+  if ((perm && !can(perm)) || (roles && !hasRole(...roles))) return <ErrorState error={new ApiError(403, 'FORBIDDEN', 'Your role does not include this area.')} />;
+  return <>{children}</>;
+}
+
+export default function App() {
+  const { me, loading } = useAuth();
+  const loc = useLocation();
+  if (loading) return <div style={{ padding: 40 }}><Skeleton h={24} w={240} /></div>;
+  if (!me) return loc.pathname === '/login' ? <Login /> : <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />;
+  if (loc.pathname === '/login') return <Navigate to="/" replace />;
+  return (
+    <Routes>
+      <Route element={<Layout />}>
+        <Route index element={<Dashboard />} />
+        <Route path="learners" element={<Guard perm="learner:read"><Learners /></Guard>} />
+        <Route path="learners/:id" element={<Learner360 />} />
+        <Route path="parents" element={<Guard perm="parent:read"><Parents /></Guard>} />
+        <Route path="batches" element={<Guard perm="batch:read"><Batches /></Guard>} />
+        <Route path="batches/:id" element={<BatchDetail />} />
+        <Route path="classes" element={<MyClasses />} />
+        <Route path="teachers" element={<Guard perm="teacher:read"><Teachers /></Guard>} />
+        <Route path="settings/catalog" element={<Guard perm="catalog:read"><Catalog /></Guard>} />
+        <Route path="settings/users" element={<Guard perm="user:manage"><Users /></Guard>} />
+        <Route path="settings/audit" element={<Guard perm="audit:read"><Audit /></Guard>} />
+        <Route path="organizations" element={<Guard roles={['super_admin']}><Organizations /></Guard>} />
+        <Route path="account" element={<Account />} />
+        <Route path="*" element={<ErrorState error={new ApiError(404, 'NOT_FOUND', 'That page does not exist.')} />} />
+      </Route>
+    </Routes>
+  );
+}

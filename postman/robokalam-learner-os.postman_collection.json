@@ -1,0 +1,2053 @@
+{
+  "info": {
+    "name": "Robokalam Learner OS \u2014 Phase 1",
+    "description": "Runs end-to-end: creates its own organization every run, so it can be re-run any time. Import the environment, then set BASE_URL, SUPER_ADMIN_EMAIL and SUPER_ADMIN_PASSWORD. Scripts store AUTH_TOKEN, ORG_ID, LEARNER_ID, BATCH_ID, TEACHER_ID \u2026 in the environment as they go. Later phases (assignments, scores, badges, XP, CRM, WhatsApp) will be added to this collection as they ship.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0 \u00b7 Health & auth",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/health",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Request without token is rejected",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 401', () => pm.response.to.have.status(401));",
+                  "const j = pm.response.json();",
+                  "pm.test('consistent error envelope', () => pm.expect(j).to.have.property('ok', false) && pm.expect(j.error).to.have.property('code'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login \u2014 platform super admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{SUPER_ADMIN_EMAIL}}\",\n  \"password\": \"{{SUPER_ADMIN_PASSWORD}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('SUPER_TOKEN', j.data.access_token);",
+                  "pm.environment.set('AUTH_TOKEN', j.data.access_token);",
+                  "pm.test('is super admin', () => pm.expect(j.data.user.roles).to.include('super_admin'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "1 \u00b7 Organization",
+      "item": [
+        {
+          "name": "Create organization (+ its admin)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/organizations",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "organizations"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Org {{RUN_ID}}\",\n  \"slug\": \"pm-{{RUN_ID}}\",\n  \"code_prefix\": \"PM\",\n  \"admin\": {\n    \"full_name\": \"Postman Admin\",\n    \"email\": \"admin-{{RUN_ID}}@postman.test\",\n    \"password\": \"Postman-Pass-123\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('RUN_ID', Date.now().toString(36));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('ORG_ID', j.data.organization.id);",
+                  "pm.environment.set('ADMIN_EMAIL', j.data.admin.email);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Login \u2014 organization admin",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"{{ADMIN_EMAIL}}\",\n  \"password\": \"Postman-Pass-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('AUTH_TOKEN', j.data.access_token);",
+                  "pm.test('org admin is pinned to the new org', () => pm.expect(j.data.user.organization.id).to.eql(pm.environment.get('ORG_ID')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "2 \u00b7 Catalog & people",
+      "item": [
+        {
+          "name": "Create branch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/branches",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "branches"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Chennai\",\n  \"code\": \"CHN\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('BRANCH_ID', j.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create program",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/programs",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "programs"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"STEM\",\n  \"code\": \"STEM\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('PROGRAM_ID', j.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create course",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/courses",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "courses"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"program_id\": \"{{PROGRAM_ID}}\",\n  \"name\": \"Robotics\",\n  \"code\": \"ROBO\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('COURSE_ID', j.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create teacher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/teachers",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "teachers"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Priya Raman\",\n  \"email\": \"teacher-{{RUN_ID}}@postman.test\",\n  \"password\": \"Postman-Pass-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('TEACHER_ID', j.data.id);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "3 \u00b7 Batches",
+      "item": [
+        {
+          "name": "Create batch A",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/batches",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "batches"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Robotics Batch A\",\n  \"program_id\": \"{{PROGRAM_ID}}\",\n  \"course_id\": \"{{COURSE_ID}}\",\n  \"branch_id\": \"{{BRANCH_ID}}\",\n  \"academic_year\": \"2026-27\",\n  \"status\": \"active\",\n  \"capacity\": 30,\n  \"teacher_id\": \"{{TEACHER_ID}}\",\n  \"schedule\": {\n    \"days\": [\n      6\n    ],\n    \"start\": \"10:00\",\n    \"end\": \"12:00\",\n    \"mode\": \"offline\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('BATCH_ID', j.data.id);",
+                  "pm.test('batch code generated', () => pm.expect(j.data.batch_code).to.match(/^PM-BAT-\\d{4}$/));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Create batch B",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/batches",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "batches"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Robotics Batch B\",\n  \"program_id\": \"{{PROGRAM_ID}}\",\n  \"course_id\": \"{{COURSE_ID}}\",\n  \"branch_id\": \"{{BRANCH_ID}}\",\n  \"academic_year\": \"2026-27\",\n  \"status\": \"active\",\n  \"capacity\": 30,\n  \"teacher_id\": \"{{TEACHER_ID}}\",\n  \"schedule\": {\n    \"days\": [\n      6\n    ],\n    \"start\": \"10:00\",\n    \"end\": \"12:00\",\n    \"mode\": \"offline\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('BATCH_ID_2', j.data.id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get batch",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/batches/{{BATCH_ID}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "batches",
+                "{{BATCH_ID}}"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('lead teacher assigned', () => pm.expect(j.data.teachers[0].role).to.eql('lead'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "4 \u00b7 Learners \u2014 one master profile",
+      "item": [
+        {
+          "name": "Create learner (parent + batch A)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Rahul Kumar\",\n  \"mobile\": \"9{{MOBILE_TAIL}}\",\n  \"email\": \"rahul-{{RUN_ID}}@example.com\",\n  \"school\": \"DAV\",\n  \"location\": \"Chennai\",\n  \"branch_id\": \"{{BRANCH_ID}}\",\n  \"parent\": {\n    \"full_name\": \"Sunil Kumar\",\n    \"mobile\": \"8{{MOBILE_TAIL}}\",\n    \"relationship\": \"father\"\n  },\n  \"batch_ids\": [\n    \"{{BATCH_ID}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.environment.set('MOBILE_TAIL', String(Math.floor(Math.random()*1e9)).padStart(9,'0'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('LEARNER_ID', j.data.id);",
+                  "pm.test('learner id format', () => pm.expect(j.data.learner_code).to.match(/^PM-LRN-\\d{6}$/));",
+                  "pm.test('in 1 batch', () => pm.expect(j.data.stats.active_batches).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Duplicate mobile is rejected (no second learner)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Someone Else\",\n  \"mobile\": \"9{{MOBILE_TAIL}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 409', () => pm.response.to.have.status(409));",
+                  "const j = pm.response.json();",
+                  "pm.test('points to the existing profile', () => pm.expect(j.error.details.existing.id).to.eql(pm.environment.get('LEARNER_ID')));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Update learner",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners/{{LEARNER_ID}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners",
+                "{{LEARNER_ID}}"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"school\": \"PSBB\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('updated', () => pm.expect(j.data.school).to.eql('PSBB'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enroll SAME learner into second batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners/{{LEARNER_ID}}/batches",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners",
+                "{{LEARNER_ID}}",
+                "batches"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batch_id\": \"{{BATCH_ID_2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 201', () => pm.response.to.have.status(201));",
+                  "const j = pm.response.json();",
+                  "pm.test('still ONE learner, now 2 batches', () => pm.expect(j.data.learner.stats.active_batches).to.eql(2));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Enroll again is idempotent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners/{{LEARNER_ID}}/batches",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners",
+                "{{LEARNER_ID}}",
+                "batches"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batch_id\": \"{{BATCH_ID_2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('already a member', () => pm.expect(j.data.already_member).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get learner profile (Learner 360)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners/{{LEARNER_ID}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners",
+                "{{LEARNER_ID}}"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('2 active memberships', () => pm.expect(j.data.memberships.filter(m => m.membership_status === 'active')).to.have.length(2));",
+                  "pm.test('parent linked', () => pm.expect(j.data.parents[0].is_primary).to.eql(true));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Activity timeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners/{{LEARNER_ID}}/timeline",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners",
+                "{{LEARNER_ID}}",
+                "timeline"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('has join events', () => pm.expect(j.data.map(e => e.type)).to.include('batch.joined'));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "5 \u00b7 Listing, filters & selection engine",
+      "item": [
+        {
+          "name": "Get all learners (paginated)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners?page=1&page_size=25&sort=name&order=asc",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "page_size",
+                  "value": "25"
+                },
+                {
+                  "key": "sort",
+                  "value": "name"
+                },
+                {
+                  "key": "order",
+                  "value": "asc"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('pagination meta', () => pm.expect(j.meta).to.include.keys('page','page_size','total'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Filter learners (course + batch + status)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners?course_id={{COURSE_ID}}&batch_id={{BATCH_ID}},{{BATCH_ID_2}}&status=active",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners"
+              ],
+              "query": [
+                {
+                  "key": "course_id",
+                  "value": "{{COURSE_ID}}"
+                },
+                {
+                  "key": "batch_id",
+                  "value": "{{BATCH_ID}},{{BATCH_ID_2}}"
+                },
+                {
+                  "key": "status",
+                  "value": "active"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('learner appears exactly once', () => pm.expect(j.data.filter(l => l.id === pm.environment.get('LEARNER_ID'))).to.have.length(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Select multiple batches \u2192 unique learners",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/selection/resolve",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "selection",
+                "resolve"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"batch_ids\": [\n    \"{{BATCH_ID}}\",\n    \"{{BATCH_ID_2}}\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('2 batches, 2 memberships, 1 unique learner, 1 duplicate removed', () => pm.expect(j.data).to.include({selected_batches: 2, batch_memberships: 2, unique_learners: 1, duplicates_removed: 1}));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Empty selection resolves to nobody",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/selection/resolve",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "selection",
+                "resolve"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('no recipients', () => pm.expect(j.data.unique_learners).to.eql(0));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk action dry run (no changes)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/bulk/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "bulk",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"change_status\",\n  \"status\": \"inactive\",\n  \"dry_run\": true,\n  \"selection\": {\n    \"batch_ids\": [\n      \"{{BATCH_ID}}\",\n      \"{{BATCH_ID_2}}\"\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('preview only', () => pm.expect(j.data.dry_run).to.eql(true) && pm.expect(j.data.unique_learners).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Bulk action without confirmation is refused",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/bulk/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "bulk",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"action\": \"change_status\",\n  \"status\": \"inactive\",\n  \"selection\": {\n    \"batch_ids\": [\n      \"{{BATCH_ID}}\"\n    ]\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 400', () => pm.response.to.have.status(400));",
+                  "const j = pm.response.json();",
+                  "pm.test('confirmation required', () => pm.expect(j.error.code).to.eql('CONFIRMATION_REQUIRED'));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Export CSV (deduplicated)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/bulk/learners/export",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "bulk",
+                "learners",
+                "export"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"selection\": {\n    \"batch_ids\": [\n      \"{{BATCH_ID}}\",\n      \"{{BATCH_ID_2}}\"\n    ]\n  },\n  \"columns\": [\n    \"learner_code\",\n    \"full_name\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('csv with one data row', () => pm.expect(pm.response.text().replace('\\uFEFF','').trim().split(/\\r?\\n/)).to.have.length(2));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "6 \u00b7 Membership changes",
+      "item": [
+        {
+          "name": "Remove learner from batch B (stays in A)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners/{{LEARNER_ID}}/batches/{{BATCH_ID_2}}",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners",
+                "{{LEARNER_ID}}",
+                "batches",
+                "{{BATCH_ID_2}}"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Schedule clash\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('only batch A remains active', () => pm.expect(j.data.learner.stats.active_batches).to.eql(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Transfer learner A \u2192 B",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners/{{LEARNER_ID}}/transfer",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners",
+                "{{LEARNER_ID}}",
+                "transfer"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from_batch_id\": \"{{BATCH_ID}}\",\n  \"to_batch_id\": \"{{BATCH_ID_2}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('now in B only', () => pm.expect(j.data.memberships.filter(m => m.membership_status === 'active').map(m => m.batch_id)).to.eql([pm.environment.get('BATCH_ID_2')]));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Batch people list",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/batches/{{BATCH_ID_2}}/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "batches",
+                "{{BATCH_ID_2}}",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('learner listed', () => pm.expect(j.data.map(l => l.id)).to.include(pm.environment.get('LEARNER_ID')));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "7 \u00b7 Access control",
+      "item": [
+        {
+          "name": "Login \u2014 teacher",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/auth/login",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"teacher-{{RUN_ID}}@postman.test\",\n  \"password\": \"Postman-Pass-123\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.environment.set('TEACHER_TOKEN', j.data.access_token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Teacher sees learners of assigned batches only",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TEACHER_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('scoped list', () => pm.expect(j.meta.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Teacher cannot create learners",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/learners",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "learners"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{TEACHER_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"full_name\": \"Not Allowed\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 403', () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Admin dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/dashboard",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "dashboard"
+              ],
+              "query": []
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('real numbers', () => pm.expect(j.data.learners.total).to.be.at.least(1));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Audit log records the changes",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Org-Id",
+                "value": "{{ORG_ID}}",
+                "disabled": true,
+                "description": "Only needed when signed in as the platform super admin"
+              }
+            ],
+            "url": {
+              "raw": "{{BASE_URL}}/api/audit?page_size=50",
+              "host": [
+                "{{BASE_URL}}"
+              ],
+              "path": [
+                "api",
+                "audit"
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "50"
+                }
+              ]
+            },
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{AUTH_TOKEN}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('status is 200', () => pm.response.to.have.status(200));",
+                  "const j = pm.response.json();",
+                  "pm.test('learner + batch events audited', () => { const a = j.data.map(x => x.action); pm.expect(a).to.include('learner.created'); pm.expect(a).to.include('batch.learners_assigned'); });"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": []
+}
