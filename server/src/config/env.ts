@@ -4,7 +4,14 @@ import { z } from 'zod';
 const schema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().default(4000),
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required').refine((u) => /^mysql:\/\//.test(u), 'DATABASE_URL must look like mysql://user:password@host:3306/database'),
+  // Either one URL ...
+  DATABASE_URL: z.string().optional(),
+  // ... or separate fields (easier: no URL-encoding of special characters in the password)
+  DB_HOST: z.string().default('127.0.0.1'),
+  DB_PORT: z.coerce.number().default(3306),
+  DB_USER: z.string().optional(),
+  DB_PASSWORD: z.string().optional(),
+  DB_NAME: z.string().optional(),
   DATABASE_SSL: z.enum(['true', 'false']).default('false'),
   DATABASE_POOL_MAX: z.coerce.number().default(10),
   JWT_SECRET: z.string().min(32, 'JWT_SECRET must be at least 32 characters'),
@@ -35,6 +42,26 @@ if (!parsed.success) {
 }
 
 export const env = parsed.data;
+
+export interface DbConfig { host: string; port: number; user: string; password: string; database: string }
+function dbConfig(): DbConfig {
+  const e = parsed.data!;
+  if (e.DB_USER && e.DB_NAME) {
+    return { host: e.DB_HOST, port: e.DB_PORT, user: e.DB_USER, password: e.DB_PASSWORD ?? '', database: e.DB_NAME };
+  }
+  if (e.DATABASE_URL) {
+    let u: URL;
+    try { u = new URL(e.DATABASE_URL); } catch {
+      console.error('Invalid environment configuration:\n  DATABASE_URL is not a valid URL. A password with symbols (@ : / # ? %) must be URL-encoded — or use DB_HOST, DB_USER, DB_PASSWORD and DB_NAME instead.');
+      process.exit(1);
+    }
+    if (u.protocol !== 'mysql:') { console.error('Invalid environment configuration:\n  DATABASE_URL must start with mysql://'); process.exit(1); }
+    return { host: u.hostname, port: Number(u.port || 3306), user: decodeURIComponent(u.username), password: decodeURIComponent(u.password), database: decodeURIComponent(u.pathname.slice(1)) };
+  }
+  console.error('Invalid environment configuration:\n  Set DB_USER, DB_PASSWORD and DB_NAME (and DB_HOST if needed), or DATABASE_URL.');
+  process.exit(1);
+}
+export const db = dbConfig();
 export const isProd = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
 export const corsOrigins = env.CORS_ORIGINS.split(',').map((s) => s.trim()).filter(Boolean);
