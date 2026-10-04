@@ -23,9 +23,11 @@ const GROUPS: Group[] = [
   ] },
   { label: 'Classroom', items: [{ to: '/classroom', label: 'Classroom', icon: '🏫', perm: 'classroom:read' }, { to: '/assignments', label: 'Assignments', icon: '📝', roles: ['learner', 'parent'] }, { to: '/portal', label: 'Family portal', icon: '👨‍👩‍👧', roles: ['parent'] }, { to: '/achievements', label: 'Achievements', icon: '🏅', roles: ['learner', 'parent'] }, { to: '/gamification', label: 'Gamification', icon: '🏅', perm: 'gamification:award' }] },
   { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '📅', roles: ['learner', 'parent'] }] },
+  { label: 'CRM', items: [{ to: '/crm', label: 'Leads', icon: '🎯', perm: 'crm:read', end: true }, { to: '/crm/follow-ups', label: 'Follow-ups', icon: '🔁', perm: 'crm:read' }] },
   { label: 'People', items: [{ to: '/teachers', label: 'Teachers', icon: '🎓', perm: 'teacher:read' }] },
   { label: 'Settings', items: [
     { to: '/settings/catalog', label: 'Programs & Courses', icon: '📚', perm: 'catalog:read', roles: STAFF },
+    { to: '/settings/tags', label: 'Tags', icon: '🏷️', perm: 'tag:read', roles: STAFF },
     { to: '/settings/users', label: 'Staff & Roles', icon: '🔑', perm: 'user:manage' },
     { to: '/settings/audit', label: 'Audit Log', icon: '🧾', perm: 'audit:read' },
   ] },
@@ -47,7 +49,7 @@ export default function Layout(): ReactNode {
   const isStaff = hasRole('super_admin', 'org_admin', 'branch_admin', 'counsellor', 'accountant');
   const isTeacher = hasRole('teacher');
   const bottom: Item[] = isStaff
-    ? [{ to: '/', label: 'Dashboard', icon: '▦', end: true }, { to: '/learners', label: 'Learners', icon: '👥' }, { to: '/batches', label: 'Batches', icon: '🗂️' }]
+    ? [{ to: '/', label: 'Dashboard', icon: '▦', end: true }, { to: '/learners', label: 'Learners', icon: '👥' }, { to: '/batches', label: 'Batches', icon: '🗂️' }, ...(can('crm:read') ? [{ to: '/crm', label: 'CRM', icon: '🎯' }] : [])]
     : isTeacher
       ? [{ to: '/', label: 'Home', icon: '▦', end: true }, { to: '/classroom', label: 'Classroom', icon: '🏫' }, { to: '/learners', label: 'Learners', icon: '👥' }]
       : [{ to: '/', label: 'Home', icon: '▦', end: true }, { to: '/classroom', label: 'Classroom', icon: '🏫' }, { to: '/assignments', label: 'Work', icon: '📝' }, { to: '/account', label: 'Profile', icon: '🙂' }];

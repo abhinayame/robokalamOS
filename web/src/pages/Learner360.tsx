@@ -4,13 +4,15 @@ import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, Pager, StatusBadge, Tabs, fieldErrors, useAction, useFetch, useToast } from '../components/ui';
 import { AwardBadgeModal, AwardXpModal, BadgeWall, XpCard, XpHistory } from '../components/Gamify';
+import LearnerCrm from '../components/LearnerCrm';
+import { TagEditor } from '../components/Crm';
 import { AttendanceSummary } from './Attendance';
 import { LearnerAnalytics } from '../components/Analytics';
 import { ScoreList } from './Grades';
 import { AssignmentList } from './MyAssignments';
 import { cap, fmtDate, fmtDateTime, fmtMobile, fmtSchedule } from '../format';
 
-type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'timeline';
+type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'crm' | 'timeline';
 
 export default function Learner360() {
   const { id } = useParams();
@@ -49,9 +51,10 @@ export default function Learner360() {
               <div><div className="muted small">Programs</div><b style={{ fontSize: 22 }}>{l.stats.programs}</b></div>
             </div>
           </div>
+          {l.tags && <div className="card card-pad"><TagEditor learnerId={l.id} tags={l.tags} onChange={q.reload} /></div>}
           <Tabs value={tab} onChange={setTab} tabs={[
             { id: 'overview', label: 'Overview' }, { id: 'personal', label: 'Personal information' }, { id: 'parents', label: 'Parents', badge: l.parents.length },
-            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
+            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('crm:read') ? [{ id: 'crm' as Tab, label: 'CRM' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
           ]} />
 
           {tab === 'overview' && (
@@ -89,6 +92,7 @@ export default function Learner360() {
           {tab === 'courses' && <div className="card">{!courses.length ? <Empty icon="📚" title="No active courses">Courses appear when the learner is in an active batch.</Empty> : courses.map((c: any) => (
             <div key={c.course_id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><b>{c.course_name}</b><div className="muted small">{c.program_name} · via {active.filter((m: any) => m.course_id === c.course_id).map((m: any) => m.batch_name).join(', ')}</div></div></div>))}</div>}
 
+          {tab === 'crm' && <LearnerCrm learnerId={l.id} />}
           {tab === 'attendance' && <AttendanceSummary learnerId={l.id} />}
           {tab === 'analytics' && <LearnerAnalytics learnerId={l.id} />}
           {tab === 'achievements' && <Achv l={l} />}

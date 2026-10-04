@@ -5,10 +5,11 @@ import { useAuth } from '../auth';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
 import { Avatar, Badge, Empty, ErrorState, Field, Modal, PageHead, Pager, Popover, SkeletonRows, StatusBadge, fieldErrors, useAction, useDebounced, useFetch, usePersistentState, useToast } from '../components/ui';
 import { fmtDate, fmtMobile, fmtNum } from '../format';
+import { ACTIVITY_TYPES, LEAD_STATUSES, TagChip, TagPicker } from '../components/Crm';
 
 type Sel = { kind: 'ids'; ids: string[] } | { kind: 'filters' } | { kind: 'batches'; batch_ids: string[] } | null;
-interface Filters { q: string; status: string[]; branch_id: string; course_id: string; program_id: string; teacher_id: string; batch_id: string[]; academic_year: string; enrolled_from: string; enrolled_to: string; no_batch: boolean }
-const EMPTY: Filters = { q: '', status: [], branch_id: '', course_id: '', program_id: '', teacher_id: '', batch_id: [], academic_year: '', enrolled_from: '', enrolled_to: '', no_batch: false };
+interface Filters { q: string; status: string[]; branch_id: string; course_id: string; program_id: string; teacher_id: string; batch_id: string[]; academic_year: string; enrolled_from: string; enrolled_to: string; no_batch: boolean; tag_id: string; lead_status: string; counsellor_id: string }
+const EMPTY: Filters = { q: '', status: [], branch_id: '', course_id: '', program_id: '', teacher_id: '', batch_id: [], academic_year: '', enrolled_from: '', enrolled_to: '', no_batch: false, tag_id: '', lead_status: '', counsellor_id: '' };
 
 const COLUMNS: { id: string; label: string; sort?: string; render: (l: any) => any }[] = [
   { id: 'mobile', label: 'Mobile', render: (l) => fmtMobile(l.mobile) },
@@ -19,6 +20,8 @@ const COLUMNS: { id: string; label: string; sort?: string; render: (l: any) => a
   { id: 'courses', label: 'Courses', render: (l) => <div className="chips">{l.courses.length ? l.courses.map((c: string) => <Badge key={c} tone="info">{c}</Badge>) : '—'}</div> },
   { id: 'batches', label: 'Batches', sort: 'batches', render: (l) => <div className="chips">{l.batches.length ? l.batches.map((b: any) => <Link key={b.id} to={`/batches/${b.id}`}><Badge>{b.name}</Badge></Link>) : <span className="muted">None</span>}</div> },
   { id: 'teachers', label: 'Teachers', render: (l) => l.teachers.map((t: any) => t.full_name).join(', ') || '—' },
+  { id: 'tags', label: 'Tags', render: (l) => <div className="chips">{l.tags?.length ? l.tags.map((t: any) => <TagChip key={t.id} t={t} />) : <span className="muted">—</span>}</div> },
+  { id: 'lead', label: 'CRM', render: (l) => l.lead ? <Badge tone={l.lead.status === 'converted' ? 'ok' : ['lost', 'not_interested'].includes(l.lead.status) ? 'bad' : 'info'}>{l.lead.status.replace(/_/g, ' ')}</Badge> : <span className="muted">—</span> },
   { id: 'status', label: 'Status', sort: 'status', render: (l) => <StatusBadge s={l.status} /> },
   { id: 'last_activity', label: 'Last activity', sort: 'last_activity', render: (l) => fmtDate(l.last_activity) },
   { id: 'enrolled_on', label: 'Enrolled', sort: 'enrolled_on', render: (l) => fmtDate(l.enrolled_on) },
@@ -40,7 +43,7 @@ export default function Learners() {
   const dq = useDebounced(f.q);
   const toast = useToast();
 
-  const apiFilters = { q: dq, status: f.status, branch_id: f.branch_id, course_id: f.course_id, program_id: f.program_id, teacher_id: f.teacher_id, batch_id: f.batch_id, academic_year: f.academic_year, enrolled_from: f.enrolled_from, enrolled_to: f.enrolled_to, no_batch: f.no_batch || undefined };
+  const apiFilters = { q: dq, status: f.status, branch_id: f.branch_id, course_id: f.course_id, program_id: f.program_id, teacher_id: f.teacher_id, batch_id: f.batch_id, academic_year: f.academic_year, enrolled_from: f.enrolled_from, enrolled_to: f.enrolled_to, tag_id: f.tag_id, lead_status: f.lead_status, counsellor_id: f.counsellor_id, no_batch: f.no_batch || undefined };
   const fkey = JSON.stringify(apiFilters);
   useEffect(() => { setPage(1); setSel(null); }, [fkey, pageSize]);
   const list = useFetch(() => api.get(`/api/learners${qs({ ...apiFilters, page, page_size: pageSize, sort, order })}`), [fkey, page, pageSize, sort, order, activeOrg]);
@@ -60,6 +63,7 @@ export default function Learners() {
     q: dq || undefined, status: f.status.length ? f.status : ['active', 'inactive'], branch_id: f.branch_id ? [f.branch_id] : undefined, course_id: f.course_id ? [f.course_id] : undefined,
     program_id: f.program_id ? [f.program_id] : undefined, teacher_id: f.teacher_id ? [f.teacher_id] : undefined, batch_id: f.batch_id.length ? f.batch_id : undefined,
     academic_year: f.academic_year ? [f.academic_year] : undefined, enrolled_from: f.enrolled_from || undefined, enrolled_to: f.enrolled_to || undefined, no_batch: f.no_batch || undefined,
+    tag_id: f.tag_id ? [f.tag_id] : undefined, lead_status: f.lead_status ? [f.lead_status] : undefined, counsellor_id: f.counsellor_id ? [f.counsellor_id] : undefined,
   });
   const selector = useMemo(() => {
     if (!sel) return null;
@@ -100,6 +104,8 @@ export default function Learners() {
             <Field label="Academic year"><input className="input" placeholder="2026-27" value={f.academic_year} onChange={(e) => setF({ ...f, academic_year: e.target.value })} /></Field>
             <Field label="Enrolled from"><input className="input" type="date" value={f.enrolled_from} onChange={(e) => setF({ ...f, enrolled_from: e.target.value })} /></Field>
             <Field label="Enrolled to"><input className="input" type="date" value={f.enrolled_to} onChange={(e) => setF({ ...f, enrolled_to: e.target.value })} /></Field>
+            {can('tag:read') && <Field label="Tag"><TagPicker value={f.tag_id} onChange={(v) => setF({ ...f, tag_id: v })} /></Field>}
+            {can('crm:read') && <Field label="CRM status"><select className="select" value={f.lead_status} onChange={(e) => setF({ ...f, lead_status: e.target.value })}><option value="">Any</option>{LEAD_STATUSES.map((x) => <option key={x} value={x}>{x.replace(/_/g, ' ')}</option>)}</select></Field>}
             <Field label="Batches"><BatchesFilter value={f.batch_id} onChange={(ids) => setF({ ...f, batch_id: ids })} /></Field>
             <Field label="Batch membership"><label className="row gap-s" style={{ minHeight: 38 }}><input type="checkbox" checked={f.no_batch} onChange={(e) => setF({ ...f, no_batch: e.target.checked })} /> Not in any batch</label></Field>
             <div className="row" style={{ alignItems: 'flex-end' }}><button className="btn" onClick={() => { setF(EMPTY); setSp({}); }} disabled={noFilters}>Clear all</button></div>
@@ -107,7 +113,7 @@ export default function Learners() {
         )}
         {meta && <div className="row between small" style={{ padding: '8px 14px', borderTop: '1px solid var(--line)' }}><b aria-live="polite">{fmtNum(meta.total)} unique learners match{noFilters ? '' : ' your filters'}.</b>{list.loading && <span className="muted">Updating…</span>}</div>}
 
-        {sel && selector && <SelectionBar sel={sel} selector={selector} total={meta?.total ?? 0} count={selIds.length} onAllMatching={() => setSel({ kind: 'filters' })} pageSelected={sel.kind === 'ids' && allOnPage} onClear={() => setSel(null)} onBulk={() => setDialog('bulk')} canBulk={can('learner:bulk') || can('learner:export') || can('gamification:award')} />}
+        {sel && selector && <SelectionBar sel={sel} selector={selector} total={meta?.total ?? 0} count={selIds.length} onAllMatching={() => setSel({ kind: 'filters' })} pageSelected={sel.kind === 'ids' && allOnPage} onClear={() => setSel(null)} onBulk={() => setDialog('bulk')} canBulk={can('learner:bulk') || can('learner:export') || can('gamification:award') || can('tag:apply') || can('crm:manage')} />}
 
         {list.error && !list.data ? <ErrorState error={list.error} onRetry={list.reload} /> : !list.data ? <SkeletonRows n={8} /> : !rows.length ? (
           <Empty icon="🔍" title={noFilters ? 'No learners yet' : 'No learners match'} action={noFilters && can('learner:create') ? <button className="btn primary" onClick={() => setDialog('add')}>Add the first learner</button> : <button className="btn" onClick={() => setF(EMPTY)}>Clear filters</button>}>
@@ -188,6 +194,11 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
     can('learner:bulk', 'batch:enroll') && { id: 'assign_batch', label: 'Add to a batch' },
     can('learner:bulk', 'batch:enroll') && { id: 'remove_batch', label: 'Remove from a batch' },
     can('learner:bulk', 'learner:update') && { id: 'change_status', label: 'Change status' },
+    can('tag:apply') && { id: 'add_tag', label: 'Add a tag' },
+    can('tag:apply') && { id: 'remove_tag', label: 'Remove a tag' },
+    can('crm:manage') && { id: 'assign_counsellor', label: 'Assign counsellor' },
+    can('crm:manage') && { id: 'create_crm_activity', label: 'Log a CRM activity' },
+    can('crm:manage') && { id: 'create_follow_up', label: 'Create a follow-up' },
     can('gamification:award') && { id: 'award_xp', label: 'Award XP' },
     can('gamification:award') && { id: 'award_badge', label: 'Award a badge' },
     can('learner:export') && { id: 'export', label: 'Export CSV' },
@@ -199,11 +210,21 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
   const [points, setPoints] = useState('10');
   const [badgeId, setBadgeId] = useState('');
   const [requestId] = useState(() => crypto.randomUUID());
+  const [tagId, setTagId] = useState('');
+  const [counsellor, setCounsellor] = useState('');
+  const [actType, setActType] = useState('whatsapp_sent');
+  const [due, setDue] = useState('');
+  const counsellors = useFetch(() => (can('crm:manage') ? api.get('/api/crm/counsellors').then((r) => r.data as any[]) : Promise.resolve([] as any[])), []);
+  const tagList = useFetch(() => (can('tag:apply') ? api.get('/api/tags').then((r) => r.data as any[]) : Promise.resolve([] as any[])), []);
   const [step, setStep] = useState<'choose' | 'review'>('choose');
   const [summary, setSummary] = useState<AudienceSummary | null>(null);
   const batches = useFetch(() => api.get('/api/batches?status=active,upcoming&page_size=100&sort=name').then((r) => r.data as any[]), []);
   const badges = useFetch(() => (can('gamification:award') ? api.get('/api/gamification/badges').then((r) => r.data as any[]) : Promise.resolve([])), []);
   const body = () => ({ action, selection: selector, ...(action === 'assign_batch' ? { batch_id: batchId } : action === 'remove_batch' ? { batch_id: batchId, reason: reason || undefined }
+    : action === 'add_tag' || action === 'remove_tag' ? { tag_id: tagId }
+    : action === 'assign_counsellor' ? { counsellor_id: counsellor }
+    : action === 'create_crm_activity' ? { type: actType, description: reason || null }
+    : action === 'create_follow_up' ? { due_at: due ? new Date(due).toISOString() : undefined, note: reason || null, assigned_to: counsellor }
     : action === 'award_xp' ? { points: Number(points), reason, batch_id: batchId || null, request_id: requestId }
     : action === 'award_badge' ? { badge_id: badgeId, reason: reason || null, batch_id: batchId || null } : { status }) });
 
@@ -214,11 +235,12 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
   }
   async function confirm() {
     const r = await run(() => api.post('/api/bulk/learners', { ...body(), confirm: true }));
-    if (r) { const d = r.data; toast(action === 'award_xp' ? `${d.awarded} learners awarded ${points} XP` : action === 'award_badge' ? `${d.awarded} learners earned the badge (${d.already_has} already had it)` : action === 'assign_batch' ? `${d.joined + d.rejoined} learners added (${d.already_member} already in the batch)` : action === 'remove_batch' ? `${d.removed} learners removed` : `${d.changed} learners updated`); onDone(); }
+    if (r) { const d = r.data; toast(action === 'add_tag' ? `${d.added} learners tagged (${d.already} already had it)` : action === 'remove_tag' ? `${d.removed} tags removed` : action === 'assign_counsellor' ? `${d.assigned} learners assigned (${d.leads_created} new leads created)` : action === 'create_crm_activity' ? `Logged for ${d.logged} learners` : action === 'create_follow_up' ? `${d.created} follow-ups created` : action === 'award_xp' ? `${d.awarded} learners awarded ${points} XP` : action === 'award_badge' ? `${d.awarded} learners earned the badge (${d.already_has} already had it)` : action === 'assign_batch' ? `${d.joined + d.rejoined} learners added (${d.already_member} already in the batch)` : action === 'remove_batch' ? `${d.removed} learners removed` : `${d.changed} learners updated`); onDone(); }
   }
   const isAward = action === 'award_xp' || action === 'award_badge';
   const needsBatch = action === 'assign_batch' || action === 'remove_batch' || (isAward && !can('gamification:manage'));
-  const awardReady = !isAward || (action === 'award_xp' ? Number.isInteger(Number(points)) && Number(points) !== 0 && reason.trim().length >= 2 : !!badgeId);
+  const crmReady = action === 'add_tag' || action === 'remove_tag' ? !!tagId : action === 'assign_counsellor' ? !!counsellor : action === 'create_follow_up' ? !!counsellor && !!due : true;
+  const awardReady = crmReady && !isAward || (action === 'award_xp' ? Number.isInteger(Number(points)) && Number(points) !== 0 && reason.trim().length >= 2 : !!badgeId);
   return (
     <Modal title="Bulk action" onClose={onClose} footer={step === 'choose'
       ? <><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !action || (needsBatch && !batchId) || !awardReady} onClick={review}>{action === 'export' ? 'Download CSV' : 'Review'}</button></>
@@ -227,6 +249,10 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
         <div className="stack">
           <Field label="Action"><select className="select" value={action} onChange={(e) => setAction(e.target.value)}>{actions.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Field>
           {(needsBatch || isAward) && <Field label={isAward && !needsBatch ? 'Batch (optional)' : 'Batch'} hint={isAward ? 'XP and badges are credited to this classroom and count on its leaderboard.' : undefined}><select className="select" value={batchId} onChange={(e) => setBatchId(e.target.value)}><option value="">Choose a batch…</option>{(batches.data ?? []).map((b: any) => <option key={b.id} value={b.id}>{b.name} ({b.active_learners}{b.capacity ? `/${b.capacity}` : ''})</option>)}</select></Field>}
+          {(action === 'add_tag' || action === 'remove_tag') && <Field label="Tag"><select className="select" value={tagId} onChange={(e) => setTagId(e.target.value)}><option value="">Choose a tag…</option>{(tagList.data ?? []).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>}
+          {(action === 'assign_counsellor' || action === 'create_follow_up') && <Field label={action === 'create_follow_up' ? 'Assign to' : 'Counsellor'}><select className="select" value={counsellor} onChange={(e) => setCounsellor(e.target.value)}><option value="">Choose…</option>{(counsellors.data ?? []).map((c: any) => <option key={c.id} value={c.id}>{c.full_name}</option>)}</select></Field>}
+          {action === 'create_follow_up' && <><Field label="Due"><input className="input" type="datetime-local" value={due} onChange={(e) => setDue(e.target.value)} /></Field><Field label="Note (optional)"><input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field></>}
+          {action === 'create_crm_activity' && <><Field label="Activity"><select className="select" value={actType} onChange={(e) => setActType(e.target.value)}>{ACTIVITY_TYPES.filter((t) => !['status_changed', 'counsellor_assigned', 'batch_assigned'].includes(t)).map((t) => <option key={t} value={t}>{t.replace(/_/g, ' ')}</option>)}</select></Field><Field label="Details (optional)"><input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field></>}
           {action === 'award_xp' && <><Field label="XP points" hint="Whole number; admins may enter a negative number to correct a mistake."><input className="input" type="number" value={points} onChange={(e) => setPoints(e.target.value)} /></Field><Field label="Reason"><input className="input" maxLength={255} placeholder="e.g. Hackathon participation" value={reason} onChange={(e) => setReason(e.target.value)} /></Field></>}
           {action === 'award_badge' && <><Field label="Badge"><select className="select" value={badgeId} onChange={(e) => setBadgeId(e.target.value)}><option value="">Choose a badge…</option>{(badges.data ?? []).map((b: any) => <option key={b.id} value={b.id}>{b.icon} {b.name}{b.xp_reward ? ` (+${b.xp_reward} XP)` : ''}</option>)}</select></Field><Field label="Reason (optional)"><input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field></>}
           {action === 'remove_batch' && <Field label="Reason (optional)"><input className="input" value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} /></Field>}
@@ -242,6 +268,11 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
           </div>
           <p style={{ margin: 0 }}>{action === 'assign_batch' && <>Add <b>{fmtNum(summary!.unique_learners)}</b> learners to <b>{batches.data?.find((b: any) => b.id === batchId)?.name}</b>. Learners already in the batch are skipped.</>}
             {action === 'remove_batch' && <>Remove <b>{fmtNum(summary!.unique_learners)}</b> learners from <b>{batches.data?.find((b: any) => b.id === batchId)?.name}</b>. Their other batches are not affected.</>}
+            {action === 'add_tag' && <>Add the tag “{tagList.data?.find((t: any) => t.id === tagId)?.name}” to <b>{fmtNum(summary!.unique_learners)}</b> unique learners. Anyone who already has it is skipped.</>}
+            {action === 'remove_tag' && <>Remove the tag “{tagList.data?.find((t: any) => t.id === tagId)?.name}” from <b>{fmtNum(summary!.unique_learners)}</b> unique learners.</>}
+            {action === 'assign_counsellor' && <>Assign <b>{counsellors.data?.find((c: any) => c.id === counsellor)?.full_name}</b> as counsellor for <b>{fmtNum(summary!.unique_learners)}</b> unique learners. Learners that are not in the CRM yet are added as new leads.</>}
+            {action === 'create_crm_activity' && <>Log “{actType.replace(/_/g, ' ')}” on the CRM timeline of <b>{fmtNum(summary!.unique_learners)}</b> unique learners.</>}
+            {action === 'create_follow_up' && <>Create a follow-up for <b>{fmtNum(summary!.unique_learners)}</b> unique learners, assigned to <b>{counsellors.data?.find((c: any) => c.id === counsellor)?.full_name}</b>. They get one summary notification.</>}
             {action === 'award_xp' && <>Award <b>{points} XP</b> to <b>{fmtNum(summary!.unique_learners)}</b> unique learners for “{reason}”. Each learner gets it once, even if they are in several selected batches.</>}
             {action === 'award_badge' && <>Award <b>{badges.data?.find((b: any) => b.id === badgeId)?.name}</b> to <b>{fmtNum(summary!.unique_learners)}</b> unique learners. Learners who already have it are skipped.</>}
             {action === 'change_status' && <>Change status to <b>{status}</b> for <b>{fmtNum(summary!.unique_learners)}</b> learners.</>}</p>
