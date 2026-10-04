@@ -85,11 +85,12 @@ assessmentRouter.get('/:batchId/activities/:id/scores', wrap(async (req, res) =>
   const a = await queryOne(`SELECT id, name, category, max_score FROM activities WHERE id = $1 AND batch_id = $2 AND deleted_at IS NULL`, [parse(uuid, req.params.id), room.batch.id]);
   if (!a) throw notFound('Activity');
   const rows = await query(
-    `SELECT l.id AS learner_id, l.full_name, l.learner_code, s.id AS score_id, s.score, s.feedback, s.updated_at
+    `SELECT l.id AS learner_id, l.full_name, l.learner_code, s.id AS score_id, s.score, s.feedback, s.updated_at,
+            (SELECT COALESCE(SUM(x.points), 0) FROM xp_transactions x WHERE x.source_type = 'score' AND x.source_id = s.id) AS bonus_xp
        FROM learner_batch_memberships m JOIN learners l ON l.id = m.learner_id AND l.deleted_at IS NULL
        LEFT JOIN scores s ON s.learner_id = l.id AND s.source_type = 'activity' AND s.source_id = $2 AND s.deleted_at IS NULL
       WHERE m.batch_id = $1 AND m.status = 'active' ORDER BY l.full_name, l.id LIMIT 1000`, [room.batch.id, a.id]);
-  ok(res, { activity: { ...a, max_score: Number(a.max_score) }, rows: rows.map((r) => ({ ...r, score: num(r.score) })) });
+  ok(res, { activity: { ...a, max_score: Number(a.max_score) }, rows: rows.map((r) => ({ ...r, score: num(r.score), bonus_xp: r.score_id ? Number(r.bonus_xp) : 0 })) });
 }));
 
 const entriesBody = z.object({

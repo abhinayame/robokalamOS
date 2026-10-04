@@ -122,14 +122,14 @@ function SheetModal({ room, activityId, onClose, onDone }: { room: any; activity
 
 function Sheet({ room, id, onClose, onDone }: { room: any; id: string; onClose: () => void; onDone: () => void }) {
   const q = useFetch(() => api.get(`/api/classrooms/${room.id}/activities/${id}/scores`).then((r) => r.data), [id]);
-  const [edits, setEdits] = useState<Record<string, { score?: string; feedback?: string }>>({});
+  const [edits, setEdits] = useState<Record<string, { score?: string; feedback?: string; bonus?: string }>>({});
   const { busy, run } = useAction();
   const d = q.data;
   const save = () => {
     const entries = Object.entries(edits).map(([learner_id, e]) => {
       const row = d.rows.find((r: any) => r.learner_id === learner_id);
       const sc = e.score ?? (row.score == null ? '' : String(row.score));
-      return { learner_id, score: sc === '' ? null : Number(sc), feedback: e.feedback ?? row.feedback ?? null };
+      return { learner_id, score: sc === '' ? null : Number(sc), feedback: e.feedback ?? row.feedback ?? null, ...(e.bonus !== undefined && e.bonus !== '' && sc !== '' ? { bonus_xp: Number(e.bonus) } : {}) };
     });
     if (!entries.length) return onClose();
     return run(async () => { await api.put(`/api/classrooms/${room.id}/activities/${id}/scores`, { entries }); onDone(); }, 'Scores saved').catch(() => {});
@@ -144,6 +144,7 @@ function Sheet({ room, id, onClose, onDone }: { room: any; id: string; onClose: 
           <div key={r.learner_id} className="row wrap" style={{ alignItems: 'flex-start' }}>
             <div style={{ width: 180 }}><b>{r.full_name}</b><div className="muted small">{r.learner_code}</div></div>
             <input className="input" style={{ width: 90, borderColor: bad ? 'var(--bad)' : undefined }} type="number" min={0} max={d.activity.max_score} aria-label={`Score for ${r.full_name}`} placeholder={`/${d.activity.max_score}`} value={v} onChange={(ev) => setEdits({ ...edits, [r.learner_id]: { ...e, score: ev.target.value } })} />
+            <input className="input" style={{ width: 90 }} type="number" min={0} max={500} aria-label={`Bonus XP for ${r.full_name}`} placeholder={r.bonus_xp ? `+${r.bonus_xp} XP` : 'Bonus XP'} value={e.bonus ?? ''} onChange={(ev) => setEdits({ ...edits, [r.learner_id]: { ...e, bonus: ev.target.value } })} />
             <input className="input grow" style={{ minWidth: 160 }} aria-label={`Feedback for ${r.full_name}`} placeholder="Feedback (optional)" defaultValue={r.feedback ?? ''} onChange={(ev) => setEdits({ ...edits, [r.learner_id]: { ...(edits[r.learner_id] ?? {}), feedback: ev.target.value } })} />
             {bad && <span className="err small">0 to {d.activity.max_score}</span>}
           </div>); })}</div> : <Empty icon="👥" title="No learners in this batch">Add learners to the batch first.</Empty>}</Async>

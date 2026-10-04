@@ -189,8 +189,8 @@ submissionsRouter.get('/:id', wrap(async (req, res) => {
   const room = await openRoom(req, s.batch_id);
   if (!room.canManage && !req.user!.access.ownLearnerIds.includes(s.learner_id)) throw notFound('Submission');
   const files = await filesFor('submission', [s.id]);
-  const sc = await queryOne(`SELECT score, max_score FROM scores WHERE learner_id = $1 AND source_type = 'assignment' AND source_id = $2 AND deleted_at IS NULL`, [s.learner_id, s.assignment_id]);
-  ok(res, { ...shapeSubmission(s, files), score: sc ? Number(sc.score) : null, assignment_title: s.assignment_title, max_marks: Number(s.max_marks), due_at: s.due_at, batch_id: s.batch_id,
+  const sc = await queryOne(`SELECT id, score, max_score, (SELECT COALESCE(SUM(points), 0) FROM xp_transactions x WHERE x.source_type = 'score' AND x.source_id = scores.id) AS bonus FROM scores WHERE learner_id = $1 AND source_type = 'assignment' AND source_id = $2 AND deleted_at IS NULL`, [s.learner_id, s.assignment_id]);
+  ok(res, { ...shapeSubmission(s, files), score: sc ? Number(sc.score) : null, bonus_xp: sc ? Number(sc.bonus) : 0, assignment_title: s.assignment_title, max_marks: Number(s.max_marks), due_at: s.due_at, batch_id: s.batch_id,
     learner: { id: s.learner_id, name: s.learner_name, ...(room.canManage ? { code: s.learner_code } : {}) }, can_review: room.canManage && ['submitted', 'late', 'evaluated', 'returned'].includes(s.status) });
 }));
 

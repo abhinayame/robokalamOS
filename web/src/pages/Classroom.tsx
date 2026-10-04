@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
+import { useAuth } from '../auth';
 import { fmtDateTime } from '../format';
 import { FileLinks, FilePicker, type FileRef } from '../components/Files';
 import Grades from './Grades';
+import { AwardBadgeModal, AwardXpModal, BadgeWall, Leaderboard, XpCard } from '../components/Gamify';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, StatusBadge, Tabs, fieldErrors, useAction, useFetch } from '../components/ui';
 
-type Tab = 'stream' | 'classwork' | 'grades' | 'people';
+type Tab = 'stream' | 'classwork' | 'grades' | 'achievements' | 'people';
 const STATE_TONE: Record<string, string> = { upcoming: '', due: 'warn', completed: 'ok', late: 'bad', returned: 'warn' };
 
 export default function Classroom() {
@@ -19,10 +21,11 @@ export default function Classroom() {
         <PageHead title={r.name} sub={<>{r.course_name} · {r.program_name} · Teacher: {r.teachers.map((t: any) => t.full_name).join(', ') || 'Not assigned'}</>}
           actions={<><StatusBadge s={r.status} /><Link className="btn sm" to="/classroom">All classrooms</Link></>} />
         {!r.writable && <div className="banner warn" role="status" style={{ marginBottom: 12 }}>This batch is {r.status}, so its classroom is read-only.</div>}
-        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'grades', label: 'Grades' }, { id: 'people', label: 'People', badge: r.counts.learners }]} />
+        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'grades', label: 'Grades' }, { id: 'achievements', label: 'Achievements' }, { id: 'people', label: 'People', badge: r.counts.learners }]} />
         {tab === 'stream' && <Stream room={r} />}
         {tab === 'classwork' && <Classwork room={r} />}
         {tab === 'grades' && <Grades room={r} />}
+        {tab === 'achievements' && <RoomAchievements room={r} />}
         {tab === 'people' && <People room={r} />}
       </>
     )}</Async>
@@ -260,5 +263,25 @@ function People({ room }: { room: any }) {
         <div className="card"><div className="card-head"><h2>Teachers</h2></div>{d.teachers.length ? d.teachers.map((t: any) => <div className="m-card" key={t.id} style={{ alignItems: 'center' }}><Avatar name={t.full_name} /><b className="grow">{t.full_name}</b><Badge>{t.role}</Badge></div>) : <div className="m-card muted">No teacher assigned yet.</div>}</div>
         <div className="card"><div className="card-head"><h2>Classmates</h2><span className="muted small">{d.learners.length}</span></div>{d.learners.length ? d.learners.map((l: any) => <div className="m-card" key={l.id} style={{ alignItems: 'center' }}><Avatar name={l.full_name} /><span className="grow">{d.can_manage ? <Link to={`/learners/${l.id}`}>{l.full_name}</Link> : l.full_name}</span>{l.learner_code && <span className="muted small">{l.learner_code}</span>}</div>) : <div className="m-card muted">No learners yet.</div>}</div>
       </div>)}</Async>
+  );
+}
+
+/* ------------------------------------------------------------------ Achievements */
+function RoomAchievements({ room }: { room: any }) {
+  const { can } = useAuth();
+  const [modal, setModal] = useState<null | 'xp' | 'badge'>(null);
+  const [tick, setTick] = useState(0);
+  const people = useFetch(() => (room.can_manage ? api.get(`/api/classrooms/${room.id}/people`).then((r) => r.data) : Promise.resolve(null)), [room.id]);
+  const learners = (people.data?.learners ?? []).map((l: any) => ({ id: l.id, name: l.full_name }));
+  const done = () => { setModal(null); setTick(tick + 1); };
+  const own = room.my_learner_ids?.[0] as string | undefined;
+  return (
+    <div className="stack">
+      {room.can_manage && can('gamification:award') && <div className="row wrap"><button className="btn primary" onClick={() => setModal('xp')}>⚡ Award XP</button><button className="btn" onClick={() => setModal('badge')}>🏅 Award badge</button></div>}
+      {own && <><XpCard key={`x${tick}`} learnerId={own} /><h3 style={{ margin: '4px 0' }}>My badges here</h3><BadgeWall key={`b${tick}`} learnerId={own} /></>}
+      <Leaderboard key={`l${tick}`} scope="batch" id={room.id} />
+      {modal === 'xp' && <AwardXpModal batches={[{ id: room.id, name: room.name }]} learners={learners} onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'badge' && <AwardBadgeModal batches={[{ id: room.id, name: room.name }]} learners={learners} onClose={() => setModal(null)} onDone={done} />}
+    </div>
   );
 }
