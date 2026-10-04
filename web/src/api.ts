@@ -56,6 +56,24 @@ export const api = {
   patch: <T = any>(url: string, body?: unknown) => raw('PATCH', url, body ?? {}).then((r) => json<{ data: T; meta?: any }>(r)),
   put: <T = any>(url: string, body?: unknown) => raw('PUT', url, body ?? {}).then((r) => json<{ data: T; meta?: any }>(r)),
   del: <T = any>(url: string, body?: unknown) => raw('DELETE', url, body ?? {}).then((r) => json<{ data: T; meta?: any }>(r)),
+  /** Upload raw file bytes; the server verifies type and size. */
+  async upload(file: File): Promise<{ id: string; name: string; size: number; mime: string }> {
+    const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/octet-stream', 'X-CSRF-Token': csrf() };
+    const org = getActiveOrg(); if (org) headers['X-Org-Id'] = org;
+    let res: Response;
+    try { res = await fetch(`/api/files?name=${encodeURIComponent(file.name)}`, { method: 'POST', credentials: 'include', headers, body: file }); }
+    catch { throw new ApiError(0, 'NETWORK', 'Upload failed. Check your connection and try again.'); }
+    return (await json<{ data: any }>(res)).data;
+  },
+  /** Fetch a protected file with the session and save it (or open inline for pdf/images). */
+  async openFile(id: string, name: string, inline = false) {
+    const res = await raw('GET', `/api/files/${id}${inline ? '?inline=1' : ''}`);
+    if (!res.ok) await json(res);
+    const url = URL.createObjectURL(await res.blob());
+    if (inline) window.open(url, '_blank', 'noopener');
+    else { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  },
   async download(url: string, body: unknown, filename: string) {
     const res = await raw('POST', url, body);
     if (!res.ok) await json(res);
