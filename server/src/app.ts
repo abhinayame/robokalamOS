@@ -43,6 +43,8 @@ import selectionRoutes from './modules/selection/routes.js';
 import userRoutes from './modules/users/routes.js';
 import auditRoutes from './modules/audit/routes.js';
 import feeRoutes from './modules/fees/routes.js';
+import reminderRoutes from './modules/reminders/routes.js';
+import importRoutes from './modules/import/routes.js';
 import razorpayWebhook from './modules/fees/webhook.js';
 
 export function createApp() {
@@ -118,6 +120,8 @@ export function createApp() {
   app.use('/api/files', fileRoutes);
   app.use('/api/audit', auditRoutes);
   app.use('/api/fees', feeRoutes);
+  app.use('/api/reminders', reminderRoutes);
+  app.use('/api/import', importRoutes);
   app.use('/api/system', systemRouter);
   app.use('/api', catalogRoutes);                      // /branches /programs /courses
   app.use('/api', userRoutes);                         // /teachers /users

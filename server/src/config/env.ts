@@ -51,6 +51,8 @@ const schema = z.object({
   // Daily-ish clean-up of expired sessions, unattached uploads and old webhook payloads (see modules/system/maintenance.ts).
   MAINTENANCE: z.enum(['true', 'false']).default('true'),
   COMMS_WORKER: z.enum(['true', 'false']).default('true'),
+  // Automatic reminders (fee due/overdue, class, absence) are queued by a pass every 5 minutes inside the comms worker.
+  REMINDERS: z.enum(['true', 'false']).default('true'),
   // Apply migrations and create the owner login on start (idempotent). Set to false to run them manually.
   AUTO_MIGRATE: z.enum(['true', 'false']).default('true'),
   SUPER_ADMIN_EMAIL: z.string().optional(),

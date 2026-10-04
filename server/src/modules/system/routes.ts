@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
+import { isConfigured as razorpayConfigured, isWebhookConfigured as razorpayWebhook } from '../fees/razorpay.js';
 import { env, isProd } from '../../config/env.js';
 import { pool, query, queryOne } from '../../db/pool.js';
 import { ok, wrap } from '../../lib/http.js';
@@ -42,6 +43,8 @@ async function integrity(orgId: string) {
     { id: 'campaign_dup_phone', label: 'Campaigns messaging one number twice', count: await n(`SELECT COUNT(*) AS n FROM (SELECT campaign_id, phone FROM whatsapp_recipients WHERE org_id = $1 GROUP BY campaign_id, phone HAVING COUNT(*) > 1) x`) },
     { id: 'stuck_queue', label: 'WhatsApp messages stuck in the queue over 15 minutes', count: await n(`SELECT COUNT(*) AS n FROM whatsapp_recipients WHERE org_id = $1 AND status = 'queued' AND claimed_at < DATE_SUB(NOW(3), INTERVAL 15 MINUTE)`) },
     { id: 'stuck_campaign', label: 'Campaigns still "processing" with nothing left to send', count: await n(`SELECT COUNT(*) AS n FROM whatsapp_campaigns c WHERE c.org_id = $1 AND c.status = 'processing' AND NOT EXISTS (SELECT 1 FROM whatsapp_recipients r WHERE r.campaign_id = c.id AND r.status IN ('pending','queued')) AND c.updated_at < DATE_SUB(NOW(3), INTERVAL 10 MINUTE)`) },
+    { id: 'fee_allocation_mismatch', label: 'Fee installments whose paid amount differs from their payments', count: await n(`SELECT COUNT(*) AS n FROM fee_installments i WHERE i.org_id = $1 AND i.paid_amount <> COALESCE((SELECT SUM(a.amount) FROM payment_allocations a WHERE a.installment_id = i.id), 0)`) },
+    { id: 'payment_unaccounted', label: 'Payments that are not fully allocated, credited or refunded', count: await n(`SELECT COUNT(*) AS n FROM payments p WHERE p.org_id = $1 AND p.amount - p.refunded_amount <> COALESCE((SELECT SUM(a.amount) FROM payment_allocations a WHERE a.payment_id = p.id), 0) + p.unallocated_amount`) },
     { id: 'lead_without_learner', label: 'CRM leads whose learner was removed', count: await n(`SELECT COUNT(*) AS n FROM crm_leads cl JOIN learners l ON l.id = cl.learner_id WHERE cl.org_id = $1 AND l.deleted_at IS NOT NULL AND cl.lead_status NOT IN ('converted','not_interested','lost')`) },
   ];
   return checks.map((c) => ({ ...c, ok: c.count === 0 }));
@@ -66,6 +69,9 @@ systemRouter.get('/status', wrap(async (req, res) => {
     migrations: { applied: applied.length, available: files.length, pending: files.filter((f) => !applied.some((a) => a.name === f)), latest: applied.at(-1)?.name ?? null },
     process: { uptime_seconds: Math.round(process.uptime()), memory_mb: { rss: Math.round(mem.rss / 1048576), heap_used: Math.round(mem.heapUsed / 1048576) } },
     traffic: snapshot(),
+    fees: { online_payments: razorpayConfigured(), webhook_configured: razorpayWebhook(), last_online_payment_at: (await queryOne(`SELECT MAX(paid_at) AS t FROM payments WHERE provider = 'razorpay'`))?.t ?? null },
+    reminders: { enabled_rules: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_rules WHERE enabled = TRUE`))!.n), queued_last_24h: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_log WHERE outcome = 'queued' AND created_at >= DATE_SUB(NOW(3), INTERVAL 24 HOUR)`))!.n) },
+    imports: { running: Number((await queryOne(`SELECT COUNT(*) AS n FROM import_jobs WHERE status = 'running'`))!.n) },
     whatsapp: { configured: isConfigured(), webhook_configured: isWebhookConfigured(), worker_enabled: env.COMMS_WORKER === 'true', waiting: Number(wa!.pending), in_flight: Number(wa!.queued), failed_unsent: Number(wa!.failed), last_webhook_at: hook?.last ?? null },
     security: { active_sessions: Number(sessions!.n), failed_logins_24h: Number(failedLogins!.n), config_findings: findings },
     integrity: checks, integrity_ok: checks.every((c) => c.ok),

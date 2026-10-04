@@ -116,7 +116,7 @@ router.get('/campaigns', wrap(async (req, res) => {
   const q = parse(z.object({ status: z.string().optional(), page: z.coerce.number().int().min(1).default(1), page_size: z.coerce.number().int().min(1).max(100).default(20) }), req.query);
   const w = [`c.org_id = ${p.add(orgIdOf(req))}`]; const own = ownOnly(req, p); if (q.status) w.push(`c.status = ${p.add(q.status)}`);
   const total = Number((await queryOne(`SELECT COUNT(*) AS n FROM whatsapp_campaigns c WHERE ${w.join(' AND ')} ${own}`, p.values))!.n);
-  const rows = await query(`SELECT c.id, c.name, c.status, c.audience, c.scheduled_at, c.created_at, c.confirmed_at, c.finished_at, c.total_recipients, c.unique_learners, t.name AS template_name, u.full_name AS created_by_name
+  const rows = await query(`SELECT c.id, c.name, c.status, c.kind, c.audience, c.scheduled_at, c.created_at, c.confirmed_at, c.finished_at, c.total_recipients, c.unique_learners, t.name AS template_name, u.full_name AS created_by_name
       FROM whatsapp_campaigns c JOIN whatsapp_templates t ON t.id = c.template_id JOIN users u ON u.id = c.created_by WHERE ${w.join(' AND ')} ${own} ORDER BY c.created_at DESC LIMIT ${q.page_size} OFFSET ${(q.page - 1) * q.page_size}`, p.values);
   const withCounts = await Promise.all(rows.map(async (r) => ({ ...r, counts: r.status === 'draft' ? null : await counts(r.id) })));
   ok(res, withCounts, { page: q.page, page_size: q.page_size, total });

@@ -1,7 +1,7 @@
 import crypto from 'node:crypto';
 import { beforeAll, describe, expect, it } from 'vitest';
 import request from 'supertest';
-import { query } from '../src/db/pool.js';
+import { exec, query } from '../src/db/pool.js';
 import { app, buildWorld, client, login, newLearner, PASSWORD, uniq, type World } from './helpers.js';
 import { setPaymentProvider, type LinkInput, type LinkResult, type PaymentProvider } from '../src/modules/fees/razorpay.js';
 import { discountedParts } from '../src/modules/fees/money.js';
@@ -327,5 +327,21 @@ describe('audit', () => {
   it('records plans, assignments, payments, refunds and links', async () => {
     const a = (await query(`SELECT DISTINCT action FROM audit_logs WHERE org_id = $1 AND (action LIKE 'fee%' OR action LIKE 'payment.%')`, [w.orgId])).map((r) => r.action);
     expect(a).toEqual(expect.arrayContaining(['fee_plan.created', 'fee.assigned', 'payment.recorded', 'payment.refunded', 'payment.link_created', 'fee.cancelled', 'fee.installment_adjusted']));
+  });
+});
+
+describe('money integrity', () => {
+  it('every installment and payment adds up after all of the above, and the system status notices when one does not', async () => {
+    const sys = client(w.superToken, w.orgId);
+    const ok = (await sys.get('/api/system/status')).body.data;
+    expect(ok.integrity.find((c: any) => c.id === 'fee_allocation_mismatch')).toMatchObject({ count: 0, ok: true });
+    expect(ok.integrity.find((c: any) => c.id === 'payment_unaccounted')).toMatchObject({ count: 0, ok: true });
+    expect(ok.integrity_ok).toBe(true); expect(ok.fees.online_payments).toBe(true);
+    const i = (await query(`SELECT id, paid_amount FROM fee_installments WHERE org_id = $1 AND paid_amount > 0 LIMIT 1`, [w.orgId]))[0];
+    await exec(`UPDATE fee_installments SET paid_amount = paid_amount - 1 WHERE id = $1`, [i.id]);       // simulate corruption
+    const bad = (await sys.get('/api/system/status')).body.data;
+    expect(bad.integrity.find((c: any) => c.id === 'fee_allocation_mismatch').count).toBe(1); expect(bad.integrity_ok).toBe(false);
+    await exec(`UPDATE fee_installments SET paid_amount = $2 WHERE id = $1`, [i.id, i.paid_amount]);
+    expect((await sys.get('/api/system/status')).body.data.integrity_ok).toBe(true);
   });
 });
