@@ -11,7 +11,7 @@ export default function Classrooms() {
   return (
     <>
       <PageHead title="Classroom" sub={manage ? 'Your batches: post updates, share materials and review work.' : 'Your classes, materials and assignments.'} />
-      <Async q={q} empty={(d: any[]) => !d.length}>{(rows: any[]) => rows.length ? (
+      <Async q={q}>{(rows: any[]) => rows.length ? (
         <div className="grid cols-3">{rows.map((b) => (
           <Link key={b.id} to={`/classroom/${b.id}`} className="card card-pad" style={{ display: 'block', color: 'inherit' }}>
             <div className="row between"><b>{b.name}</b><StatusBadge s={b.status} /></div>

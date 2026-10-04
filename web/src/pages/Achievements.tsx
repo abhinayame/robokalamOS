@@ -11,7 +11,7 @@ export default function Achievements() {
   return (
     <>
       <PageHead title="My achievements" sub="XP, levels and badges you have earned." />
-      <Async q={kids} empty={(d: any[]) => !d.length}>{(list: any[]) => list.length ? <div className="stack">{list.map((k) => (
+      <Async q={kids}>{(list: any[]) => list.length ? <div className="stack">{list.map((k) => (
         <div className="stack" key={k.id}>
           {list.length > 1 && <h2 style={{ margin: 0 }}>{k.full_name}</h2>}
           <XpCard learnerId={k.id} />

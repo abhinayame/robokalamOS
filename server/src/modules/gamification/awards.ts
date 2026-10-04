@@ -2,6 +2,7 @@ import type { Request } from 'express';
 import { Params, exec, newId, query, queryOne, type Db } from '../../db/pool.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { learnerScope } from '../../lib/scope.js';
+import { notifyAbout } from '../../lib/notify.js';
 import { recordActivity } from '../../lib/timeline.js';
 import { orgIdOf } from '../../middleware/auth.js';
 import { assertManage, openRoom } from '../classroom/access.js';
@@ -75,6 +76,7 @@ export async function awardBadge(db: Db, req: Request, a: { badgeId: string; ids
     } catch (e: any) { if (e?.errno === 1062) { r.already_has++; continue; } throw e; }
     if (badge.xp_reward) r.xp_granted += await setSourceXp(db, { orgId, learnerId, batchId: a.batchId, reason: `Badge: ${badge.name}`, sourceType: 'badge', sourceId: id, target: badge.xp_reward, userId, silent: true });
     await recordActivity(db, { orgId, learnerId, batchId: a.batchId, type: 'badge.awarded', title: `${badge.icon} Earned the "${badge.name}" badge${badge.xp_reward ? ` (+${badge.xp_reward} XP)` : ''}`, description: a.reason, meta: { badge_id: badge.id, learner_badge_id: id }, actorUserId: userId });
+    await notifyAbout(db, { orgId, learnerIds: [learnerId], kind: 'badge.awarded', title: `${badge.icon} New badge: ${badge.name}`, body: a.reason ?? null, link: '/achievements', excludeUserId: userId });
     r.awarded++;
   }
   return { ...r, badge: { id: badge.id, name: badge.name } };

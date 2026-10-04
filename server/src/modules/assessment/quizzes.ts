@@ -135,7 +135,7 @@ quizzesRouter.patch('/:id', wrap(async (req, res) => {
   const room = await openRoom(req, quiz.batch_id);
   assertManage(room); assertWritable(room);
   const b = parse(metaBody.partial(), req.body);
-  checkWindow({ opens_at: b.opens_at === undefined ? quiz.opens_at?.toISOString?.() : b.opens_at, closes_at: b.closes_at === undefined ? quiz.closes_at?.toISOString?.() : b.closes_at });
+  checkWindow({ opens_at: b.opens_at === undefined ? quiz.opens_at : b.opens_at, closes_at: b.closes_at === undefined ? quiz.closes_at : b.closes_at });
   const started = (await attemptCount(quiz.id)) > 0;
   if (started && (b.time_limit_minutes !== undefined || b.max_attempts !== undefined)) throw conflict('Learners have already attempted this quiz, so the time limit and attempts cannot change.', 'QUIZ_LOCKED');
   const sets: string[] = []; const vals: unknown[] = [];

@@ -5,10 +5,11 @@ import { useAuth } from '../auth';
 import { fmtDateTime } from '../format';
 import { FileLinks, FilePicker, type FileRef } from '../components/Files';
 import Grades from './Grades';
+import RoomAttendance from './Attendance';
 import { AwardBadgeModal, AwardXpModal, BadgeWall, Leaderboard, XpCard } from '../components/Gamify';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, StatusBadge, Tabs, fieldErrors, useAction, useFetch } from '../components/ui';
 
-type Tab = 'stream' | 'classwork' | 'grades' | 'achievements' | 'people';
+type Tab = 'stream' | 'classwork' | 'attendance' | 'grades' | 'achievements' | 'people';
 const STATE_TONE: Record<string, string> = { upcoming: '', due: 'warn', completed: 'ok', late: 'bad', returned: 'warn' };
 
 export default function Classroom() {
@@ -21,9 +22,10 @@ export default function Classroom() {
         <PageHead title={r.name} sub={<>{r.course_name} · {r.program_name} · Teacher: {r.teachers.map((t: any) => t.full_name).join(', ') || 'Not assigned'}</>}
           actions={<><StatusBadge s={r.status} /><Link className="btn sm" to="/classroom">All classrooms</Link></>} />
         {!r.writable && <div className="banner warn" role="status" style={{ marginBottom: 12 }}>This batch is {r.status}, so its classroom is read-only.</div>}
-        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'grades', label: 'Grades' }, { id: 'achievements', label: 'Achievements' }, { id: 'people', label: 'People', badge: r.counts.learners }]} />
+        <Tabs value={tab} onChange={setTab} tabs={[{ id: 'stream', label: 'Stream' }, { id: 'classwork', label: 'Classwork', badge: r.counts.assignments + r.counts.materials }, { id: 'attendance', label: 'Attendance' }, { id: 'grades', label: 'Grades' }, { id: 'achievements', label: 'Achievements' }, { id: 'people', label: 'People', badge: r.counts.learners }]} />
         {tab === 'stream' && <Stream room={r} />}
         {tab === 'classwork' && <Classwork room={r} />}
+        {tab === 'attendance' && <RoomAttendance room={r} />}
         {tab === 'grades' && <Grades room={r} />}
         {tab === 'achievements' && <RoomAchievements room={r} />}
         {tab === 'people' && <People room={r} />}
@@ -42,7 +44,7 @@ function Stream({ room }: { room: any }) {
     <div className="stack">
       {canPost && <div className="card card-pad"><button className="btn" onClick={() => setCompose(true)}>✏️ Announce something to your class</button></div>}
       {compose && <PostModal batchId={room.id} onClose={() => setCompose(false)} onDone={() => { setCompose(false); q.reload(); }} />}
-      <Async q={q as any} empty={(d: any) => !d.data.length}>{(d: any) => d.data.length ? <>
+      <Async q={q as any}>{(d: any) => d.data.length ? <>
         {d.data.map((p: any) => <PostCard key={p.id} p={p} room={room} onChange={q.reload} />)}
         {d.meta.total > page * d.meta.page_size && <button className="btn" onClick={() => setPage(page + 1)}>Next page →</button>}
         {page > 1 && <button className="btn ghost" onClick={() => setPage(page - 1)}>← Previous page</button>}

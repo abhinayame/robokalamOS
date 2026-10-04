@@ -27,7 +27,7 @@ function Badges({ canManage }: { canManage: boolean }) {
   return (
     <div className="stack">
       {canManage && <div><button className="btn primary" onClick={() => setEdit('new')}>＋ New badge</button></div>}
-      <Async q={q} empty={(d: any[]) => !d.length}>{(rows: any[]) => rows.length ? <div className="grid cols-3">{rows.map((b) => (
+      <Async q={q}>{(rows: any[]) => rows.length ? <div className="grid cols-3">{rows.map((b) => (
         <div key={b.id} className="card card-pad stack" style={{ gap: 6, opacity: b.status === 'active' ? 1 : 0.6 }}>
           <div className="row"><span style={{ fontSize: 32 }} aria-hidden>{b.icon}</span><div className="grow"><b>{b.name}</b><div className="muted small">{b.category || 'General'}</div></div>{b.status !== 'active' && <Badge>{b.status}</Badge>}</div>
           {b.description && <div className="small">{b.description}</div>}
