@@ -54,6 +54,8 @@ export default function RoomAttendance({ room }: { room: any }) {
   const [form, setForm] = useState<null | 'one' | 'gen'>(null);
   const [report, setReport] = useState(false);
   const q = useFetch(() => api.get(`/api/classrooms/${room.id}/sessions`), [room.id]);
+  const zoom = useFetch(() => (room.can_manage ? api.get('/api/live/status').then((r) => r.data) : Promise.resolve(null)), [room.id]);
+  const [liveFor, setLiveFor] = useState<any>(null); const [recFor, setRecFor] = useState<any>(null);
   const { run } = useAction();
   const canEdit = room.can_manage && room.writable;
   const setStatus = (id: string, status: string) => { const cancel_reason = status === 'cancelled' ? prompt('Reason for cancelling (shown to learners and parents):') : undefined; if (status === 'cancelled' && cancel_reason === null) return;
@@ -69,9 +71,15 @@ export default function RoomAttendance({ room }: { room: any }) {
           <div key={s.id} className="m-card" style={{ alignItems: 'center', flexWrap: 'wrap' }}>
             <div className="grow"><b>{s.title || 'Class'}</b><div className="muted small">{fmtDateTime(s.starts_at)}{s.ends_at ? ` – ${new Date(s.ends_at).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}` : ''}{s.cancel_reason ? ` · ${s.cancel_reason}` : ''}</div></div>
             <Badge tone={TONE[s.status]}>{cap(s.status)}</Badge>
+            {s.live === 'live' && <Badge tone="bad">● Live now</Badge>}{s.has_zoom && s.live !== 'live' && <Badge tone="info">Zoom</Badge>}
             {!room.can_manage && s.my_status && <Badge tone={TONE[s.my_status]}>{cap(s.my_status)}</Badge>}
+            {s.recordings > 0 && <button className="btn ghost sm" onClick={() => setRecFor(s)}>▶ Recording</button>}
             {room.can_manage ? <>
               {s.meeting_url && <a className="btn ghost sm" href={s.meeting_url} target="_blank" rel="noopener noreferrer nofollow">Open link</a>}
+              {canEdit && zoom.data?.configured && !s.has_zoom && s.status === 'scheduled' && <button className="btn sm" onClick={() => run(async () => { await api.post(`/api/live/sessions/${s.id}/meeting`); q.reload(); }, 'Zoom meeting created and linked')}>Create Zoom meeting</button>}
+              {s.has_zoom && ['scheduled', 'started'].includes(s.status) && <button className="btn sm primary" onClick={() => run(async () => { const r = await api.post(`/api/live/sessions/${s.id}/start-link`); window.open(r.data.start_url, '_blank', 'noopener'); })}>Start on Zoom</button>}
+              {s.has_zoom && <button className="btn sm" onClick={() => setLiveFor(s)}>Zoom attendance</button>}
+              {canEdit && s.has_zoom && s.status === 'scheduled' && !s.live && <button className="btn ghost sm" onClick={() => { if (confirm('Remove the Zoom meeting from this class?')) run(async () => { await api.del(`/api/live/sessions/${s.id}/meeting`); q.reload(); }, 'Zoom meeting removed'); }}>Remove Zoom</button>}
               {s.status !== 'cancelled' && <button className="btn sm" onClick={() => setSheet(s.id)}>{s.marked ? `Attendance (${s.marked})` : 'Mark attendance'}</button>}
               {canEdit && s.status === 'scheduled' && <button className="btn ghost sm" onClick={() => setStatus(s.id, 'started')}>Start</button>}
               {canEdit && ['scheduled', 'started'].includes(s.status) && <button className="btn ghost sm danger" onClick={() => setStatus(s.id, 'cancelled')}>Cancel</button>}
@@ -83,6 +91,8 @@ export default function RoomAttendance({ room }: { room: any }) {
       {form === 'gen' && <GenerateModal batchId={room.id} onClose={() => setForm(null)} onDone={() => { setForm(null); q.reload(); }} />}
       {sheet && <SheetModal room={room} id={sheet} onClose={() => setSheet(null)} onDone={() => { setSheet(null); q.reload(); }} />}
       {report && <ReportModal room={room} onClose={() => setReport(false)} />}
+      {liveFor && <LiveModal s={liveFor} onClose={() => setLiveFor(null)} onDone={q.reload} />}
+      {recFor && <RecordingsModal s={recFor} onClose={() => setRecFor(null)} />}
     </div>
   );
 }
@@ -161,6 +171,43 @@ function ReportModal({ room, onClose }: { room: any; onClose: () => void }) {
               {!d.learners.length && <tr><td colSpan={6} className="muted">Nothing marked in this period.</td></tr>}</tbody></table></div>
           <p className="muted small" style={{ margin: 0 }}>% = (present + late) ÷ (present + late + absent). Excused classes and unmarked classes are not counted.</p>
         </div>)}</Async>
+    </Modal>
+  );
+}
+
+/** Who joined on Zoom, who could not be matched to a learner, and what attendance that produced. */
+function LiveModal({ s, onClose, onDone }: { s: any; onClose: () => void; onDone: () => void }) {
+  const q = useFetch(() => api.get(`/api/live/sessions/${s.id}/participants`).then((r) => r.data), [s.id]);
+  const { busy, run } = useAction();
+  const [pick, setPick] = useState<Record<string, string>>({});
+  const mark = (id: string, d: any) => d.marks.find((m: any) => m.learner_id === id);
+  return (
+    <Modal wide title={`Zoom attendance · ${s.title || 'Class'}`} onClose={onClose} footer={<>
+      <button className="btn" disabled={busy} onClick={() => run(async () => { await api.post(`/api/live/sessions/${s.id}/finalize`); q.reload(); onDone(); }, 'Attendance recalculated')}>Recalculate</button>
+      <button className="btn primary" onClick={onClose}>Close</button></>}>
+      <Async q={q}>{(d: any) => (
+        <div className="stack">
+          <p className="muted small" style={{ margin: 0 }}>Present = stayed at least half the class (and 10 minutes); late = joined more than 10 minutes after the start; learners who never joined are absent. Marks you set by hand are never changed.{d.session.finalized_at ? '' : ' Attendance is filled in when the class ends on Zoom.'}</p>
+          {!d.participants.length ? <Empty icon="📹" title="Nobody has joined yet">Names appear here as people join the Zoom meeting.</Empty> : (
+            <div className="table-wrap"><table className="t"><thead><tr><th>Zoom name</th><th>Time in class</th><th>Learner</th></tr></thead><tbody>
+              {d.participants.map((p: any, i: number) => <tr key={i}><td>{p.name}{p.email && <div className="muted small">{p.email}</div>}</td><td>{p.minutes} min{p.joins > 1 ? ` (${p.joins} joins)` : ''}</td>
+                <td>{p.learner ? <>{p.learner.full_name} <span className="muted small">· matched by {p.match_method}</span>{mark(p.learner.id, d) && <> <Badge tone={TONE[mark(p.learner.id, d).status]}>{cap(mark(p.learner.id, d).status)}</Badge></>}</> : (
+                  <span className="row gap-s"><select className="select" style={{ maxWidth: 200 }} value={pick[p.name] ?? ''} onChange={(e) => setPick({ ...pick, [p.name]: e.target.value })} aria-label={`Who is ${p.name}?`}><option value="">Who is this?</option>{d.roster.map((l: any) => <option key={l.id} value={l.id}>{l.full_name}</option>)}</select>
+                    <button className="btn sm primary" disabled={busy || !pick[p.name]} onClick={() => run(async () => { await api.post(`/api/live/sessions/${s.id}/match`, { name: p.name, learner_id: pick[p.name] }); q.reload(); onDone(); }, 'Matched. Next time this name is recognised.')}>Match</button></span>)}</td></tr>)}
+            </tbody></table></div>)}
+          {d.participants.length > 0 && d.not_joined.length > 0 && <div><b className="small">Did not join ({d.not_joined.length})</b><div className="muted small">{d.not_joined.map((l: any) => l.full_name).join(', ')}</div></div>}
+        </div>)}</Async>
+    </Modal>
+  );
+}
+
+function RecordingsModal({ s, onClose }: { s: any; onClose: () => void }) {
+  const q = useFetch(() => api.get(`/api/live/sessions/${s.id}/recordings`).then((r) => r.data as any[]), [s.id]);
+  return (
+    <Modal title={`Recording · ${s.title || 'Class'}`} onClose={onClose} footer={<button className="btn primary" onClick={onClose}>Close</button>}>
+      <Async q={q}>{(rows: any[]) => !rows.length ? <Empty icon="🎞️" title="No recording yet" /> : <div className="stack">{rows.map((r) => (
+        <div key={r.id} className="card card-pad"><a className="btn primary" href={r.share_url} target="_blank" rel="noopener noreferrer nofollow">▶ Watch on Zoom</a>
+          <div className="muted small" style={{ marginTop: 8 }}>{r.duration_min ? `${r.duration_min} min` : ''}{r.size_mb ? ` · ${r.size_mb} MB` : ''}{r.passcode ? <> · Passcode <code>{r.passcode}</code></> : ''}</div></div>))}</div>}</Async>
     </Modal>
   );
 }

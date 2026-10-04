@@ -19,7 +19,7 @@ attendanceRouter.use(requireOrg, requirePerm('attendance:read'));
 const httpUrl = z.string().trim().max(1000).url().refine((u) => /^https?:\/\//i.test(u), 'Use a link that starts with http:// or https://');
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
 const STATUSES = ['present', 'absent', 'late', 'excused'] as const;
-const CLASS_SQL = `s.id, s.batch_id, s.title, s.starts_at, s.ends_at, s.meeting_provider, s.meeting_url, s.status, s.cancel_reason`;
+const CLASS_SQL = `s.id, s.batch_id, s.title, s.starts_at, s.ends_at, s.meeting_provider, s.meeting_url, s.status, s.cancel_reason, s.zoom_meeting_id, s.live_started_at, s.live_ended_at, (SELECT COUNT(*) FROM class_recordings r WHERE r.session_id = s.id) AS recordings`;
 
 // A learner may open the meeting link from shortly before the start until the class is over.
 const joinable = (s: { status: string; starts_at: any; ends_at: any }, now = Date.now()) => {
@@ -29,7 +29,7 @@ const joinable = (s: { status: string; starts_at: any; ends_at: any }, now = Dat
 };
 const shape = (s: any, canManage: boolean, mine?: any) => ({
   id: s.id, batch_id: s.batch_id, batch_name: s.batch_name, title: s.title, starts_at: s.starts_at, ends_at: s.ends_at, status: s.status, cancel_reason: s.cancel_reason,
-  meeting_provider: s.meeting_provider, has_meeting: !!s.meeting_url,
+  meeting_provider: s.meeting_provider, has_meeting: !!s.meeting_url, has_zoom: !!s.zoom_meeting_id, live: s.live_ended_at ? 'ended' : s.live_started_at ? 'live' : null, recordings: Number(s.recordings ?? 0),
   ...(canManage || joinable(s) ? { meeting_url: s.meeting_url } : {}),
   can_join: !!s.meeting_url && joinable(s),
   ...(canManage ? { marked: s.marked == null ? undefined : Number(s.marked) } : { my_status: mine?.status ?? null }),
@@ -166,7 +166,7 @@ sessionsRouter.put('/:batchId/sessions/:id/attendance', wrap(async (req, res) =>
       const prev = existing.get(e.learner_id);
       if (prev === e.status && e.note === undefined) { res2.unchanged++; continue; }
       await exec(`INSERT INTO attendance (id, org_id, session_id, batch_id, learner_id, status, note, marked_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
-                  ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), marked_by = VALUES(marked_by), marked_at = NOW(3)`,
+                  ON DUPLICATE KEY UPDATE status = VALUES(status), note = VALUES(note), marked_by = VALUES(marked_by), marked_at = NOW(3), source = 'manual', joined_minutes = NULL`,
         [newId(), orgId, s.id, room.batch.id, e.learner_id, e.status, e.note ?? null, req.user!.id], db);
       if (prev === undefined) res2.marked++; else res2.changed++;
       if (e.status === 'absent' && prev !== 'absent') absentNow.push(e.learner_id);
