@@ -29,7 +29,7 @@ LMS · virtual classroom · student information system · gamification · parent
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system, diagrams, ERD, API, RBAC matrix, selection/dedupe, WhatsApp, CRM, security, roadmap
 * [`docs/database/later-phases-schema.sql`](docs/database/later-phases-schema.sql) — full schema for phases 2–9 (validated against migration 001)
 * [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Hostinger runbook, env vars, SSL, backups & restore drill, secret rotation, monitoring
-* [`docs/Robokalam-Learner-OS-Developer-Guide.pptx`](docs/Robokalam-Learner-OS-Developer-Guide.pptx) — 29-slide step-by-step onboarding deck for junior developers
+* [`docs/Robokalam-Learner-OS-Developer-Guide.pptx`](docs/Robokalam-Learner-OS-Developer-Guide.pptx) — 38-slide step-by-step onboarding deck for junior developers (version 2: Phases 1-13)
 * [`docs/SECURITY.md`](docs/SECURITY.md) · [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — security model and operations playbook
 * [`postman/`](postman) — collection + environment (34 requests, 61 assertions)
 
