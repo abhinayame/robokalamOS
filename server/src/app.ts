@@ -27,6 +27,9 @@ import portalRoutes from './modules/portal/routes.js';
 import analyticsRoutes from './modules/analytics/routes.js';
 import crmRoutes from './modules/crm/routes.js';
 import { tagsRouter } from './modules/crm/tags.js';
+import whatsappRoutes from './modules/comms/routes.js';
+import webhookRoutes from './modules/comms/webhook.js';
+import announcementRoutes from './modules/comms/announcements.js';
 import fileRoutes from './modules/files/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 import learnerRoutes from './modules/learners/routes.js';
@@ -72,6 +75,7 @@ export function createApp() {
     catch (e) { logger.error({ err: e }, 'health check failed'); res.status(503).json({ ok: false, error: { code: 'DB_DOWN', message: 'Database unavailable.' } }); }
   });
 
+  app.use('/api/webhooks', webhookRoutes);              // public: guarded by a secret in the URL, not by a login
   app.use('/api/auth', authRoutes);
   app.use('/api', authenticate);                       // everything below requires a valid session
   app.use('/api/organizations', orgRoutes);
@@ -89,6 +93,8 @@ export function createApp() {
   app.use('/api/portal', portalRoutes);
   app.use('/api/analytics', analyticsRoutes);
   app.use('/api/crm', crmRoutes);
+  app.use('/api/whatsapp', whatsappRoutes);
+  app.use('/api/announcements', announcementRoutes);
   app.use('/api/tags', tagsRouter);
   app.use('/api/scores', scoresRouter);
   app.use('/api/quizzes', quizzesRouter);

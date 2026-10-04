@@ -4,6 +4,7 @@ import { migrate } from './db/migrate.js';
 import { pool } from './db/pool.js';
 import { ensureSuperAdmin } from './lib/bootstrap.js';
 import { logger } from './lib/logger.js';
+import { startCommsWorker, stopCommsWorker } from './modules/comms/worker.js';
 
 async function main() {
   // Hosts such as Hostinger start the app with a single command, so the server prepares its own database.
@@ -16,8 +17,11 @@ async function main() {
   const app = createApp();
   const server = app.listen(env.PORT, () => logger.info(`Robokalam Learner OS API listening on :${env.PORT} (${env.NODE_ENV})`));
 
+  startCommsWorker();
+
   const shutdown = (sig: string) => {
     logger.info(`${sig} received, shutting down`);
+    stopCommsWorker();
     server.close(() => pool.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10_000).unref();
   };
