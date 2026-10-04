@@ -7,6 +7,7 @@ import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { learnerScope } from '../../lib/scope.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { assertManage, assertWritable, openRoom, viewedLearner } from '../classroom/access.js';
+import { setSourceXp } from '../gamification/xp.js';
 import { band, pct, recordScore, removeScore, summarize } from './scoring.js';
 
 export const assessmentRouter = Router();   // mounted at /api/classrooms
@@ -92,7 +93,7 @@ assessmentRouter.get('/:batchId/activities/:id/scores', wrap(async (req, res) =>
 }));
 
 const entriesBody = z.object({
-  entries: z.array(z.object({ learner_id: uuid, score: z.number().nullable(), feedback: z.string().trim().max(5000).nullish() })).min(1).max(1000),
+  entries: z.array(z.object({ learner_id: uuid, score: z.number().nullable(), feedback: z.string().trim().max(5000).nullish(), bonus_xp: z.number().int().min(0).max(500).optional() })).min(1).max(1000),
 });
 
 /** Save many scores at once. One entry per learner (duplicates are merged, last wins); `score: null` clears. */
@@ -118,6 +119,7 @@ assessmentRouter.put('/:batchId/activities/:id/scores', wrap(async (req, res) =>
       }
       const r = await recordScore(db, { orgId, actorId: req.user!.id, learnerId: e.learner_id, batchId: room.batch.id, sourceType: 'activity', sourceId: a.id, name: a.name, category: a.category, score: e.score, max: Number(a.max_score), feedback: e.feedback });
       res2[r.action]++;
+      if (e.bonus_xp !== undefined) await setSourceXp(db, { orgId, learnerId: e.learner_id, batchId: room.batch.id, reason: `Bonus: ${a.name}`, sourceType: 'score', sourceId: r.id, target: e.bonus_xp, userId: req.user!.id });
     }
     return res2;
   });

@@ -20,6 +20,7 @@ import classroomRoutes from './modules/classroom/routes.js';
 import { assignmentsRouter, submissionsRouter } from './modules/classroom/assignments.js';
 import { assessmentRouter, scoresRouter } from './modules/assessment/routes.js';
 import { quizzesRouter } from './modules/assessment/quizzes.js';
+import gamificationRoutes from './modules/gamification/routes.js';
 import fileRoutes from './modules/files/routes.js';
 import dashboardRoutes from './modules/dashboard/routes.js';
 import learnerRoutes from './modules/learners/routes.js';
@@ -78,6 +79,7 @@ export function createApp() {
   app.use('/api/classrooms', classroomRoutes);
   app.use('/api/scores', scoresRouter);
   app.use('/api/quizzes', quizzesRouter);
+  app.use('/api/gamification', gamificationRoutes);
   app.use('/api/assignments', assignmentsRouter);
   app.use('/api/submissions', submissionsRouter);
   app.use('/api/files', fileRoutes);

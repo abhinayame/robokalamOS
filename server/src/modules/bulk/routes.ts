@@ -5,7 +5,8 @@ import { audit } from '../../lib/audit.js';
 import { AppError, badRequest, forbidden } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { csvCell } from '../../lib/security.js';
-import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
+import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middleware/auth.js';
+import { awardBadge, awardXp, checkPoints, verifyTargets } from '../gamification/awards.js';
 import { enrollLearners, removeLearners } from '../batches/enrollment.js';
 import { LEARNER_STATUSES } from '../learners/filters.js';
 import { buildAudience, resolveLearnerIds, selectorSchema, summarizeAudience } from '../selection/resolver.js';
@@ -17,6 +18,8 @@ const actionSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('assign_batch'), batch_id: uuid }),
   z.object({ action: z.literal('remove_batch'), batch_id: uuid, reason: z.string().max(200).optional() }),
   z.object({ action: z.literal('change_status'), status: z.enum(LEARNER_STATUSES) }),
+  z.object({ action: z.literal('award_xp'), points: z.number().int(), reason: z.string().trim().min(2).max(255), batch_id: uuid.nullish(), request_id: uuid.optional() }),
+  z.object({ action: z.literal('award_badge'), badge_id: uuid, reason: z.string().trim().max(500).nullish(), batch_id: uuid.nullish() }),
 ]);
 
 /**
@@ -24,11 +27,12 @@ const actionSchema = z.discriminatedUnion('action', [
  * de-duplicated by learner_id, tenant-isolated and RBAC-scoped BEFORE anything is executed.
  * Nothing runs without `confirm: true` (use `dry_run: true` to preview).
  */
-router.post('/learners', requirePerm('learner:bulk'), wrap(async (req, res) => {
+router.post('/learners', requireAnyPerm('learner:bulk', 'gamification:award'), wrap(async (req, res) => {
   const body = parse(z.object({ selection: selectorSchema, dry_run: z.boolean().default(false), confirm: z.boolean().default(false) }).and(actionSchema), req.body);
   const user = req.user!;
   const orgId = orgIdOf(req);
-  const needs = body.action === 'change_status' ? 'learner:update' : 'batch:enroll';
+  const needs = body.action === 'change_status' ? 'learner:update' : body.action.startsWith('award_') ? 'gamification:award' : 'batch:enroll';
+  if (body.action === 'award_xp') checkPoints(req, body.points);
   if (!user.isSuperAdmin && !user.permissions.has(needs)) throw forbidden();
 
   const summary = await summarizeAudience(user, orgId, body.selection);
@@ -43,6 +47,14 @@ router.post('/learners', requirePerm('learner:bulk'), wrap(async (req, res) => {
     if (body.action === 'assign_batch') {
       const r = await enrollLearners(c, body.batch_id, ids);
       detail = { joined: r.joined, rejoined: r.rejoined, already_member: r.already_member, skipped: r.skipped, affected: r.joined_ids.length };
+    } else if (body.action === 'award_xp') {
+      const t = await verifyTargets(req, ids, body.batch_id, db);
+      const r = await awardXp(db, req, { ids: t.ids, batchId: body.batch_id, points: body.points, reason: body.reason, requestId: body.request_id, sourceType: 'bulk' });
+      detail = { ...r, affected: r.awarded };
+    } else if (body.action === 'award_badge') {
+      const t = await verifyTargets(req, ids, body.batch_id, db);
+      const r = await awardBadge(db, req, { badgeId: body.badge_id, ids: t.ids, batchId: body.batch_id, reason: body.reason });
+      detail = { awarded: r.awarded, already_has: r.already_has, xp_granted: r.xp_granted, affected: r.awarded };
     } else if (body.action === 'remove_batch') {
       const r = await removeLearners(c, body.batch_id, ids, { reason: body.reason ?? 'Removed in bulk' });
       detail = { removed: r.removed, not_member: r.not_member, affected: r.removed };

@@ -1,6 +1,7 @@
 import { exec, newId, queryOne, type Db } from '../../db/pool.js';
 import { badRequest } from '../../lib/errors.js';
 import { recordActivity } from '../../lib/timeline.js';
+import { setSourceXp } from '../gamification/xp.js';
 
 export type SourceType = 'assignment' | 'quiz' | 'activity';
 export const round2 = (n: number) => Math.round(n * 100) / 100;
@@ -56,6 +57,8 @@ export async function removeScore(db: Db, orgId: string, actorId: string, scoreI
   if (!cur) return null;
   await exec(`UPDATE scores SET deleted_at = NOW(3) WHERE id = $1`, [scoreId], db);
   await exec(`INSERT INTO score_history (org_id, score_id, changed_by, action, previous_score, previous_max, previous_feedback) VALUES ($1,$2,$3,'deleted',$4,$5,$6)`, [orgId, scoreId, actorId, cur.score, cur.max_score, cur.feedback], db);
+  // A bonus earned on this score goes with it (reversal row stays in the ledger).
+  await setSourceXp(db, { orgId, learnerId: cur.learner_id, batchId: cur.batch_id, reason: `Bonus: ${cur.activity_name}`, sourceType: 'score', sourceId: scoreId, target: 0, userId: actorId });
   await recordActivity(db, { orgId, learnerId: cur.learner_id, batchId: cur.batch_id, type: 'score.removed', title: `Score removed: ${cur.activity_name}`, actorUserId: actorId });
   return cur;
 }
