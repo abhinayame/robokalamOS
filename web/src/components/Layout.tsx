@@ -1,3 +1,4 @@
+import { BrandMark, useBrand, useInstall } from '../brand';
 import { useEffect, useState, type ReactNode } from 'react';
 import { Bell } from './Bell';
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
@@ -33,6 +34,7 @@ const GROUPS: Group[] = [
     { to: '/settings/catalog', label: 'Programs & Courses', icon: '📚', perm: 'catalog:read', roles: STAFF },
     { to: '/settings/tags', label: 'Tags', icon: '🏷️', perm: 'tag:read', roles: STAFF },
     { to: '/settings/users', label: 'Staff & Roles', icon: '🔑', perm: 'user:manage' },
+    { to: '/settings/branding', label: 'Branding', icon: '🎨', perm: 'org:manage' },
     { to: '/settings/reminders', label: 'Auto reminders', icon: '⏰', perm: 'comms:read' },
     { to: '/settings/audit', label: 'Audit Log', icon: '🧾', perm: 'audit:read' },
     { to: '/settings/system', label: 'System Status', icon: '🩺', perm: 'system:read' },
@@ -42,6 +44,8 @@ const GROUPS: Group[] = [
 
 export default function Layout(): ReactNode {
   const { me, can, hasRole, logout, offline, activeOrg, chooseOrg } = useAuth();
+  const { brand } = useBrand();
+  const inst = useInstall();
   const [open, setOpen] = useState(false);
   const loc = useLocation();
   const nav = useNavigate();
@@ -65,7 +69,7 @@ export default function Layout(): ReactNode {
     <div className="app">
       {open && <div className="scrim" onClick={() => setOpen(false)} />}
       <aside className={`sidebar ${open ? 'open' : ''}`} aria-label="Main navigation">
-        <div className="brand"><div className="brand-mark">R</div><div><b>Robokalam</b><span>Learner OS</span></div></div>
+        <div className="brand"><BrandMark /><div><b>{brand.app_name}</b><span>{brand.default ? 'Learner OS' : (brand.tagline ?? 'Learner OS')}</span></div></div>
         {groups.map((g) => (
           <nav key={g.label} className="nav-group" aria-label={g.label}>
             <div className="nav-label">{g.label}</div>
@@ -90,6 +94,7 @@ export default function Layout(): ReactNode {
           )}
           <Bell />
           <div className="row gap-s"><Avatar name={me?.full_name ?? '?'} /><div className="small user-meta" style={{ lineHeight: 1.2 }}><b>{me?.full_name}</b><br /><span className="muted">{me?.roles.map((r) => r.replace('_', ' ')).join(', ')}</span></div></div>
+          {inst.canInstall && !inst.standalone && <button className="btn sm" onClick={inst.install} title="Install this app on your device">⬇ Install app</button>}
           <button className="btn sm" onClick={() => logout().then(() => nav('/login'))}>Sign out</button>
         </header>
         <main className="content" id="main"><Outlet /></main>

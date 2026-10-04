@@ -18,6 +18,7 @@ LMS · virtual classroom · student information system · gamification · parent
 | **6 CRM** | Leads, activities, follow-ups, tags | ✅ [`PHASE-6`](docs/PHASE-6-CRM.md) |
 | **7 Communication** | AiSensy WhatsApp campaigns, webhooks, announcements | ✅ [`PHASE-7`](docs/PHASE-7-COMMUNICATION.md) |
 | **8 Analytics** | Batch comparison, reports registry, CSV/XLSX export | ✅ [`PHASE-8`](docs/PHASE-8-ANALYTICS.md) |
+| **12 Branding & app** | Logo, name, colors and custom domain per organization; installable app (PWA) with offline page | ✅ [`PHASE-12`](docs/PHASE-12-BRANDING-PWA.md) |
 | **11 Live classes** | Zoom meetings from the schedule, automatic attendance from who joined, recordings | ✅ [`PHASE-11`](docs/PHASE-11-LIVE-CLASSES.md) |
 | **10 Fees, reminders, import** | Fee plans, installments, payments, receipts, Razorpay payment links, automatic WhatsApp reminders, CSV import | ✅ [`PHASE-10`](docs/PHASE-10-FEES-REMINDERS-IMPORT.md) |
 | **9 Production hardening** | Security audit, observability, system status, backups, performance, Postman, runbooks | ✅ [`PHASE-9`](docs/PHASE-9-HARDENING.md) |

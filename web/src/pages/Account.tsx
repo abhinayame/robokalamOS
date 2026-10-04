@@ -1,3 +1,4 @@
+import { useInstall } from '../brand';
 import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -5,6 +6,7 @@ import { Badge, Field, PageHead, useAction } from '../components/ui';
 
 export default function Account() {
   const { me, reload } = useAuth();
+  const inst = useInstall();
   const [cur, setCur] = useState('');
   const [next, setNext] = useState('');
   const [done, setDone] = useState(false);
@@ -22,6 +24,12 @@ export default function Account() {
           <button className="btn primary" disabled={busy || !cur || !next || weak}>Update password</button>
         </form>
       </div>
+      {!inst.standalone && (inst.canInstall || inst.ios) && (
+        <div className="card card-pad stack" style={{ marginTop: 16 }}>
+          <h2 style={{ margin: 0 }}>Install the app</h2>
+          <p className="muted" style={{ margin: 0 }}>Open it from your home screen like any other app: full screen, quick to start.</p>
+          {inst.canInstall ? <div><button className="btn primary" onClick={inst.install}>⬇ Install app</button></div> : <p style={{ margin: 0 }}>On iPhone or iPad: tap the <b>Share</b> button in Safari, then <b>Add to Home Screen</b>.</p>}
+        </div>)}
     </>
   );
 }

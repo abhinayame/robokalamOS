@@ -43,7 +43,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .grid { display: grid; gap: 14px; } .grid.cols-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); } .grid.cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } .grid.cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .btn { border: 1px solid var(--line); background: var(--card); padding: 7px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; display: inline-flex; align-items: center; gap: 6px; min-height: 36px; }
 .btn:hover:not(:disabled) { background: #f0f2f6; } .btn:disabled { opacity: .55; cursor: not-allowed; }
-.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; } .btn.primary:hover:not(:disabled) { background: #1b3556; }
+.btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; } .btn.primary:hover:not(:disabled) { filter: brightness(1.2); }
 .btn.accent { background: var(--accent); border-color: var(--accent); color: #2b1d00; } .btn.danger { color: var(--bad); border-color: #f1c4be; } .btn.danger.solid { background: var(--bad); color: #fff; border-color: var(--bad); }
 .btn.ghost { border-color: transparent; background: transparent; } .btn.sm { padding: 4px 9px; min-height: 30px; font-size: 13px; }
 .input, .select, .textarea { width: 100%; padding: 8px 10px; border: 1px solid #cfd6e1; border-radius: 8px; background: #fff; min-height: 38px; }
@@ -137,3 +137,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* Phase 10 */
 .err { color: var(--bad); }
+
+/* Phase 12: branding */
+.brand-mark.logo { background: transparent; object-fit: contain; border-radius: 8px; }
+.swatch { width: 28px; height: 28px; border-radius: 8px; border: 2px solid transparent; cursor: pointer; padding: 0; } .swatch[aria-pressed="true"] { border-color: var(--ink); outline: 2px solid #fff; outline-offset: -4px; }
+.brand-preview { border-radius: 12px; overflow: hidden; border: 1px solid var(--line); display: grid; grid-template-columns: 150px 1fr; min-height: 190px; }
+.brand-preview .bp-side { padding: 12px; color: #fff; } .brand-preview .bp-main { padding: 14px; background: var(--bg); }

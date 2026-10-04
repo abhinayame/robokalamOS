@@ -38,6 +38,9 @@ Payments are applied under a row lock with idempotency keys, so retries and repe
 ## Live classes (Phase 11)
 The Zoom webhook is trusted only with a valid HMAC signature over the raw body and a timestamp within 5 minutes (replay protection), compared in constant time. Host start links are fetched fresh and never stored; the Zoom client secret never leaves the server or appears in any response. Only https recording links are stored. Automatic attendance never overwrites a teacher's manual mark, and ambiguous names are never guessed.
 
+## Branding and the installable app (Phase 12)
+The only unauthenticated additions are three read-only endpoints under `/api/public` that return public branding fields (no ids or settings), the organization's chosen logo (PNG only, `nosniff`, sandbox CSP) and its manifest; they are rate limited, ignore suspended organizations and give unknown organizations the platform default. Logos are verified from their bytes (SVG is refused because it can carry script). The service worker never intercepts or caches `/api/` requests, so personal data cannot end up in a browser cache.
+
 ## Dependencies
 `npm audit --omit=dev` reports 0 vulnerabilities at the time of Phase 9. Re-run before each release.
 

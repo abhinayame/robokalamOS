@@ -18,7 +18,7 @@ describe('every route says who may call it', () => {
     const authAt = src.indexOf("app.use('/api', authenticate)");
     expect(authAt).toBeGreaterThan(0);
     const before = [...src.slice(0, authAt).matchAll(/app\.use\('(\/api[^']*)'/g)].map((m) => m[1]);
-    expect([...new Set(before)].sort()).toEqual(['/api/auth', '/api/health', '/api/webhooks'].sort());
+    expect([...new Set(before)].sort()).toEqual(['/api/auth', '/api/health', '/api/public', '/api/webhooks'].sort());
     const publicRoutes = [...src.slice(0, authAt).matchAll(/app\.(get|post)\('(\/api[^']*)'/g)].map((m) => m[2]);
     expect(publicRoutes).toEqual(['/api/health']);
   });
@@ -33,6 +33,9 @@ describe('every route says who may call it', () => {
     'modules/system/routes.ts': 'health/ready is public by design; the system status router carries system:read',
     'modules/dashboard/routes.ts': 'dashboard:view on the route',
     'modules/classroom/classwork.ts': 'mounted inside classroom/routes.ts, which applies classroom:read; every write calls assertManage on the batch',
+    'modules/branding/routes.ts: GET /branding': 'public by design (sign-in page): public branding fields only',
+    'modules/branding/routes.ts: GET /orgs/:slug/logo': 'public by design: serves only the file the organization chose as its logo',
+    'modules/branding/routes.ts: GET /orgs/:slug/manifest.webmanifest': 'public by design: the installable-app manifest',
     'modules/organizations/routes.ts: GET /current': 'returns only the caller\'s own organization',
   };
   it('each route file applies requirePerm / requireAnyPerm / requireSuperAdmin to every handler (or is on the reviewed allow-list)', () => {
