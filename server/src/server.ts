@@ -26,4 +26,11 @@ async function main() {
 }
 
 process.on('unhandledRejection', (e) => logger.error({ err: e }, 'unhandledRejection'));
-main().catch((e) => { logger.error({ err: e }, 'Startup failed'); console.error('Startup failed:', e?.message ?? e); process.exit(1); });
+main().catch((e) => {
+  logger.error({ err: e }, 'Startup failed');
+  const hint = e?.errno === 1045 ? ' → The database rejected the login: check DB_USER / DB_PASSWORD (reset the user\'s password in hPanel and paste it again) and that the user is assigned to the database.'
+    : e?.errno === 1049 ? ' → Unknown database: check DB_NAME.'
+    : e?.code === 'ECONNREFUSED' || e?.code === 'ENOTFOUND' ? ' → Cannot reach the database server: check DB_HOST (try 127.0.0.1 or the host shown in hPanel).' : '';
+  console.error(`Startup failed: ${e?.message ?? e}${hint}`);
+  process.exit(1);
+});

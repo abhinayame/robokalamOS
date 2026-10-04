@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import mysql, { type Pool, type PoolConnection, type ResultSetHeader } from 'mysql2/promise';
-import { env } from '../config/env.js';
+import { db as dbConfig, env } from '../config/env.js';
 
 /** Columns that hold JSON. MariaDB stores JSON as text, so we parse by name as well as by type. */
 const JSON_COLUMNS = new Set(['settings', 'schedule', 'meta', 'previous_data', 'new_data', 'teachers', 'roles', 'children', 'payload', 'selector']);
@@ -13,7 +13,11 @@ const SESSION_INIT = "SET time_zone = '+00:00', SESSION group_concat_max_len = 1
   + "SESSION sql_mode = 'STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION,ONLY_FULL_GROUP_BY'";
 
 export const poolOptions = (): mysql.PoolOptions => ({
-  uri: env.DATABASE_URL,
+  host: dbConfig.host,
+  port: dbConfig.port,
+  user: dbConfig.user,
+  password: dbConfig.password,
+  database: dbConfig.database,
   connectionLimit: env.DATABASE_POOL_MAX,
   charset: 'UTF8MB4_UNICODE_CI',
   timezone: 'Z',
