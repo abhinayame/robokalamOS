@@ -1,15 +1,17 @@
-import { queryOne, type Db } from '../db/pool.js';
+import { queryOne, exec, type Db } from '../db/pool.js';
 
-/** Atomically allocate the next number for an org-scoped counter (call inside a transaction). */
+/**
+ * Atomically allocate the next number for an org-scoped counter.
+ * Must run inside a transaction: LAST_INSERT_ID() is per connection.
+ */
 export async function nextCounter(db: Db, orgId: string, key: string): Promise<number> {
-  const row = await queryOne<{ value: number }>(
-    `INSERT INTO org_counters (org_id, counter_key, value) VALUES ($1,$2,1)
-     ON CONFLICT (org_id, counter_key) DO UPDATE SET value = org_counters.value + 1
-     RETURNING value`,
-    [orgId, key],
-    db,
+  await exec(
+    `INSERT INTO org_counters (org_id, counter_key, value) VALUES ($1,$2,LAST_INSERT_ID(1))
+     ON DUPLICATE KEY UPDATE value = LAST_INSERT_ID(value + 1)`,
+    [orgId, key], db,
   );
-  return row!.value;
+  const row = await queryOne<{ v: number }>('SELECT LAST_INSERT_ID() AS v', [], db);
+  return Number(row!.v);
 }
 
 export async function nextLearnerCode(db: Db, orgId: string, prefix: string) {

@@ -1,5 +1,5 @@
 import type { Request } from 'express';
-import { query, type Db } from '../db/pool.js';
+import { exec, type Db } from '../db/pool.js';
 import type { AuthUser } from '../middleware/auth.js';
 
 export interface AuditInput {
@@ -13,9 +13,9 @@ export interface AuditInput {
   req?: Request;
 }
 
-/** Pass the transaction client as `db` so the audit row commits atomically with the change. */
+/** Pass the transaction connection as `db` so the audit row commits atomically with the change. */
 export async function audit(a: AuditInput, db?: Db) {
-  await query(
+  await exec(
     `INSERT INTO audit_logs (org_id, actor_user_id, actor_email, action, entity_type, entity_id, previous_data, new_data, ip, user_agent)
      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)`,
     [

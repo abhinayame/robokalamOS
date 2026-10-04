@@ -13,7 +13,7 @@ router.get('/', requirePerm('audit:read'), wrap(async (req, res) => {
   const where = [`a.org_id = ${p.add(orgIdOf(req))}`];
   if (q.entity_type) where.push(`a.entity_type = ${p.add(q.entity_type)}`);
   if (q.entity_id) where.push(`a.entity_id = ${p.add(q.entity_id)}`);
-  if (q.action) where.push(`a.action LIKE ${p.add(`${q.action}%`)}`);
+  if (q.action) where.push(`a.action LIKE ${p.add(`${q.action.replace(/[%_\\]/g, '\\$&')}%`)}`);
   if (q.actor_user_id) where.push(`a.actor_user_id = ${p.add(q.actor_user_id)}`);
   const total = (await queryOne(`SELECT count(*) AS n FROM audit_logs a WHERE ${where.join(' AND ')}`, p.values))!.n;
   const rows = await query(

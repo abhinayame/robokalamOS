@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it } from 'vitest';
-import { query, queryOne } from '../src/db/pool.js';
+import { exec, newId, queryOne } from '../src/db/pool.js';
 import { buildWorld, client, enroll, login, mobile, newLearner, PASSWORD, uniq, type World } from './helpers.js';
 
 let w: World;
@@ -63,7 +63,7 @@ describe('master learner profile (ONE learner = ONE record)', () => {
     expect(again.body.data.already_member).toBe(1);
     expect((await queryOne(`SELECT count(*) AS n FROM learner_batch_memberships WHERE learner_id = $1`, [l.id]))!.n).toBe(1);
     // the database itself forbids duplicates
-    await expect(query(`INSERT INTO learner_batch_memberships (org_id, learner_id, batch_id) VALUES ($1,$2,$3)`, [w.orgId, l.id, w.batches.roboA])).rejects.toThrow();
+    await expect(exec(`INSERT INTO learner_batch_memberships (id, org_id, learner_id, batch_id) VALUES ($1,$2,$3,$4)`, [newId(), w.orgId, l.id, w.batches.roboA])).rejects.toThrow();
   });
 
   it('a learner can be in 10 batches', async () => {

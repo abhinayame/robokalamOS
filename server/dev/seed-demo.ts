@@ -7,7 +7,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { isProd } from '../src/config/env.js';
 import { migrate } from '../src/db/migrate.js';
-import { pool, queryOne, query } from '../src/db/pool.js';
+import { exec, newId, pool, queryOne } from '../src/db/pool.js';
 import { hashPassword } from '../src/lib/security.js';
 
 if (isProd) { console.error('Refusing to seed demo data in production.'); process.exit(1); }
@@ -23,8 +23,9 @@ async function main() {
   await migrate(() => {});
   let sa = await queryOne(`SELECT id FROM users WHERE email = 'owner@robokalam.test'`);
   if (!sa) {
-    const u = await queryOne(`INSERT INTO users (org_id, email, password_hash, full_name) VALUES (NULL,'owner@robokalam.test',$1,'Platform Owner') RETURNING id`, [await hashPassword(PW)]);
-    await query(`INSERT INTO user_roles (user_id, role_id) SELECT $1, id FROM roles WHERE key = 'super_admin'`, [u!.id]);
+    const id = newId();
+    await exec(`INSERT INTO users (id, org_id, email, password_hash, full_name) VALUES ($1,NULL,'owner@robokalam.test',$2,'Platform Owner')`, [id, await hashPassword(PW)]);
+    await exec(`INSERT INTO user_roles (id, user_id, role_id) SELECT $1, $2, id FROM roles WHERE code = 'super_admin'`, [newId(), id]);
   }
   if (await queryOne(`SELECT 1 FROM organizations WHERE slug = 'robokalam-demo'`)) { console.log('Demo organization already exists.'); return; }
 

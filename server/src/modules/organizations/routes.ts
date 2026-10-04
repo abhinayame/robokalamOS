@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query, queryOne, tx } from '../../db/pool.js';
+import { exec, newId, query, queryOne, tx } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { conflict, notFound, badRequest } from '../../lib/errors.js';
 import { ok, paging, parse, uuid, wrap } from '../../lib/http.js';
@@ -24,7 +24,7 @@ const createSchema = z.object({
 // Platform level: list / create organizations (super admin only)
 router.get('/', requireSuperAdmin, wrap(async (req, res) => {
   const q = parse(paging.extend({ q: z.string().trim().max(100).optional() }), req.query);
-  const where = q.q ? `AND (o.name ILIKE $1 OR o.slug ILIKE $1)` : '';
+  const where = q.q ? `AND (o.name LIKE $1 OR o.slug LIKE $1)` : '';
   const params: unknown[] = q.q ? [`%${q.q}%`] : [];
   const total = (await queryOne(`SELECT count(*) AS n FROM organizations o WHERE o.deleted_at IS NULL ${where}`, params))!.n;
   const rows = await query(
@@ -45,18 +45,22 @@ router.post('/', requireSuperAdmin, wrap(async (req, res) => {
   if (problem) throw badRequest(problem);
   const result = await tx(async (db) => {
     if (await queryOne(`SELECT 1 FROM organizations WHERE slug = $1`, [body.slug], db)) throw conflict('That organization URL name is taken.', 'DUPLICATE');
-    const org = await queryOne(
-      `INSERT INTO organizations (name, slug, code_prefix, timezone) VALUES ($1,$2,$3,$4) RETURNING *`,
-      [body.name, body.slug, body.code_prefix, body.timezone], db,
+    const orgId = newId();
+    await exec(
+      `INSERT INTO organizations (id, name, slug, code_prefix, timezone) VALUES ($1,$2,$3,$4,$5)`,
+      [orgId, body.name, body.slug, body.code_prefix, body.timezone], db,
     );
-    const user = await queryOne(
-      `INSERT INTO users (org_id, email, password_hash, full_name, must_change_password)
-       VALUES ($1,$2,$3,$4,$5) RETURNING id, email, full_name`,
-      [org!.id, body.admin.email, await hashPassword(password), body.admin.full_name, !body.admin.password], db,
+    const org = await queryOne(`SELECT id, name, slug, code_prefix, timezone, status, settings, created_at FROM organizations WHERE id = $1`, [orgId], db);
+    const userId = newId();
+    await exec(
+      `INSERT INTO users (id, org_id, email, password_hash, full_name, must_change_password)
+       VALUES ($1,$2,$3,$4,$5,$6)`,
+      [userId, orgId, body.admin.email, await hashPassword(password), body.admin.full_name, !body.admin.password], db,
     );
-    await query(
-      `INSERT INTO user_roles (user_id, role_id, org_id) SELECT $1, id, $2 FROM roles WHERE key = 'org_admin'`,
-      [user!.id, org!.id], db,
+    const user = { id: userId, email: body.admin.email, full_name: body.admin.full_name };
+    await exec(
+      `INSERT INTO user_roles (id, user_id, role_id, org_id) SELECT $1, $2, id, $3 FROM roles WHERE code = 'org_admin'`,
+      [newId(), userId, orgId], db,
     );
     await audit({ orgId: org!.id, actor: req.user, action: 'organization.created', entityType: 'organization', entityId: org!.id, next: { name: org!.name, slug: org!.slug, admin: user!.email }, req }, db);
     return { org, user };
@@ -81,11 +85,12 @@ router.patch('/current', requireOrg, requirePerm('org:manage'), wrap(async (req,
     settings: z.record(z.string(), z.unknown()).optional(),
   }), req.body);
   const prev = await queryOne(`SELECT name, timezone, settings FROM organizations WHERE id = $1`, [req.orgId]);
-  const next = await queryOne(
+  await exec(
     `UPDATE organizations SET name = COALESCE($2, name), timezone = COALESCE($3, timezone), settings = COALESCE($4, settings)
-      WHERE id = $1 RETURNING id, name, slug, code_prefix, timezone, status, settings`,
+      WHERE id = $1`,
     [req.orgId, body.name ?? null, body.timezone ?? null, body.settings ? JSON.stringify(body.settings) : null],
   );
+  const next = await queryOne(`SELECT id, name, slug, code_prefix, timezone, status, settings FROM organizations WHERE id = $1`, [req.orgId]);
   await audit({ orgId: req.orgId!, actor: req.user, action: 'organization.updated', entityType: 'organization', entityId: req.orgId, previous: prev, next: { name: next!.name, timezone: next!.timezone, settings: next!.settings }, req });
   ok(res, next);
 }));
@@ -93,8 +98,9 @@ router.patch('/current', requireOrg, requirePerm('org:manage'), wrap(async (req,
 router.patch('/:id/status', requireSuperAdmin, wrap(async (req, res) => {
   const id = parse(uuid, req.params.id);
   const { status } = parse(z.object({ status: z.enum(['active', 'suspended', 'archived']) }), req.body);
-  const row = await queryOne(`UPDATE organizations SET status = $2 WHERE id = $1 AND deleted_at IS NULL RETURNING id, status`, [id, status]);
-  if (!row) throw notFound('Organization');
+  const upd = await exec(`UPDATE organizations SET status = $2 WHERE id = $1 AND deleted_at IS NULL`, [id, status]);
+  if (!upd.affectedRows && !(await queryOne(`SELECT 1 FROM organizations WHERE id = $1 AND deleted_at IS NULL`, [id]))) throw notFound('Organization');
+  const row = { id, status };
   await audit({ orgId: id, actor: req.user, action: 'organization.status_changed', entityType: 'organization', entityId: id, next: { status }, req });
   ok(res, row);
 }));

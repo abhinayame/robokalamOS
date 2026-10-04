@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { query, tx } from '../../db/pool.js';
+import { Params, exec, query, tx } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
 import { AppError, badRequest, forbidden } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
@@ -47,19 +47,27 @@ router.post('/learners', requirePerm('learner:bulk'), wrap(async (req, res) => {
       const r = await removeLearners(c, body.batch_id, ids, { reason: body.reason ?? 'Removed in bulk' });
       detail = { removed: r.removed, not_member: r.not_member, affected: r.removed };
     } else {
-      const rows = await query(
-        `UPDATE learners SET status = $3 WHERE org_id = $1 AND id = ANY($2::uuid[]) AND deleted_at IS NULL AND status <> $3 RETURNING id`,
-        [orgId, ids, body.status], db);
-      const changed = rows.map((r) => r.id as string);
-      if (changed.length) {
-        await query(
+      const changed: string[] = [];
+      for (let i = 0; i < ids.length; i += 500) {
+        const part = ids.slice(i, i + 500);
+        const sp = new Params();
+        const todo = (await query(`SELECT id FROM learners WHERE org_id = ${sp.add(orgId)} AND deleted_at IS NULL AND status <> ${sp.add(body.status)} AND id IN ${sp.in(part)} FOR UPDATE`, sp.values, db)).map((r) => r.id as string);
+        if (!todo.length) continue;
+        const up = new Params();
+        await exec(`UPDATE learners SET status = ${up.add(body.status)} WHERE id IN ${up.in(todo)}`, up.values, db);
+        const tp = new Params();
+        await exec(
           `INSERT INTO learner_activity (org_id, learner_id, type, title, actor_user_id)
-           SELECT $1, x, 'learner.status_changed', $2, $3 FROM unnest($4::uuid[]) AS x`,
-          [orgId, `Status changed to ${body.status}`, user.id, changed], db);
-        if (body.status === 'archived') {
-          const open = await query(`SELECT batch_id, array_agg(learner_id) AS learner_ids FROM learner_batch_memberships WHERE learner_id = ANY($1::uuid[]) AND status = 'active' GROUP BY batch_id`, [changed], db);
-          for (const o of open) await removeLearners(c, o.batch_id, o.learner_ids, { reason: 'Learner archived' });
-        }
+           SELECT ${tp.add(orgId)}, l.id, 'learner.status_changed', ${tp.add(`Status changed to ${body.status}`)}, ${tp.add(user.id)} FROM learners l WHERE l.id IN ${tp.in(todo)}`,
+          tp.values, db);
+        changed.push(...todo);
+      }
+      if (changed.length && body.status === 'archived') {
+        const op = new Params();
+        const open = await query(`SELECT batch_id, learner_id FROM learner_batch_memberships WHERE status = 'active' AND learner_id IN ${op.in(changed)}`, op.values, db);
+        const byBatch = new Map<string, string[]>();
+        for (const o of open) byBatch.set(o.batch_id, [...(byBatch.get(o.batch_id) ?? []), o.learner_id]);
+        for (const [batchId, learnerIds] of byBatch) await removeLearners(c, batchId, learnerIds, { reason: 'Learner archived' });
       }
       detail = { changed: changed.length, unchanged: ids.length - changed.length, affected: changed.length };
     }
@@ -72,10 +80,11 @@ router.post('/learners', requirePerm('learner:bulk'), wrap(async (req, res) => {
 
 const EXPORT_COLS: Record<string, [string, string]> = {
   learner_code: ['Learner ID', 'l.learner_code'], full_name: ['Name', 'l.full_name'], mobile: ['Mobile', 'l.mobile'], email: ['Email', 'l.email'],
-  parent: ['Parent', 'pp.full_name'], parent_mobile: ['Parent Mobile', 'pp.mobile'], school: ['School', 'l.school'], location: ['Location', 'l.location'],
+  parent: ['Parent', `(SELECT pa.full_name FROM learner_parents lp JOIN parents pa ON pa.id = lp.parent_id WHERE lp.learner_id = l.id AND lp.is_primary LIMIT 1)`],
+  parent_mobile: ['Parent Mobile', `(SELECT pa.mobile FROM learner_parents lp JOIN parents pa ON pa.id = lp.parent_id WHERE lp.learner_id = l.id AND lp.is_primary LIMIT 1)`], school: ['School', 'l.school'], location: ['Location', 'l.location'],
   status: ['Status', 'l.status'], enrolled_on: ['Enrollment Date', 'l.enrolled_on'],
-  batches: ['Batches', `(SELECT string_agg(b.name, '; ' ORDER BY b.name) FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id WHERE m.learner_id = l.id AND m.status = 'active')`],
-  courses: ['Courses', `(SELECT string_agg(DISTINCT c.name, '; ') FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id JOIN courses c ON c.id = b.course_id WHERE m.learner_id = l.id AND m.status = 'active')`],
+  batches: ['Batches', `(SELECT GROUP_CONCAT(b.name ORDER BY b.name SEPARATOR '; ') FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id WHERE m.learner_id = l.id AND m.status = 'active')`],
+  courses: ['Courses', `(SELECT GROUP_CONCAT(DISTINCT c.name SEPARATOR '; ') FROM learner_batch_memberships m JOIN batches b ON b.id = m.batch_id JOIN courses c ON c.id = b.course_id WHERE m.learner_id = l.id AND m.status = 'active')`],
 };
 
 /** CSV export of a (de-duplicated, permission-scoped) selection. Spreadsheet formulas are neutralised. */
@@ -87,8 +96,7 @@ router.post('/learners/export', requirePerm('learner:export'), wrap(async (req, 
     `${a.withSql}
      SELECT ${cols.map((k) => `${EXPORT_COLS[k][1]} AS ${k}`).join(', ')}
        FROM learners l
-       LEFT JOIN LATERAL (SELECT pa.full_name, pa.mobile FROM learner_parents lp JOIN parents pa ON pa.id = lp.parent_id WHERE lp.learner_id = l.id AND lp.is_primary LIMIT 1) pp ON TRUE
-      WHERE l.id IN (SELECT DISTINCT learner_id FROM elig) ORDER BY lower(l.full_name), l.id LIMIT 100000`, a.p.values);
+      WHERE l.id IN (SELECT DISTINCT learner_id FROM elig) ORDER BY l.full_name, l.id LIMIT 100000`, a.p.values);
   await audit({ orgId: orgIdOf(req), actor: req.user, action: 'learner.exported', entityType: 'learner', next: { rows: rows.length, columns: cols }, req });
   const csv = [cols.map((k) => csvCell(EXPORT_COLS[k][0])).join(','), ...rows.map((r) => cols.map((k) => csvCell(r[k])).join(','))].join('\r\n');
   res.setHeader('Content-Type', 'text/csv; charset=utf-8');

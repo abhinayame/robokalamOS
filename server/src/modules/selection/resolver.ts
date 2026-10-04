@@ -43,14 +43,14 @@ export function buildAudience(user: AuthUser, orgId: string, sel: Selector): Aud
   const p = new Params();
   const f = sel.filters ?? {};
   const batchConds: string[] = [];
-  const add = (col: string, ids?: string[]) => { if (ids?.length) batchConds.push(`${col} = ANY(${p.add(ids)}::uuid[])`); };
+  const add = (col: string, ids?: string[]) => { if (ids?.length) batchConds.push(`${col} IN ${p.in(ids)}`); };
   if (!sel.all_learners) {
     add('b.id', sel.batch_ids);
     add('b.course_id', sel.course_ids);
     add('b.program_id', sel.program_ids);
     add('b.branch_id', sel.branch_ids);
     if (sel.teacher_ids?.length) {
-      batchConds.push(`EXISTS (SELECT 1 FROM teacher_batch_memberships t WHERE t.batch_id = b.id AND t.status = 'active' AND t.teacher_user_id = ANY(${p.add(sel.teacher_ids)}::uuid[]))`);
+      batchConds.push(`EXISTS (SELECT 1 FROM teacher_batch_memberships t WHERE t.batch_id = b.id AND t.status = 'active' AND t.teacher_user_id IN ${p.in(sel.teacher_ids)})`);
     }
   }
   const hasBatchSource = batchConds.length > 0;
@@ -64,19 +64,19 @@ export function buildAudience(user: AuthUser, orgId: string, sel: Selector): Aud
     const scope = batchScope(user, p, 'b');
     ctes.push(`sel_batches AS (SELECT b.id FROM batches b WHERE b.org_id = ${p.add(orgId)} AND b.deleted_at IS NULL
       AND (${batchConds.join(' OR ')}) ${scope ? `AND ${scope}` : ''})`);
-    parts.push(`SELECT m.learner_id, 'm'::text AS src FROM learner_batch_memberships m
-                 WHERE m.org_id = ${p.add(orgId)} AND m.batch_id IN (SELECT id FROM sel_batches) AND m.status = ANY(${p.add(sel.membership_statuses)}::text[])`);
+    parts.push(`SELECT m.learner_id, 'm' AS src FROM learner_batch_memberships m
+                 WHERE m.org_id = ${p.add(orgId)} AND m.batch_id IN (SELECT id FROM sel_batches) AND m.status IN ${p.in(sel.membership_statuses)}`);
   }
-  if (hasLearnerSource) parts.push(`SELECT x AS learner_id, 'l'::text AS src FROM unnest(${p.add(sel.learner_ids)}::uuid[]) AS x`);
+  if (hasLearnerSource) parts.push(`SELECT x.id AS learner_id, 'l' AS src FROM learners x WHERE x.id IN ${p.in(sel.learner_ids!)}`);
   if (sel.all_learners || (hasFilters && !hasBatchSource && !hasLearnerSource)) {
-    parts.push(`SELECT l.id AS learner_id, 'a'::text AS src FROM learners l WHERE l.org_id = ${p.add(orgId)} AND l.deleted_at IS NULL`);
+    parts.push(`SELECT l.id AS learner_id, 'a' AS src FROM learners l WHERE l.org_id = ${p.add(orgId)} AND l.deleted_at IS NULL`);
   }
-  if (!parts.length) parts.push(`SELECT NULL::uuid AS learner_id, 'x'::text AS src WHERE FALSE`);
+  if (!parts.length) parts.push(`SELECT NULL AS learner_id, 'x' AS src FROM DUAL WHERE FALSE`);
   ctes.push(`raw AS (${parts.join(' UNION ALL ')})`);
 
   // Eligibility: tenant, soft delete, status, RBAC scope and the user's filters, all on the learner row.
   const where = learnerWhere(user, orgId, f, p, sel.learner_statuses);
-  if (sel.exclude_learner_ids?.length) where.push(`l.id <> ALL(${p.add(sel.exclude_learner_ids)}::uuid[])`);
+  if (sel.exclude_learner_ids?.length) where.push(`l.id NOT IN ${p.in(sel.exclude_learner_ids)}`);
   ctes.push(`elig AS (SELECT r.learner_id, r.src FROM raw r JOIN learners l ON l.id = r.learner_id WHERE ${where.join(' AND ')})`);
   return { withSql: `WITH ${ctes.join(',\n')}`, p, hasSource };
 }
@@ -94,9 +94,9 @@ export async function summarizeAudience(user: AuthUser, orgId: string, sel: Sele
   const row = await queryOne(
     `${a.withSql}
      SELECT ${hasBatches ? '(SELECT count(*) FROM sel_batches)' : '0'} AS selected_batches,
-            count(*) FILTER (WHERE src = 'm') AS batch_memberships,
-            count(DISTINCT learner_id) AS unique_learners,
-            count(*) AS raw_total
+            COALESCE(SUM(src = 'm'), 0) AS batch_memberships,
+            COUNT(DISTINCT learner_id) AS unique_learners,
+            COUNT(*) AS raw_total
        FROM elig`,
     a.p.values, db,
   );
@@ -120,7 +120,7 @@ export async function sampleAudience(user: AuthUser, orgId: string, sel: Selecto
   return query(
     `${a.withSql}
      SELECT l.id, l.learner_code, l.full_name FROM learners l
-      WHERE l.id IN (SELECT DISTINCT learner_id FROM elig) ORDER BY lower(l.full_name), l.id LIMIT ${n}`,
+      WHERE l.id IN (SELECT DISTINCT learner_id FROM elig) ORDER BY l.full_name, l.id LIMIT ${n}`,
     a.p.values,
   );
 }
