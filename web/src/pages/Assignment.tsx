@@ -98,13 +98,14 @@ function ReviewModal({ id, onClose, onDone }: { id: string; onClose: () => void;
   const q = useFetch(() => api.get(`/api/submissions/${id}`).then((r) => r.data), [id]);
   const [fb, setFb] = useState<string | null>(null);
   const [score, setScore] = useState<string | null>(null);
+  const [bonus, setBonus] = useState<string | null>(null);
   const [err, setErr] = useState('');
   const { busy, run } = useAction();
   const act = (action: 'evaluate' | 'return') => {
     setErr('');
     const sv = score ?? (q.data?.score == null ? '' : String(q.data.score));
     if (action === 'evaluate' && (sv === '' || Number.isNaN(Number(sv)) || Number(sv) < 0 || Number(sv) > q.data.max_marks)) { setErr(`Enter a score from 0 to ${q.data.max_marks}.`); return; }
-    return run(async () => { await api.post(`/api/submissions/${id}/review`, { action, feedback: (fb ?? q.data?.feedback) || null, ...(action === 'evaluate' ? { score: Number(sv) } : {}) }); onDone(); }, action === 'evaluate' ? 'Scored and marked evaluated' : 'Returned to learner');
+    return run(async () => { await api.post(`/api/submissions/${id}/review`, { action, feedback: (fb ?? q.data?.feedback) || null, ...(action === 'evaluate' ? { score: Number(sv), ...(bonus !== null && bonus !== '' ? { bonus_xp: Number(bonus) } : {}) } : {}) }); onDone(); }, action === 'evaluate' ? 'Scored and marked evaluated' : 'Returned to learner');
   };
   const s = q.data;
   return (
@@ -117,6 +118,7 @@ function ReviewModal({ id, onClose, onDone }: { id: string; onClose: () => void;
           {s.link_url && <a href={s.link_url} target="_blank" rel="noopener noreferrer nofollow">{s.link_url}</a>}
           <FileLinks files={s.files} />
           {s.can_review && <Field label={`Score (out of ${s.max_marks})`} error={err}><input className="input" type="number" min={0} max={s.max_marks} style={{ maxWidth: 140 }} value={score ?? s.score ?? ''} onChange={(e) => setScore(e.target.value)} /></Field>}
+          {s.can_review && <Field label="Bonus XP (optional)" hint={s.bonus_xp ? `Currently +${s.bonus_xp} XP` : 'Extra XP for excellent work, 0–500.'}><input className="input" type="number" min={0} max={500} style={{ maxWidth: 140 }} value={bonus ?? ''} onChange={(e) => setBonus(e.target.value)} /></Field>}
           {s.can_review && <Field label="Feedback to learner" hint="Required when returning work for changes."><textarea className="textarea" value={fb ?? s.feedback ?? ''} onChange={(e) => setFb(e.target.value)} /></Field>}
         </div>)}</Async>
     </Modal>

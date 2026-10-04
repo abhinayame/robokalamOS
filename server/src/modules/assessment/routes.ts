@@ -7,6 +7,7 @@ import { ok, parse, uuid, wrap } from '../../lib/http.js';
 import { learnerScope } from '../../lib/scope.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { assertManage, assertWritable, openRoom, viewedLearner } from '../classroom/access.js';
+import { setSourceXp } from '../gamification/xp.js';
 import { band, pct, recordScore, removeScore, summarize } from './scoring.js';
 
 export const assessmentRouter = Router();   // mounted at /api/classrooms
@@ -84,15 +85,16 @@ assessmentRouter.get('/:batchId/activities/:id/scores', wrap(async (req, res) =>
   const a = await queryOne(`SELECT id, name, category, max_score FROM activities WHERE id = $1 AND batch_id = $2 AND deleted_at IS NULL`, [parse(uuid, req.params.id), room.batch.id]);
   if (!a) throw notFound('Activity');
   const rows = await query(
-    `SELECT l.id AS learner_id, l.full_name, l.learner_code, s.id AS score_id, s.score, s.feedback, s.updated_at
+    `SELECT l.id AS learner_id, l.full_name, l.learner_code, s.id AS score_id, s.score, s.feedback, s.updated_at,
+            (SELECT COALESCE(SUM(x.points), 0) FROM xp_transactions x WHERE x.source_type = 'score' AND x.source_id = s.id) AS bonus_xp
        FROM learner_batch_memberships m JOIN learners l ON l.id = m.learner_id AND l.deleted_at IS NULL
        LEFT JOIN scores s ON s.learner_id = l.id AND s.source_type = 'activity' AND s.source_id = $2 AND s.deleted_at IS NULL
       WHERE m.batch_id = $1 AND m.status = 'active' ORDER BY l.full_name, l.id LIMIT 1000`, [room.batch.id, a.id]);
-  ok(res, { activity: { ...a, max_score: Number(a.max_score) }, rows: rows.map((r) => ({ ...r, score: num(r.score) })) });
+  ok(res, { activity: { ...a, max_score: Number(a.max_score) }, rows: rows.map((r) => ({ ...r, score: num(r.score), bonus_xp: r.score_id ? Number(r.bonus_xp) : 0 })) });
 }));
 
 const entriesBody = z.object({
-  entries: z.array(z.object({ learner_id: uuid, score: z.number().nullable(), feedback: z.string().trim().max(5000).nullish() })).min(1).max(1000),
+  entries: z.array(z.object({ learner_id: uuid, score: z.number().nullable(), feedback: z.string().trim().max(5000).nullish(), bonus_xp: z.number().int().min(0).max(500).optional() })).min(1).max(1000),
 });
 
 /** Save many scores at once. One entry per learner (duplicates are merged, last wins); `score: null` clears. */
@@ -118,6 +120,7 @@ assessmentRouter.put('/:batchId/activities/:id/scores', wrap(async (req, res) =>
       }
       const r = await recordScore(db, { orgId, actorId: req.user!.id, learnerId: e.learner_id, batchId: room.batch.id, sourceType: 'activity', sourceId: a.id, name: a.name, category: a.category, score: e.score, max: Number(a.max_score), feedback: e.feedback });
       res2[r.action]++;
+      if (e.bonus_xp !== undefined) await setSourceXp(db, { orgId, learnerId: e.learner_id, batchId: room.batch.id, reason: `Bonus: ${a.name}`, sourceType: 'score', sourceId: r.id, target: e.bonus_xp, userId: req.user!.id });
     }
     return res2;
   });

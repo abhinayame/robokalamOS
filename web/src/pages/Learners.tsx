@@ -107,7 +107,7 @@ export default function Learners() {
         )}
         {meta && <div className="row between small" style={{ padding: '8px 14px', borderTop: '1px solid var(--line)' }}><b aria-live="polite">{fmtNum(meta.total)} unique learners match{noFilters ? '' : ' your filters'}.</b>{list.loading && <span className="muted">Updating…</span>}</div>}
 
-        {sel && selector && <SelectionBar sel={sel} selector={selector} total={meta?.total ?? 0} count={selIds.length} onAllMatching={() => setSel({ kind: 'filters' })} pageSelected={sel.kind === 'ids' && allOnPage} onClear={() => setSel(null)} onBulk={() => setDialog('bulk')} canBulk={can('learner:bulk') || can('learner:export')} />}
+        {sel && selector && <SelectionBar sel={sel} selector={selector} total={meta?.total ?? 0} count={selIds.length} onAllMatching={() => setSel({ kind: 'filters' })} pageSelected={sel.kind === 'ids' && allOnPage} onClear={() => setSel(null)} onBulk={() => setDialog('bulk')} canBulk={can('learner:bulk') || can('learner:export') || can('gamification:award')} />}
 
         {list.error && !list.data ? <ErrorState error={list.error} onRetry={list.reload} /> : !list.data ? <SkeletonRows n={8} /> : !rows.length ? (
           <Empty icon="🔍" title={noFilters ? 'No learners yet' : 'No learners match'} action={noFilters && can('learner:create') ? <button className="btn primary" onClick={() => setDialog('add')}>Add the first learner</button> : <button className="btn" onClick={() => setF(EMPTY)}>Clear filters</button>}>
@@ -188,16 +188,24 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
     can('learner:bulk', 'batch:enroll') && { id: 'assign_batch', label: 'Add to a batch' },
     can('learner:bulk', 'batch:enroll') && { id: 'remove_batch', label: 'Remove from a batch' },
     can('learner:bulk', 'learner:update') && { id: 'change_status', label: 'Change status' },
+    can('gamification:award') && { id: 'award_xp', label: 'Award XP' },
+    can('gamification:award') && { id: 'award_badge', label: 'Award a badge' },
     can('learner:export') && { id: 'export', label: 'Export CSV' },
   ].filter(Boolean) as { id: string; label: string }[];
   const [action, setAction] = useState(actions[0]?.id ?? '');
   const [batchId, setBatchId] = useState('');
   const [status, setStatus] = useState('inactive');
   const [reason, setReason] = useState('');
+  const [points, setPoints] = useState('10');
+  const [badgeId, setBadgeId] = useState('');
+  const [requestId] = useState(() => crypto.randomUUID());
   const [step, setStep] = useState<'choose' | 'review'>('choose');
   const [summary, setSummary] = useState<AudienceSummary | null>(null);
   const batches = useFetch(() => api.get('/api/batches?status=active,upcoming&page_size=100&sort=name').then((r) => r.data as any[]), []);
-  const body = () => ({ action, selection: selector, ...(action === 'assign_batch' ? { batch_id: batchId } : action === 'remove_batch' ? { batch_id: batchId, reason: reason || undefined } : { status }) });
+  const badges = useFetch(() => (can('gamification:award') ? api.get('/api/gamification/badges').then((r) => r.data as any[]) : Promise.resolve([])), []);
+  const body = () => ({ action, selection: selector, ...(action === 'assign_batch' ? { batch_id: batchId } : action === 'remove_batch' ? { batch_id: batchId, reason: reason || undefined }
+    : action === 'award_xp' ? { points: Number(points), reason, batch_id: batchId || null, request_id: requestId }
+    : action === 'award_badge' ? { badge_id: badgeId, reason: reason || null, batch_id: batchId || null } : { status }) });
 
   async function review() {
     if (action === 'export') { await run(() => api.download('/api/bulk/learners/export', { selection: selector }, `learners-${new Date().toISOString().slice(0, 10)}.csv`), 'Export downloaded'); return; }
@@ -206,17 +214,21 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
   }
   async function confirm() {
     const r = await run(() => api.post('/api/bulk/learners', { ...body(), confirm: true }));
-    if (r) { const d = r.data; toast(action === 'assign_batch' ? `${d.joined + d.rejoined} learners added (${d.already_member} already in the batch)` : action === 'remove_batch' ? `${d.removed} learners removed` : `${d.changed} learners updated`); onDone(); }
+    if (r) { const d = r.data; toast(action === 'award_xp' ? `${d.awarded} learners awarded ${points} XP` : action === 'award_badge' ? `${d.awarded} learners earned the badge (${d.already_has} already had it)` : action === 'assign_batch' ? `${d.joined + d.rejoined} learners added (${d.already_member} already in the batch)` : action === 'remove_batch' ? `${d.removed} learners removed` : `${d.changed} learners updated`); onDone(); }
   }
-  const needsBatch = action === 'assign_batch' || action === 'remove_batch';
+  const isAward = action === 'award_xp' || action === 'award_badge';
+  const needsBatch = action === 'assign_batch' || action === 'remove_batch' || (isAward && !can('gamification:manage'));
+  const awardReady = !isAward || (action === 'award_xp' ? Number.isInteger(Number(points)) && Number(points) !== 0 && reason.trim().length >= 2 : !!badgeId);
   return (
     <Modal title="Bulk action" onClose={onClose} footer={step === 'choose'
-      ? <><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !action || (needsBatch && !batchId)} onClick={review}>{action === 'export' ? 'Download CSV' : 'Review'}</button></>
+      ? <><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !action || (needsBatch && !batchId) || !awardReady} onClick={review}>{action === 'export' ? 'Download CSV' : 'Review'}</button></>
       : <><button className="btn" onClick={() => setStep('choose')}>Back</button><button className="btn primary" disabled={busy} onClick={confirm}>{busy ? 'Working…' : 'Confirm & apply'}</button></>}>
       {!actions.length ? <Empty title="No bulk actions available">Your role cannot run bulk actions.</Empty> : step === 'choose' ? (
         <div className="stack">
           <Field label="Action"><select className="select" value={action} onChange={(e) => setAction(e.target.value)}>{actions.map((a) => <option key={a.id} value={a.id}>{a.label}</option>)}</select></Field>
-          {needsBatch && <Field label="Batch"><select className="select" value={batchId} onChange={(e) => setBatchId(e.target.value)}><option value="">Choose a batch…</option>{(batches.data ?? []).map((b: any) => <option key={b.id} value={b.id}>{b.name} ({b.active_learners}{b.capacity ? `/${b.capacity}` : ''})</option>)}</select></Field>}
+          {(needsBatch || isAward) && <Field label={isAward && !needsBatch ? 'Batch (optional)' : 'Batch'} hint={isAward ? 'XP and badges are credited to this classroom and count on its leaderboard.' : undefined}><select className="select" value={batchId} onChange={(e) => setBatchId(e.target.value)}><option value="">Choose a batch…</option>{(batches.data ?? []).map((b: any) => <option key={b.id} value={b.id}>{b.name} ({b.active_learners}{b.capacity ? `/${b.capacity}` : ''})</option>)}</select></Field>}
+          {action === 'award_xp' && <><Field label="XP points" hint="Whole number; admins may enter a negative number to correct a mistake."><input className="input" type="number" value={points} onChange={(e) => setPoints(e.target.value)} /></Field><Field label="Reason"><input className="input" maxLength={255} placeholder="e.g. Hackathon participation" value={reason} onChange={(e) => setReason(e.target.value)} /></Field></>}
+          {action === 'award_badge' && <><Field label="Badge"><select className="select" value={badgeId} onChange={(e) => setBadgeId(e.target.value)}><option value="">Choose a badge…</option>{(badges.data ?? []).map((b: any) => <option key={b.id} value={b.id}>{b.icon} {b.name}{b.xp_reward ? ` (+${b.xp_reward} XP)` : ''}</option>)}</select></Field><Field label="Reason (optional)"><input className="input" maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field></>}
           {action === 'remove_batch' && <Field label="Reason (optional)"><input className="input" value={reason} maxLength={200} onChange={(e) => setReason(e.target.value)} /></Field>}
           {action === 'change_status' && <Field label="New status"><select className="select" value={status} onChange={(e) => setStatus(e.target.value)}><option value="active">Active</option><option value="inactive">Inactive</option><option value="archived">Archived (ends batch memberships)</option></select></Field>}
           <p className="muted small" style={{ margin: 0 }}>{sel.kind === 'filters' ? 'Applies to every learner matching your current filters.' : sel.kind === 'batches' ? 'Applies to the unique learners of the selected batches.' : 'Applies to the learners you ticked.'} Duplicates are always removed first.</p>
@@ -230,6 +242,8 @@ function BulkDialog({ selector, sel, onClose, onDone }: { selector: any; sel: No
           </div>
           <p style={{ margin: 0 }}>{action === 'assign_batch' && <>Add <b>{fmtNum(summary!.unique_learners)}</b> learners to <b>{batches.data?.find((b: any) => b.id === batchId)?.name}</b>. Learners already in the batch are skipped.</>}
             {action === 'remove_batch' && <>Remove <b>{fmtNum(summary!.unique_learners)}</b> learners from <b>{batches.data?.find((b: any) => b.id === batchId)?.name}</b>. Their other batches are not affected.</>}
+            {action === 'award_xp' && <>Award <b>{points} XP</b> to <b>{fmtNum(summary!.unique_learners)}</b> unique learners for “{reason}”. Each learner gets it once, even if they are in several selected batches.</>}
+            {action === 'award_badge' && <>Award <b>{badges.data?.find((b: any) => b.id === badgeId)?.name}</b> to <b>{fmtNum(summary!.unique_learners)}</b> unique learners. Learners who already have it are skipped.</>}
             {action === 'change_status' && <>Change status to <b>{status}</b> for <b>{fmtNum(summary!.unique_learners)}</b> learners.</>}</p>
         </div>
       )}

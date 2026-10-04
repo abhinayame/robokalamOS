@@ -3,11 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, Pager, StatusBadge, Tabs, fieldErrors, useAction, useFetch, useToast } from '../components/ui';
+import { AwardBadgeModal, AwardXpModal, BadgeWall, XpCard, XpHistory } from '../components/Gamify';
 import { ScoreList } from './Grades';
 import { AssignmentList } from './MyAssignments';
 import { cap, fmtDate, fmtDateTime, fmtMobile, fmtSchedule } from '../format';
 
-type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'timeline';
+type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'timeline';
 
 export default function Learner360() {
   const { id } = useParams();
@@ -48,7 +49,7 @@ export default function Learner360() {
           </div>
           <Tabs value={tab} onChange={setTab} tabs={[
             { id: 'overview', label: 'Overview' }, { id: 'personal', label: 'Personal information' }, { id: 'parents', label: 'Parents', badge: l.parents.length },
-            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), { id: 'timeline', label: 'Activity timeline' },
+            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), { id: 'timeline', label: 'Activity timeline' },
           ]} />
 
           {tab === 'overview' && (
@@ -86,6 +87,7 @@ export default function Learner360() {
           {tab === 'courses' && <div className="card">{!courses.length ? <Empty icon="📚" title="No active courses">Courses appear when the learner is in an active batch.</Empty> : courses.map((c: any) => (
             <div key={c.course_id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><b>{c.course_name}</b><div className="muted small">{c.program_name} · via {active.filter((m: any) => m.course_id === c.course_id).map((m: any) => m.batch_name).join(', ')}</div></div></div>))}</div>}
 
+          {tab === 'achievements' && <Achv l={l} />}
           {tab === 'performance' && <ScoreList learnerId={l.id} />}
           {tab === 'assignments' && <AssignmentList learnerId={l.id} />}
           {tab === 'timeline' && <div className="card card-pad"><Timeline learnerId={l.id} /></div>}
@@ -190,4 +192,21 @@ function LoginModal({ l, onClose }: { l: any; onClose: () => void }) {
   return <Modal title="Create learner login" onClose={onClose} footer={pw ? <button className="btn primary" onClick={onClose}>Done</button> : <><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!email || busy} onClick={async () => { const r = await run(() => api.post(`/api/learners/${l.id}/login`, { email })); if (r) setPw(r.data.temporary_password); }}>Create login</button></>}>
     {pw ? <div className="stack"><p style={{ margin: 0 }}>Share these details securely. The learner must change the password on first sign-in.</p><div className="card card-pad"><div>Email: <b>{email}</b></div><div>Temporary password: <b className="mono">{pw}</b></div></div><p className="muted small" style={{ margin: 0 }}>This password is shown only once.</p></div>
       : <Field label="Login email"><input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} /></Field>}</Modal>;
+}
+
+function Achv({ l }: { l: any }) {
+  const { can } = useAuth();
+  const [modal, setModal] = useState<null | 'xp' | 'badge'>(null);
+  const [tick, setTick] = useState(0);
+  const batches = (l.memberships ?? []).filter((m: any) => m.membership_status === 'active').map((m: any) => ({ id: m.batch_id, name: m.batch_name }));
+  const me = { id: l.id, name: l.full_name };
+  const done = () => { setModal(null); setTick(tick + 1); };
+  return (
+    <div className="stack">
+      {can('gamification:award') && l.status === 'active' && <div className="row wrap"><button className="btn primary" onClick={() => setModal('xp')}>⚡ Award XP</button><button className="btn" onClick={() => setModal('badge')}>🏅 Award badge</button></div>}
+      <XpCard key={`x${tick}`} learnerId={l.id} /><h3 style={{ margin: '4px 0' }}>Achievement wall</h3><BadgeWall key={`b${tick}`} learnerId={l.id} /><XpHistory key={`h${tick}`} learnerId={l.id} />
+      {modal === 'xp' && <AwardXpModal batches={batches} fixedLearner={me} onClose={() => setModal(null)} onDone={done} />}
+      {modal === 'badge' && <AwardBadgeModal batches={batches} fixedLearner={me} onClose={() => setModal(null)} onDone={done} />}
+    </div>
+  );
 }

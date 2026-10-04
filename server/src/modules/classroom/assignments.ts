@@ -8,6 +8,7 @@ import { learnerScope } from '../../lib/scope.js';
 import { recordActivity } from '../../lib/timeline.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { recordScore } from '../assessment/scoring.js';
+import { setSourceXp } from '../gamification/xp.js';
 import { attachFiles, filesFor } from '../files/store.js';
 import { assertManage, assignmentState, openRoom, viewedLearner } from './access.js';
 
@@ -188,14 +189,14 @@ submissionsRouter.get('/:id', wrap(async (req, res) => {
   const room = await openRoom(req, s.batch_id);
   if (!room.canManage && !req.user!.access.ownLearnerIds.includes(s.learner_id)) throw notFound('Submission');
   const files = await filesFor('submission', [s.id]);
-  const sc = await queryOne(`SELECT score, max_score FROM scores WHERE learner_id = $1 AND source_type = 'assignment' AND source_id = $2 AND deleted_at IS NULL`, [s.learner_id, s.assignment_id]);
-  ok(res, { ...shapeSubmission(s, files), score: sc ? Number(sc.score) : null, assignment_title: s.assignment_title, max_marks: Number(s.max_marks), due_at: s.due_at, batch_id: s.batch_id,
+  const sc = await queryOne(`SELECT id, score, max_score, (SELECT COALESCE(SUM(points), 0) FROM xp_transactions x WHERE x.source_type = 'score' AND x.source_id = scores.id) AS bonus FROM scores WHERE learner_id = $1 AND source_type = 'assignment' AND source_id = $2 AND deleted_at IS NULL`, [s.learner_id, s.assignment_id]);
+  ok(res, { ...shapeSubmission(s, files), score: sc ? Number(sc.score) : null, bonus_xp: sc ? Number(sc.bonus) : 0, assignment_title: s.assignment_title, max_marks: Number(s.max_marks), due_at: s.due_at, batch_id: s.batch_id,
     learner: { id: s.learner_id, name: s.learner_name, ...(room.canManage ? { code: s.learner_code } : {}) }, can_review: room.canManage && ['submitted', 'late', 'evaluated', 'returned'].includes(s.status) });
 }));
 
 submissionsRouter.post('/:id/review', wrap(async (req, res) => {
   const orgId = orgIdOf(req);
-  const b = parse(z.object({ action: z.enum(['evaluate', 'return']), feedback: z.string().trim().max(10_000).nullish(), score: z.number().min(0).max(100000).optional() }), req.body);
+  const b = parse(z.object({ action: z.enum(['evaluate', 'return']), feedback: z.string().trim().max(10_000).nullish(), score: z.number().min(0).max(100000).optional(), bonus_xp: z.number().int().min(0).max(500).optional() }), req.body);
   if (b.action === 'return' && !b.feedback) throw badRequest('Tell the learner what to fix before returning the work.', [{ field: 'feedback', message: 'This is required to return work.' }]);
   if (b.action === 'evaluate' && b.score === undefined) throw badRequest('Enter the score for this work.', [{ field: 'score', message: 'This is required to mark work evaluated.' }]);
   const out = await tx(async (db) => {
@@ -208,7 +209,8 @@ submissionsRouter.post('/:id/review', wrap(async (req, res) => {
     if (!['submitted', 'late', 'evaluated'].includes(s.status)) throw conflict('Only submitted work can be reviewed.', 'NOT_SUBMITTED');
     const status = b.action === 'evaluate' ? 'evaluated' : 'returned';
     if (b.action === 'evaluate') {
-      await recordScore(db, { orgId, actorId: req.user!.id, learnerId: s.learner_id, batchId: s.batch_id, sourceType: 'assignment', sourceId: s.assignment_id, name: s.title, category: 'Assignment', score: b.score!, max: Number(s.max_marks), feedback: b.feedback ?? null });
+      const rs = await recordScore(db, { orgId, actorId: req.user!.id, learnerId: s.learner_id, batchId: s.batch_id, sourceType: 'assignment', sourceId: s.assignment_id, name: s.title, category: 'Assignment', score: b.score!, max: Number(s.max_marks), feedback: b.feedback ?? null });
+      if (b.bonus_xp !== undefined) await setSourceXp(db, { orgId, learnerId: s.learner_id, batchId: s.batch_id, reason: `Bonus: ${s.title}`, sourceType: 'score', sourceId: rs.id, target: b.bonus_xp, userId: req.user!.id });
     }
     await exec(`UPDATE submissions SET status = $1, feedback = $2, evaluated_at = NOW(3), evaluated_by = $3 WHERE id = $4`, [status, b.feedback ?? null, req.user!.id, s.id], db);
     await recordActivity(db, { orgId, learnerId: s.learner_id, batchId: s.batch_id, type: `assignment.${status}`,
