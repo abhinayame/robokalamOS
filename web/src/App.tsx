@@ -6,6 +6,7 @@ import Account from './pages/Account';
 import Audit from './pages/Audit';
 import SystemStatus from './pages/SystemStatus';
 import Fees from './pages/Fees';
+import Branding from './pages/Branding';
 import MyFees from './pages/MyFees';
 import Reminders from './pages/Reminders';
 import ImportLearners from './pages/ImportLearners';
@@ -66,6 +67,7 @@ export default function App() {
         <Route path="classes" element={<MyClasses />} />
         <Route path="fees" element={<Guard perm="fee:read"><Fees /></Guard>} />
         <Route path="my-fees" element={<Guard roles={['learner', 'parent']}><MyFees /></Guard>} />
+        <Route path="settings/branding" element={<Guard perm="org:manage"><Branding /></Guard>} />
         <Route path="settings/reminders" element={<Guard perm="comms:read"><Reminders /></Guard>} />
         <Route path="classroom" element={<Guard perm="classroom:read"><Classrooms /></Guard>} />
         <Route path="classroom/:batchId" element={<Guard perm="classroom:read"><Classroom /></Guard>} />
