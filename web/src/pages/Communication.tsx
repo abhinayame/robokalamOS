@@ -157,7 +157,7 @@ function Templates() {
   const [edit, setEdit] = useState<any | 'new' | null>(null);
   return (
     <div className="stack">
-      <div className="banner"><div>Templates must already be approved in AiSensy. Enter the <b>API campaign name</b> exactly as it appears there; the variable names below map to {'{{1}}'}, {'{{2}}'}… in order.</div></div>
+      <div className="banner"><div>Templates must already be approved (AiSensy, or WhatsApp Manager if you use Meta directly). Enter the <b>API campaign name</b> (AiSensy) or the <b>template name</b> (Meta) exactly as it appears there; the variable names below map to {'{{1}}'}, {'{{2}}'}… in order.</div></div>
       {can('comms:manage') && <div><button className="btn primary" onClick={() => setEdit('new')}>＋ New template</button></div>}
       <Async q={q}>{(rows: any[]) => rows.length ? <div className="card">{rows.map((t) => (
         <div key={t.id} className="m-card" style={{ alignItems: 'center' }}>
@@ -182,7 +182,7 @@ function TemplateModal({ tpl, onClose, onDone }: { tpl: any | null; onClose: () 
       <div className="form-grid">
         <Field label="Name" error={errs.name}><input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
         <Field label="Use case"><select className="select" value={f.use_case} onChange={(e) => setF({ ...f, use_case: e.target.value })}>{(meta.data?.use_cases ?? [f.use_case]).map((u: string) => <option key={u} value={u}>{cap(u.replace(/_/g, ' '))}</option>)}</select></Field>
-        <Field label="AiSensy API campaign name" error={errs.aisensy_campaign_name} className="full"><input className="input" value={f.aisensy_campaign_name} onChange={(e) => setF({ ...f, aisensy_campaign_name: e.target.value })} /></Field>
+        <Field label="Campaign / template name (exactly as in AiSensy or Meta)" error={errs.aisensy_campaign_name} className="full"><input className="input" value={f.aisensy_campaign_name} onChange={(e) => setF({ ...f, aisensy_campaign_name: e.target.value })} /></Field>
         <Field label="Message text (for reference)" className="full"><textarea className="textarea" placeholder="Hi {{1}}, your class for {{2}} is tomorrow." value={f.body_preview} onChange={(e) => setF({ ...f, body_preview: e.target.value })} /></Field>
         <Field label="Variables, one per line, in order ({{1}}, {{2}} …)" className="full"><textarea className="textarea" value={f.vars} onChange={(e) => setF({ ...f, vars: e.target.value })} /></Field>
         {tpl && <Field label="Status"><select className="select" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })}><option value="active">Active</option><option value="inactive">Inactive</option></select></Field>}

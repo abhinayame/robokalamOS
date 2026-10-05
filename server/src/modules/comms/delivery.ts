@@ -2,7 +2,7 @@ import { env } from '../../config/env.js';
 import { exec, newId, query, queryOne, tx, type Db } from '../../db/pool.js';
 import { logger } from '../../lib/logger.js';
 import { createHash } from 'node:crypto';
-import { getProvider, parseWebhook, sleep, validateRecipient, type DeliveryStatus, type WhatsAppProvider } from './aisensy.js';
+import { getProvider, parseMetaWebhook, parseWebhook, sleep, validateRecipient, type DeliveryStatus, type WhatsAppProvider } from './aisensy.js';
 
 const RANK: Record<string, number> = { pending: 0, queued: 1, sent: 2, delivered: 3, read: 4 };
 const BACKOFF_MIN = [1, 5, 15];            // retry after 1, 5, 15 minutes
@@ -99,20 +99,20 @@ async function applyStatus(db: Db, providerId: string, status: DeliveryStatus, e
 }
 
 /** Store and apply a webhook delivery. The same event twice does nothing the second time. */
-export async function processWebhook(body: unknown) {
-  const events = parseWebhook(body);
+export async function processWebhook(body: unknown, source: 'aisensy' | 'meta' = 'aisensy') {
+  const events = source === 'meta' ? parseMetaWebhook(body) : parseWebhook(body);
   const out = { received: events.length, applied: 0, ignored: 0, unmatched: 0, duplicate: 0 };
   for (const ev of events.length ? events : [{ eventKey: null, providerId: null, status: null, error: null }]) {
     const raw = JSON.stringify(Array.isArray(body) || (body as any)?.events ? ev : body);
     const key = ev.eventKey ?? createHash('sha256').update(`${ev.providerId}|${ev.status}|${raw}`).digest('hex');
     await tx(async (db) => {
       try {
-        await exec(`INSERT INTO webhook_events (provider, event_key, payload, provider_message_id, delivery_status, error_message) VALUES ('aisensy',$1,$2,$3,$4,$5)`, [key.slice(0, 190), JSON.stringify(body ?? null).slice(0, 60000), ev.providerId, ev.status, ev.error], db);
+        await exec(`INSERT INTO webhook_events (provider, event_key, payload, provider_message_id, delivery_status, error_message) VALUES ('${source}',$1,$2,$3,$4,$5)`, [key.slice(0, 190), JSON.stringify(body ?? null).slice(0, 60000), ev.providerId, ev.status, ev.error], db);
       } catch (e: any) { if (e?.errno === 1062) { out.duplicate++; return; } throw e; }
       let outcome: string;
       if (!ev.providerId || !ev.status) { outcome = 'ignored'; out.ignored++; }
       else { outcome = await applyStatus(db, ev.providerId, ev.status, ev.error); out[outcome as 'applied' | 'ignored' | 'unmatched']++; }
-      await exec(`UPDATE webhook_events SET outcome = $1 WHERE provider = 'aisensy' AND event_key = $2`, [outcome, key.slice(0, 190)], db);
+      await exec(`UPDATE webhook_events SET outcome = $1 WHERE provider = '${source}' AND event_key = $2`, [outcome, key.slice(0, 190)], db);
     });
   }
   await finalizeCampaigns();
@@ -122,7 +122,7 @@ export async function processWebhook(body: unknown) {
 /** A webhook can arrive before we have recorded the provider's id; apply what was waiting once we have it. */
 export async function replayUnmatched(providerId: string | null) {
   if (!providerId) return;
-  const waiting = await query(`SELECT id, delivery_status, error_message FROM webhook_events WHERE provider = 'aisensy' AND outcome = 'unmatched' AND provider_message_id = $1 ORDER BY id`, [providerId]);
+  const waiting = await query(`SELECT id, delivery_status, error_message FROM webhook_events WHERE provider IN ('aisensy','meta') AND outcome = 'unmatched' AND provider_message_id = $1 ORDER BY id`, [providerId]);
   for (const w of waiting) {
     try { await tx(async (db) => { const o = await applyStatus(db, providerId, w.delivery_status, w.error_message); await exec(`UPDATE webhook_events SET outcome = $1 WHERE id = $2`, [o, w.id], db); }); }
     catch (e) { logger.warn({ err: e }, 'replay of a waiting webhook failed'); }

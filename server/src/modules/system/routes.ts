@@ -61,7 +61,7 @@ systemRouter.get('/status', wrap(async (req, res) => {
   const mem = process.memoryUsage();
   const poolInfo = (pool as any).pool;
   const wa = await queryOne(`SELECT COALESCE(SUM(status = 'pending'), 0) AS pending, COALESCE(SUM(status = 'queued'), 0) AS queued, COALESCE(SUM(status = 'failed' AND sent_at IS NULL), 0) AS failed FROM whatsapp_recipients WHERE org_id = $1 AND campaign_id IN (SELECT id FROM whatsapp_campaigns WHERE org_id = $1 AND status IN ('processing','scheduled','partially_failed','failed'))`, [orgId]);
-  const hook = await queryOne(`SELECT MAX(received_at) AS last FROM webhook_events WHERE provider = 'aisensy'`);
+  const hook = await queryOne(`SELECT MAX(received_at) AS last FROM webhook_events WHERE provider IN ('aisensy','meta')`);
   const sessions = await queryOne(`SELECT COUNT(*) AS n FROM auth_sessions s JOIN users u ON u.id = s.user_id WHERE u.org_id = $1 AND s.revoked_at IS NULL AND s.expires_at > NOW(3)`, [orgId]);
   const failedLogins = await queryOne(`SELECT COUNT(*) AS n FROM audit_logs WHERE org_id = $1 AND action = 'auth.login_failed' AND created_at > DATE_SUB(NOW(3), INTERVAL 24 HOUR)`, [orgId]);
   const checks = await integrity(orgId);
@@ -77,7 +77,7 @@ systemRouter.get('/status', wrap(async (req, res) => {
     live: { zoom_configured: zoomConfigured(), webhook_configured: zoomWebhook(), last_event_at: (await queryOne(`SELECT MAX(received_at) AS t FROM webhook_events WHERE provider = 'zoom'`))?.t ?? null, classes_live_now: Number((await queryOne(`SELECT COUNT(*) AS n FROM class_sessions WHERE live_started_at IS NOT NULL AND live_ended_at IS NULL`))!.n) },
     reminders: { enabled_rules: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_rules WHERE enabled = TRUE`))!.n), queued_last_24h: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_log WHERE outcome = 'queued' AND created_at >= DATE_SUB(NOW(3), INTERVAL 24 HOUR)`))!.n) },
     imports: { running: Number((await queryOne(`SELECT COUNT(*) AS n FROM import_jobs WHERE status = 'running'`))!.n) },
-    whatsapp: { configured: isConfigured(), webhook_configured: isWebhookConfigured(), worker_enabled: env.COMMS_WORKER === 'true', waiting: Number(wa!.pending), in_flight: Number(wa!.queued), failed_unsent: Number(wa!.failed), last_webhook_at: hook?.last ?? null },
+    whatsapp: { provider: env.WHATSAPP_PROVIDER, configured: isConfigured(), webhook_configured: isWebhookConfigured(), worker_enabled: env.COMMS_WORKER === 'true', waiting: Number(wa!.pending), in_flight: Number(wa!.queued), failed_unsent: Number(wa!.failed), last_webhook_at: hook?.last ?? null },
     security: { active_sessions: Number(sessions!.n), failed_logins_24h: Number(failedLogins!.n), config_findings: findings },
     integrity: checks, integrity_ok: checks.every((c) => c.ok),
   });
