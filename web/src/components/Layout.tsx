@@ -27,10 +27,10 @@ const GROUPS: Group[] = [
   { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '📅', roles: ['learner', 'parent'] }, { to: '/my-certificates', label: 'My certificates', icon: '🎓', roles: ['learner', 'parent'] }] },
   { label: 'Certificates', items: [{ to: '/certificates', label: 'Certificates', icon: '🎓', perm: 'cert:read' }] },
   { label: 'Finance', items: [{ to: '/fees', label: 'Fees', icon: '💰', perm: 'fee:read' }, { to: '/my-fees', label: 'My fees', icon: '🧾', roles: ['learner', 'parent'] }] },
-  { label: 'CRM', items: [{ to: '/crm', label: 'Leads', icon: '🎯', perm: 'crm:read', end: true }, { to: '/crm/follow-ups', label: 'Follow-ups', icon: '🔁', perm: 'crm:read' }] },
+  { label: 'CRM', items: [{ to: '/crm', label: 'Leads', icon: '🎯', perm: 'crm:read', end: true }, { to: '/crm/follow-ups', label: 'Follow-ups', icon: '🔁', perm: 'crm:read' }, { to: '/demo', label: 'Demo classes', icon: '🎈', perm: 'crm:read' }] },
   { label: 'Communication', items: [{ to: '/communication', label: 'Communication', icon: '💬', perm: 'comms:announce' }] },
   { label: 'Insights', items: [{ to: '/analytics', label: 'Compare batches', icon: '📈', perm: 'report:read' }, { to: '/reports', label: 'Reports', icon: '🧾', perm: 'report:read' }] },
-  { label: 'People', items: [{ to: '/teachers', label: 'Teachers', icon: '🎓', perm: 'teacher:read' }] },
+  { label: 'People', items: [{ to: '/teachers', label: 'Teachers', icon: '🎓', perm: 'teacher:read' }, { to: '/payroll', label: 'Teacher pay', icon: '💼', perm: 'payroll:read' }] },
   { label: 'Settings', items: [
     { to: '/settings/catalog', label: 'Programs & Courses', icon: '📚', perm: 'catalog:read', roles: STAFF },
     { to: '/settings/tags', label: 'Tags', icon: '🏷️', perm: 'tag:read', roles: STAFF },

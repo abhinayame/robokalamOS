@@ -6,7 +6,7 @@ import { cap, fmtDateTime, fmtNum } from '../format';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
 import { Async, Badge, Empty, Field, Modal, PageHead, Pager, Tabs, fieldErrors, useAction, useFetch } from '../components/ui';
 
-type Tab = 'campaigns' | 'announcements' | 'templates' | 'optouts';
+type Tab = 'campaigns' | 'announcements' | 'templates' | 'optouts' | 'replies';
 export const CAMPAIGN_TONE: Record<string, string> = { draft: '', scheduled: 'info', processing: 'info', completed: 'ok', partially_failed: 'warn', failed: 'bad', cancelled: '' };
 
 export default function Communication() {
@@ -17,6 +17,7 @@ export default function Communication() {
     ...(canCampaign ? [{ id: 'campaigns' as Tab, label: 'WhatsApp campaigns' }] : []),
     ...(can('comms:announce') ? [{ id: 'announcements' as Tab, label: 'Announcements' }] : []),
     ...(canCampaign ? [{ id: 'templates' as Tab, label: 'Templates' }] : []),
+    ...(canCampaign ? [{ id: 'replies' as Tab, label: 'Replies' }] : []),
     ...(can('comms:manage') ? [{ id: 'optouts' as Tab, label: 'Opt-outs' }] : []),
   ];
   return (
@@ -27,6 +28,7 @@ export default function Communication() {
       {tab === 'announcements' && <Announcements />}
       {tab === 'templates' && <Templates />}
       {tab === 'optouts' && <OptOuts />}
+      {tab === 'replies' && <Replies />}
     </>
   );
 }
@@ -202,6 +204,21 @@ function OptOuts() {
       <div className="card card-pad row wrap"><input className="input" style={{ maxWidth: 200 }} placeholder="Mobile number" aria-label="Mobile number" value={phone} onChange={(e) => setPhone(e.target.value)} /><input className="input grow" placeholder="Reason (optional)" aria-label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} />
         <button className="btn primary" disabled={busy || phone.trim().length < 5} onClick={() => run(async () => { await api.post('/api/whatsapp/optouts', { phone, reason: reason || null }); setPhone(''); setReason(''); q.reload(); }, 'Number added')}>Add</button></div>
       <Async q={q}>{(rows: any[]) => rows.length ? <div className="card">{rows.map((o) => <div key={o.id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><b>{o.phone}</b><div className="muted small">{o.reason ?? 'No reason given'} · {fmtDateTime(o.created_at)}</div></div><button className="btn ghost sm" onClick={() => confirm('Allow messages to this number again?') && run(async () => { await api.del(`/api/whatsapp/optouts/${o.id}`); q.reload(); }, 'Removed')}>Remove</button></div>)}</div> : <div className="card"><Empty icon="🔕" title="No opt-outs">Nobody has asked to stop.</Empty></div>}</Async>
+    </div>
+  );
+}
+
+const INTENT: Record<string, string> = { stop: 'Stop', start: 'Start', interested: 'Interested', other: 'Message' };
+function Replies() {
+  const q = useFetch(() => api.get('/api/whatsapp/replies').then((r) => r.data as any[]), []);
+  return (
+    <div className="card">
+      <div className="card-head"><h2>What people replied</h2><span className="muted small">Replies arrive only when the delivery webhook is connected (Meta WhatsApp Cloud API).</span></div>
+      <Async q={q}>{(list: any[]) => !list.length ? <Empty icon="💬" title="No replies yet">A reply of STOP adds the number to the opt-out list; YES, DEMO or INFO from a lead notifies their counsellor.</Empty> : (
+        <div className="table-wrap"><table className="t"><thead><tr><th>When</th><th>From</th><th>Message</th><th>What the app did</th></tr></thead><tbody>
+          {list.map((r) => <tr key={r.id}><td className="nowrap">{fmtDateTime(r.received_at)}</td><td>{r.learner_id ? <Link to={`/learners/${r.learner_id}`}>{r.full_name}</Link> : <span className="muted">Unknown</span>}<br /><span className="muted small mono">{r.phone}</span></td>
+            <td style={{ maxWidth: 380 }}>{r.body}</td><td><Badge tone={r.intent === 'stop' ? 'warn' : r.intent === 'interested' ? 'ok' : ''}>{INTENT[r.intent] ?? r.intent}</Badge> <span className="muted small">{cap(r.outcome)}</span></td></tr>)}
+        </tbody></table></div>)}</Async>
     </div>
   );
 }

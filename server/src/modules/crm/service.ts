@@ -3,7 +3,7 @@ import { badRequest } from '../../lib/errors.js';
 import { notifyUsers } from '../../lib/notify.js';
 
 export const ACTIVITY_TYPES = [
-  'called_parent', 'called_learner', 'whatsapp_sent', 'email_sent', 'demo_scheduled', 'demo_attended', 'follow_up', 'fee_discussion',
+  'called_parent', 'called_learner', 'whatsapp_sent', 'whatsapp_reply', 'email_sent', 'demo_scheduled', 'demo_attended', 'follow_up', 'fee_discussion',
   'admission_confirmed', 'batch_assigned', 'counsellor_assigned', 'status_changed', 'note', 'other',
 ] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];

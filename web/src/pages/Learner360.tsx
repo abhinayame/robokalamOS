@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { FeeLedger } from '../components/Fees';
+import { AdmitModal } from '../components/Admit';
 import { CertificateList } from './MyCertificates';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, Pager, StatusBadge, Tabs, fieldErrors, useAction, useFetch, useToast } from '../components/ui';
 import { AwardBadgeModal, AwardXpModal, BadgeWall, XpCard, XpHistory } from '../components/Gamify';
@@ -22,7 +23,7 @@ export default function Learner360() {
   const toast = useToast();
   const { busy, run } = useAction();
   const [tab, setTab] = useState<Tab>('overview');
-  const [modal, setModal] = useState<null | 'edit' | 'enroll' | 'parent' | 'transfer' | 'login'>(null);
+  const [modal, setModal] = useState<null | 'edit' | 'enroll' | 'parent' | 'transfer' | 'login' | 'admit'>(null);
   const q = useFetch(() => api.get(`/api/learners/${id}`).then((r) => r.data), [id]);
   const staff = can('learner:read');
 
@@ -35,6 +36,7 @@ export default function Learner360() {
         <>
           <PageHead title={l.full_name} sub={<span className="mono">{l.learner_code}</span>}
             actions={staff && <>
+              {can('crm:manage') && !archived && <button className="btn primary" onClick={() => setModal('admit')}>Admit</button>}
               {can('batch:enroll') && !archived && <button className="btn" onClick={() => setModal('enroll')}>Add to batch</button>}
               {can('learner:update') && <button className="btn" onClick={() => setModal('edit')}>Edit profile</button>}
               {can('learner:login') && !l.has_login && !archived && <button className="btn" onClick={() => setModal('login')}>Create login</button>}
@@ -106,6 +108,7 @@ export default function Learner360() {
           {tab === 'timeline' && <div className="card card-pad"><Timeline learnerId={l.id} /></div>}
 
           {modal === 'edit' && <EditLearner l={l} onClose={() => setModal(null)} onDone={() => { setModal(null); q.reload(); toast('Profile updated'); }} />}
+          {modal === 'admit' && <AdmitModal learner={l} onClose={() => setModal(null)} onDone={() => { setModal(null); q.reload(); }} />}
           {modal === 'enroll' && <EnrollModal l={l} onClose={() => setModal(null)} onDone={() => { setModal(null); q.reload(); }} />}
           {modal === 'transfer' && <TransferModal l={l} active={active} onClose={() => setModal(null)} onDone={() => { setModal(null); q.reload(); toast('Learner moved'); }} />}
           {modal === 'parent' && <ParentModal l={l} onClose={() => setModal(null)} onDone={() => { setModal(null); q.reload(); toast('Parent linked'); }} />}

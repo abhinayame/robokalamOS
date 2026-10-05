@@ -33,6 +33,14 @@ async function visibleLearner(req: Request, id: string) {
   return l;
 }
 
+router.get('/settings', staffRead, wrap(async (req, res) => { ok(res, { receipt_email: !!(await queryOne(`SELECT receipt_email FROM organizations WHERE id = $1`, [orgIdOf(req)]))?.receipt_email }); }));
+router.put('/settings', manage, wrap(async (req, res) => {
+  const b = parse(z.object({ receipt_email: z.boolean() }), req.body); const orgId = orgIdOf(req);
+  await exec(`UPDATE organizations SET receipt_email = $2 WHERE id = $1`, [orgId, b.receipt_email]);
+  await audit({ orgId, actor: req.user, action: 'fees.settings_updated', entityType: 'organization', entityId: orgId, next: b, req });
+  ok(res, b);
+}));
+
 router.get('/status', selfOrStaff, wrap(async (_req, res) => {
   // Only whether things are set. Values are never returned.
   ok(res, { online_payments: isConfigured(), webhook_configured: isWebhookConfigured(), methods: METHODS });

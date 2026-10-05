@@ -24,6 +24,12 @@ const dup = (what: string) => (e: any) => { if (e?.errno === 1062) throw conflic
 /** Non-admins only ever see their own campaigns. */
 const ownOnly = (req: any, p: Params, col = 'c.created_by') => (req.user!.isSuperAdmin || req.user!.access.orgWide ? '' : `AND ${col} = ${p.add(req.user!.id)}`);
 
+/** What people sent us on WhatsApp (STOP, YES, questions) and what the app did about it. Phone numbers are masked. */
+router.get('/replies', wrap(async (req, res) => {
+  const rows = await query(`SELECT i.id, i.received_at, i.intent, i.outcome, i.body, i.phone, i.learner_id, l.full_name, l.learner_code FROM whatsapp_inbound i LEFT JOIN learners l ON l.id = i.learner_id WHERE i.org_id = $1 ORDER BY i.received_at DESC, i.id LIMIT 200`, [orgIdOf(req)]);
+  ok(res, rows.map((r) => ({ ...r, phone: String(r.phone).replace(/\d(?=\d{4})/g, '•') })));
+}));
+
 router.get('/status', wrap(async (_req, res) => {
   // Only whether things are set. Values are never returned.
   ok(res, { configured: isConfigured(), webhook_configured: isWebhookConfigured(), provider: env.WHATSAPP_PROVIDER, sender_number_set: senderNumberSet(), worker_enabled: env.COMMS_WORKER === 'true', rate_per_second: env.WHATSAPP_RATE_PER_SECOND,

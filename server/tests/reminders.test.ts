@@ -67,7 +67,7 @@ describe('rules are validated and protected', () => {
     expect((await teacher.get('/api/reminders/rules')).status).toBe(403);
     expect((await other.admin.get('/api/reminders/rules')).body.data).toHaveLength(0);
     expect((await other.admin.post(`/api/reminders/rules/${ok.body.data.id}/run`)).status).toBe(404);
-    expect((await w.admin.get('/api/reminders/meta')).body.data.kinds).toHaveLength(4);
+    expect((await w.admin.get('/api/reminders/meta')).body.data.kinds).toHaveLength(5);
     await w.admin.del(`/api/reminders/rules/${ok.body.data.id}`);
   });
 });

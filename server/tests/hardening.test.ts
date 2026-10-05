@@ -43,6 +43,8 @@ describe('every route says who may call it', () => {
     'modules/calendar/routes.ts: GET /calendar/:file': 'public by design: the unguessable per-user token is the credential; revocable and rate limited',
     'modules/certificates/routes.ts: GET /verify/:code': 'public by design: returns only name, course, date and validity for a certificate code',
     'modules/email/routes.ts: GET /unsubscribe/:token': 'public by design: HMAC-signed link, can only opt an address out',
+    'modules/demo/routes.ts: GET /demo/:slug/slots': 'public by design: only for schools that switched the booking page on; lists open future slots with seats left, no personal data',
+    'modules/demo/routes.ts: POST /demo/:slug/book': 'public by design: honeypot, 6/min per IP, 4 per phone per day, slot row lock; never returns anything about people already on file',
     'modules/organizations/routes.ts: GET /current': 'returns only the caller\'s own organization',
   };
   it('each route file applies requirePerm / requireAnyPerm / requireSuperAdmin to every handler (or is on the reviewed allow-list)', () => {

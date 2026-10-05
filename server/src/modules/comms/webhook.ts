@@ -4,6 +4,7 @@ import { env } from '../../config/env.js';
 import { limit } from '../../middleware/limits.js';
 import { logger } from '../../lib/logger.js';
 import { processWebhook } from './delivery.js';
+import { parseMetaInbound, processInbound } from './inbound.js';
 
 /**
  * Delivery-status webhooks from AiSensy. Public by necessity, so it only accepts a request whose URL carries the
@@ -39,7 +40,7 @@ router.post('/meta', limit('webhook', 600), async (req, res) => {
   const sig = String(req.get('x-hub-signature-256') ?? '');
   const want = secret && raw ? `sha256=${crypto.createHmac('sha256', secret).update(raw).digest('hex')}` : null;
   if (!want || !same(sig, want)) return res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Not found.' } });
-  try { res.json({ ok: true, data: await processWebhook(req.body, 'meta') }); }
+  try { const inbound = parseMetaInbound(req.body); res.json({ ok: true, data: { ...(await processWebhook(req.body, 'meta')), inbound: inbound.length ? await processInbound(inbound) : null } }); }
   catch (e) { logger.error({ err: e }, 'meta webhook processing failed'); res.status(500).json({ ok: false, error: { code: 'INTERNAL', message: 'Could not process the event.' } }); }
 });
 export default router;

@@ -45,6 +45,9 @@ System Status → *Slowest routes* and the `slow query` warnings in logs (SQL te
 | Class never becomes "Live" / nobody is listed | Event subscription URL exactly `https://<domain>/api/webhooks/zoom`, events ticked, Secret Token equal to `ZOOM_WEBHOOK_SECRET_TOKEN`; Zoom → Event Subscriptions shows delivery status |
 | Meta: messages rejected with `META_132001` | Template name or language wrong: the name must match WhatsApp Manager exactly and be approved in `META_TEMPLATE_LANGUAGE` |
 | Meta: webhook will not save | `META_VERIFY_TOKEN` must equal what you typed in Meta; callback URL exactly `https://<domain>/api/webhooks/meta` |
+| Public demo page says it is unavailable | Booking page switched on (CRM → Demo classes)? Slot open, in the future, with seats left? Link is `/book-demo/<slug>` |
+| A reply of STOP did not opt someone out | Replies need the Meta webhook (`/api/webhooks/meta`); AiSensy does not deliver replies. Check Communication → Replies |
+| Teacher pay shows no hours | Classes must be marked completed and the teacher must have been on the batch that day |
 | "Reset it by e-mail" missing on sign-in | `SMTP_HOST` and `SMTP_FROM` both set? System Status → e-mail |
 | E-mails stay "pending" or "failed" | `GET /api/email/outbox` (staff) shows the last error. Wrong port/secure pair (465 needs `SMTP_SECURE=true`), wrong password, or the sender address not allowed by the mailbox |
 | Reset / calendar / certificate links point to the wrong address | Set `APP_URL` to the public https address |

@@ -1,3 +1,4 @@
+import { queueReceiptEmail } from './receipt-mail.js';
 import type { Request } from 'express';
 import { Params, exec, newId, query, queryOne, type Db } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
@@ -72,6 +73,7 @@ export async function applyPayment(db: Db, orgId: string, p: PaymentInput) {
   await recordActivity(db, { orgId, learnerId: p.learnerId, type: 'fee.payment_received', title: `Payment received: ${rupees(p.amountPaise)}`, description: `Receipt ${receipt} (${p.method})`, meta: { payment_id: id, amount: fromPaise(p.amountPaise) }, actorUserId: p.recordedBy });
   await notifyAbout(db, { orgId, learnerIds: [p.learnerId], kind: 'fee', title: `Payment of ${rupees(p.amountPaise)} received`, body: `Receipt ${receipt}. Thank you.`, link: '/my-fees' });
   await audit({ orgId, actor: p.actor ?? null, action: 'payment.recorded', entityType: 'payment', entityId: id, next: { receipt_no: receipt, learner_id: p.learnerId, amount: fromPaise(p.amountPaise), method: p.method, provider: p.provider, allocated: allocs.length, credit: fromPaise(Math.max(left, 0)) }, req: p.req }, db);
+  await queueReceiptEmail(db, orgId, id);
   return { ...(await loadPayment(orgId, id, db)), duplicate: false };
 }
 
