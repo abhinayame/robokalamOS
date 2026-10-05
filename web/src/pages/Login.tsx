@@ -1,6 +1,8 @@
 import { BrandMark, useBrand } from '../brand';
 import { useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { api } from '../api';
 import { friendly } from '../api';
 import { useAuth } from '../auth';
 import { Field } from '../components/ui';
@@ -14,6 +16,8 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [canReset, setCanReset] = useState(false);
+  useEffect(() => { api.get('/api/auth/capabilities').then((r) => setCanReset(!!r.data.password_reset)).catch(() => undefined); }, []);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -31,7 +35,7 @@ export default function Login() {
         <Field label="Email"><input className="input" type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required autoFocus /></Field>
         <Field label="Password"><input className="input" type="password" autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} required /></Field>
         <button className="btn primary" disabled={busy || !email || !password} type="submit" style={{ justifyContent: 'center' }}>{busy ? 'Signing in…' : 'Sign in'}</button>
-        <p className="muted small" style={{ margin: 0, textAlign: 'center' }}>Forgot your password? Ask your organization administrator to reset it.</p>
+        <p className="muted small" style={{ margin: 0, textAlign: 'center' }}>{canReset ? <>Forgot your password? <Link to="/forgot-password">Reset it by e-mail</Link></> : 'Forgot your password? Ask your organization administrator to reset it.'}</p>
       </form>
     </div>
   );

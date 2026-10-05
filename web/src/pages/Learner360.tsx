@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { FeeLedger } from '../components/Fees';
+import { CertificateList } from './MyCertificates';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, Pager, StatusBadge, Tabs, fieldErrors, useAction, useFetch, useToast } from '../components/ui';
 import { AwardBadgeModal, AwardXpModal, BadgeWall, XpCard, XpHistory } from '../components/Gamify';
 import LearnerCrm from '../components/LearnerCrm';
@@ -13,7 +14,7 @@ import { ScoreList } from './Grades';
 import { AssignmentList } from './MyAssignments';
 import { cap, fmtDate, fmtDateTime, fmtMobile, fmtSchedule } from '../format';
 
-type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'crm' | 'messages' | 'fees' | 'timeline';
+type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'crm' | 'messages' | 'fees' | 'certificates' | 'timeline';
 
 export default function Learner360() {
   const { id } = useParams();
@@ -55,7 +56,7 @@ export default function Learner360() {
           {l.tags && <div className="card card-pad"><TagEditor learnerId={l.id} tags={l.tags} onChange={q.reload} /></div>}
           <Tabs value={tab} onChange={setTab} tabs={[
             { id: 'overview', label: 'Overview' }, { id: 'personal', label: 'Personal information' }, { id: 'parents', label: 'Parents', badge: l.parents.length },
-            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('fee:read') ? [{ id: 'fees' as Tab, label: 'Fees' }] : []), ...(can('crm:read') ? [{ id: 'crm' as Tab, label: 'CRM' }] : []), ...(can('comms:read') ? [{ id: 'messages' as Tab, label: 'Messages' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
+            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('fee:read') ? [{ id: 'fees' as Tab, label: 'Fees' }] : []), ...(can('cert:read') ? [{ id: 'certificates' as Tab, label: 'Certificates' }] : []), ...(can('crm:read') ? [{ id: 'crm' as Tab, label: 'CRM' }] : []), ...(can('comms:read') ? [{ id: 'messages' as Tab, label: 'Messages' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
           ]} />
 
           {tab === 'overview' && (
@@ -96,6 +97,7 @@ export default function Learner360() {
           {tab === 'messages' && <LearnerMessages learnerId={l.id} />}
           {tab === 'crm' && <LearnerCrm learnerId={l.id} />}
           {tab === 'fees' && <FeeLedger learnerId={l.id} learnerName={l.full_name} staff={{ record: can('payment:record'), manage: can('fee:manage'), refund: can('payment:refund') }} />}
+          {tab === 'certificates' && <LearnerCertificates learnerId={l.id} />}
           {tab === 'attendance' && <AttendanceSummary learnerId={l.id} />}
           {tab === 'analytics' && <LearnerAnalytics learnerId={l.id} />}
           {tab === 'achievements' && <Achv l={l} />}
@@ -229,4 +231,9 @@ function LearnerMessages({ learnerId }: { learnerId: string }) {
       <Async q={q} rows={3}>{(rows: any[]) => rows.length ? rows.map((m) => (
         <div key={m.id} className="m-card" style={{ alignItems: 'center' }}><div className="grow"><Link to={`/communication/campaigns/${m.campaign_id}`}><b>{m.campaign}</b></Link><div className="muted small">{m.phone} · {m.sent_at ? fmtDateTime(m.sent_at) : 'not sent yet'}{m.last_error ? ` · ${m.last_error}` : ''}</div></div><Badge tone={m.status === 'failed' ? 'bad' : ['delivered', 'read'].includes(m.status) ? 'ok' : ''}>{cap(m.status)}</Badge></div>)) : <Empty icon="💬" title="No messages">Campaign messages sent to this learner's family appear here. Siblings sharing a number receive one message, shown on the first child.</Empty>}</Async></div>
   );
+}
+
+function LearnerCertificates({ learnerId }: { learnerId: string }) {
+  const q = useFetch(() => api.get(`/api/certificates?learner_id=${learnerId}`).then((r) => r.data as any[]), [learnerId]);
+  return <CertificateList q={q} />;
 }

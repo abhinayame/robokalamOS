@@ -1,8 +1,25 @@
 import { useInstall } from '../brand';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Badge, Field, PageHead, useAction } from '../components/ui';
+
+function CalendarFeed() {
+  const [state, setState] = useState<any>(null); const [url, setUrl] = useState(''); const { busy, run } = useAction();
+  const load = () => api.get('/api/calendar/me').then((r) => setState(r.data)).catch(() => undefined);
+  useEffect(() => { load(); }, []);
+  return (
+    <div className="card card-pad stack" style={{ marginTop: 16 }}>
+      <h2 style={{ margin: 0 }}>Calendar feed</h2>
+      <p className="muted" style={{ margin: 0 }}>See your classes in Google Calendar, Apple Calendar or Outlook, and have them update by themselves (changes can take a few hours to show). Anyone with the link can see your class times, so keep it private; you can replace or turn it off at any time.</p>
+      {url && <div className="stack-s"><input className="input" readOnly value={url} onFocus={(e) => e.currentTarget.select()} aria-label="Your calendar link" /><div className="row gap-s"><button className="btn sm" onClick={() => navigator.clipboard?.writeText(url)}>Copy link</button><span className="muted small">Shown only now. In your calendar app choose “Add from URL” and paste it.</span></div></div>}
+      <div className="row gap-s wrap">
+        <button className="btn primary" disabled={busy} onClick={() => run(async () => { setUrl((await api.post('/api/calendar/me/regenerate')).data.url); load(); })}>{state?.active ? 'Replace link' : 'Create my calendar link'}</button>
+        {state?.active && <button className="btn" disabled={busy} onClick={() => { if (confirm('Turn the calendar feed off? Calendars using the old link stop updating.')) run(async () => { await api.del('/api/calendar/me'); setUrl(''); load(); }, 'Calendar feed turned off.'); }}>Turn off</button>}
+      </div>
+    </div>
+  );
+}
 
 export default function Account() {
   const { me, reload } = useAuth();
@@ -24,6 +41,7 @@ export default function Account() {
           <button className="btn primary" disabled={busy || !cur || !next || weak}>Update password</button>
         </form>
       </div>
+      <CalendarFeed />
       {!inst.standalone && (inst.canInstall || inst.ios) && (
         <div className="card card-pad stack" style={{ marginTop: 16 }}>
           <h2 style={{ margin: 0 }}>Install the app</h2>

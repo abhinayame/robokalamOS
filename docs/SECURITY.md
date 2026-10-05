@@ -41,6 +41,12 @@ The Zoom webhook is trusted only with a valid HMAC signature over the raw body a
 ## Branding and the installable app (Phase 12)
 The only unauthenticated additions are three read-only endpoints under `/api/public` that return public branding fields (no ids or settings), the organization's chosen logo (PNG only, `nosniff`, sandbox CSP) and its manifest; they are rate limited, ignore suspended organizations and give unknown organizations the platform default. Logos are verified from their bytes (SVG is refused because it can carry script). The service worker never intercepts or caches `/api/` requests, so personal data cannot end up in a browser cache.
 
+## E-mail, password reset, calendar and certificates (Phase 13)
+* Password reset: identical answer for known/unknown addresses, 5/min per IP and 3/hour per account, hashed single-use 30-minute tokens, all sessions revoked on reset, audited, confirmation e-mail sent.
+* Public by design, each with its own protection: `/api/public/verify/:code` (code is unguessable, minimal fields, rate limited), `/api/public/calendar/<token>.ics` (256-bit secret token, hash stored, revocable, rate limited, `X-Robots-Tag: noindex`), `/api/public/unsubscribe/<token>` (HMAC-signed, can only opt out).
+* E-mail HTML escapes every value; unsubscribe and reset links are built from `APP_URL`, never from request headers. The SMTP password stays in the environment and is scrubbed from error text.
+* Certificate PDFs are served only to staff in scope, the learner and their parents; verification never returns contact details.
+
 ## Dependencies
 `npm audit --omit=dev` reports 0 vulnerabilities at the time of Phase 9. Re-run before each release.
 
