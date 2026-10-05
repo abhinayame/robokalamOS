@@ -35,6 +35,9 @@ Opt-outs are honoured before sending; a recipient list is deduplicated by learne
 ## Money (Phase 10)
 Payments are applied under a row lock with idempotency keys, so retries and repeated webhooks cannot double-record. The Razorpay webhook is trusted only with a valid HMAC signature over the raw body (constant-time compare); card data never reaches us because payment happens on Razorpay's hosted page. Fee, payment and refund permissions are separate (`fee:read`, `fee:manage`, `payment:record`, `payment:refund`) and every change is audited. Two integrity checks on System Status flag any installment or payment that does not add up. Imports go through the same creation code as the form, run under the importer's branch rights, and defuse spreadsheet formulas in the problem file.
 
+## Live classes (Phase 11)
+The Zoom webhook is trusted only with a valid HMAC signature over the raw body and a timestamp within 5 minutes (replay protection), compared in constant time. Host start links are fetched fresh and never stored; the Zoom client secret never leaves the server or appears in any response. Only https recording links are stored. Automatic attendance never overwrites a teacher's manual mark, and ambiguous names are never guessed.
+
 ## Dependencies
 `npm audit --omit=dev` reports 0 vulnerabilities at the time of Phase 9. Re-run before each release.
 

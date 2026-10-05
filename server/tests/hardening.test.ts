@@ -28,6 +28,7 @@ describe('every route says who may call it', () => {
     'modules/auth/routes.ts': 'sign-in, refresh, logout, me and change-password act only on the caller\'s own account',
     'modules/notifications/routes.ts': 'a user can only ever read and change their own notifications',
     'modules/comms/webhook.ts': 'guarded by the secret in the URL',
+    'modules/live/webhook.ts': 'guarded by the Zoom HMAC signature (and timestamp) over the raw body',
     'modules/fees/webhook.ts': 'guarded by the Razorpay HMAC signature over the raw body',
     'modules/system/routes.ts': 'health/ready is public by design; the system status router carries system:read',
     'modules/dashboard/routes.ts': 'dashboard:view on the route',

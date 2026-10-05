@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Router } from 'express';
+import { isConfigured as zoomConfigured, isWebhookConfigured as zoomWebhook } from '../live/zoom.js';
 import { isConfigured as razorpayConfigured, isWebhookConfigured as razorpayWebhook } from '../fees/razorpay.js';
 import { env, isProd } from '../../config/env.js';
 import { pool, query, queryOne } from '../../db/pool.js';
@@ -45,6 +46,7 @@ async function integrity(orgId: string) {
     { id: 'stuck_campaign', label: 'Campaigns still "processing" with nothing left to send', count: await n(`SELECT COUNT(*) AS n FROM whatsapp_campaigns c WHERE c.org_id = $1 AND c.status = 'processing' AND NOT EXISTS (SELECT 1 FROM whatsapp_recipients r WHERE r.campaign_id = c.id AND r.status IN ('pending','queued')) AND c.updated_at < DATE_SUB(NOW(3), INTERVAL 10 MINUTE)`) },
     { id: 'fee_allocation_mismatch', label: 'Fee installments whose paid amount differs from their payments', count: await n(`SELECT COUNT(*) AS n FROM fee_installments i WHERE i.org_id = $1 AND i.paid_amount <> COALESCE((SELECT SUM(a.amount) FROM payment_allocations a WHERE a.installment_id = i.id), 0)`) },
     { id: 'payment_unaccounted', label: 'Payments that are not fully allocated, credited or refunded', count: await n(`SELECT COUNT(*) AS n FROM payments p WHERE p.org_id = $1 AND p.amount - p.refunded_amount <> COALESCE((SELECT SUM(a.amount) FROM payment_allocations a WHERE a.payment_id = p.id), 0) + p.unallocated_amount`) },
+    { id: 'live_unmarked', label: 'Zoom classes that ended over an hour ago but were never turned into attendance', count: await n(`SELECT COUNT(*) AS n FROM class_sessions s WHERE s.org_id = $1 AND s.live_ended_at IS NOT NULL AND s.live_ended_at < DATE_SUB(NOW(3), INTERVAL 1 HOUR) AND s.attendance_finalized_at IS NULL AND EXISTS (SELECT 1 FROM live_participants p WHERE p.session_id = s.id)`) },
     { id: 'lead_without_learner', label: 'CRM leads whose learner was removed', count: await n(`SELECT COUNT(*) AS n FROM crm_leads cl JOIN learners l ON l.id = cl.learner_id WHERE cl.org_id = $1 AND l.deleted_at IS NOT NULL AND cl.lead_status NOT IN ('converted','not_interested','lost')`) },
   ];
   return checks.map((c) => ({ ...c, ok: c.count === 0 }));
@@ -70,6 +72,7 @@ systemRouter.get('/status', wrap(async (req, res) => {
     process: { uptime_seconds: Math.round(process.uptime()), memory_mb: { rss: Math.round(mem.rss / 1048576), heap_used: Math.round(mem.heapUsed / 1048576) } },
     traffic: snapshot(),
     fees: { online_payments: razorpayConfigured(), webhook_configured: razorpayWebhook(), last_online_payment_at: (await queryOne(`SELECT MAX(paid_at) AS t FROM payments WHERE provider = 'razorpay'`))?.t ?? null },
+    live: { zoom_configured: zoomConfigured(), webhook_configured: zoomWebhook(), last_event_at: (await queryOne(`SELECT MAX(received_at) AS t FROM webhook_events WHERE provider = 'zoom'`))?.t ?? null, classes_live_now: Number((await queryOne(`SELECT COUNT(*) AS n FROM class_sessions WHERE live_started_at IS NOT NULL AND live_ended_at IS NULL`))!.n) },
     reminders: { enabled_rules: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_rules WHERE enabled = TRUE`))!.n), queued_last_24h: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_log WHERE outcome = 'queued' AND created_at >= DATE_SUB(NOW(3), INTERVAL 24 HOUR)`))!.n) },
     imports: { running: Number((await queryOne(`SELECT COUNT(*) AS n FROM import_jobs WHERE status = 'running'`))!.n) },
     whatsapp: { configured: isConfigured(), webhook_configured: isWebhookConfigured(), worker_enabled: env.COMMS_WORKER === 'true', waiting: Number(wa!.pending), in_flight: Number(wa!.queued), failed_unsent: Number(wa!.failed), last_webhook_at: hook?.last ?? null },

@@ -45,6 +45,8 @@ import auditRoutes from './modules/audit/routes.js';
 import feeRoutes from './modules/fees/routes.js';
 import reminderRoutes from './modules/reminders/routes.js';
 import importRoutes from './modules/import/routes.js';
+import liveRoutes from './modules/live/routes.js';
+import zoomWebhook from './modules/live/webhook.js';
 import razorpayWebhook from './modules/fees/webhook.js';
 
 export function createApp() {
@@ -90,7 +92,8 @@ export function createApp() {
 
   app.use('/api/health', healthRouter);
   app.use('/api/webhooks', webhookRoutes);
-  app.use('/api/webhooks', razorpayWebhook);              // public: guarded by a secret in the URL, not by a login
+  app.use('/api/webhooks', razorpayWebhook);
+  app.use('/api/webhooks', zoomWebhook);              // public: guarded by a secret in the URL, not by a login
   app.use('/api/auth', authRoutes);
   app.use('/api', authenticate);                       // everything below requires a valid session
   app.use('/api/organizations', orgRoutes);
@@ -122,6 +125,7 @@ export function createApp() {
   app.use('/api/fees', feeRoutes);
   app.use('/api/reminders', reminderRoutes);
   app.use('/api/import', importRoutes);
+  app.use('/api/live', liveRoutes);
   app.use('/api/system', systemRouter);
   app.use('/api', catalogRoutes);                      // /branches /programs /courses
   app.use('/api', userRoutes);                         // /teachers /users
