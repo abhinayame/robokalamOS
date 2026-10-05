@@ -10,7 +10,7 @@ import { isConfigured as paymentsConfigured } from '../fees/razorpay.js';
 import { rupees, toPaise, todayIn } from '../fees/money.js';
 import { orgInfo } from '../fees/service.js';
 
-export const KINDS = ['fee_due', 'fee_overdue', 'class_upcoming', 'absence'] as const;
+export const KINDS = ['fee_due', 'fee_overdue', 'class_upcoming', 'absence', 'demo_upcoming'] as const;
 export type Kind = (typeof KINDS)[number];
 const PEOPLE = ['learner_name', 'learner_first_name', 'parent_name', 'org_name', 'batch_name'];
 /** The placeholders a rule's template values may use, per kind. */
@@ -19,12 +19,14 @@ export const TOKENS: Record<Kind, string[]> = {
   fee_overdue: [...PEOPLE, 'amount_due', 'due_date', 'installment_label', 'days_overdue', 'pay_link'],
   class_upcoming: [...PEOPLE, 'class_title', 'class_date', 'class_time'],
   absence: [...PEOPLE, 'class_title', 'class_date'],
+  demo_upcoming: [...PEOPLE, 'demo_title', 'demo_date', 'demo_time', 'demo_where'],
 };
 export const KIND_INFO: Record<Kind, { label: string; offset_label: string; default_offset: number; description: string }> = {
   fee_due: { label: 'Fee due soon', offset_label: 'days before the due date', default_offset: 3, description: 'Tells the parent an installment is coming up. Sent once per installment.' },
   fee_overdue: { label: 'Fee overdue', offset_label: 'days after the due date', default_offset: 2, description: 'Chases an unpaid installment, optionally every few days up to a limit.' },
   class_upcoming: { label: 'Class reminder', offset_label: 'hours before the class', default_offset: 3, description: 'Reminds each learner (or parent) of a scheduled class. Sent once per class per learner.' },
   absence: { label: 'Absence follow-up', offset_label: 'hours after the absence was marked', default_offset: 1, description: 'Tells the parent their child was marked absent. Sent once per absence.' },
+  demo_upcoming: { label: 'Demo class reminder', offset_label: 'hours before the demo', default_offset: 24, description: 'Reminds the family of a booked demo class. Sent once per booking.' },
 };
 
 export interface Rule {
@@ -70,6 +72,13 @@ async function candidatesFor(rule: Rule, tz: string, orgName: string, db?: Db): 
         JOIN learner_batch_memberships m ON m.batch_id = s.batch_id AND m.status = 'active' JOIN learners l ON l.id = m.learner_id AND l.deleted_at IS NULL AND l.status = 'active'
        WHERE s.org_id = ${p.add(o)} AND s.status = 'scheduled' AND s.starts_at > NOW(3) AND s.starts_at <= DATE_ADD(NOW(3), INTERVAL ${p.add(rule.offset_value)} HOUR) ORDER BY s.starts_at, s.id LIMIT 20000`, p.values, db);
     return rows.map((r) => ({ key: `class_upcoming:s:${r.id}:${r.learner_id}`, learner_id: r.learner_id, ctx: { ...base, batch_name: r.batch_name, class_title: r.title || r.batch_name, class_date: dateLabel(r.starts_at, tz), class_time: timeLabel(r.starts_at, tz) } }));
+  }
+  if (rule.kind === 'demo_upcoming') {
+    const p = new Params();
+    const rows = await query(`SELECT bk.id, bk.learner_id, s.title, s.starts_at, s.location, s.meeting_url FROM demo_bookings bk JOIN demo_slots s ON s.id = bk.slot_id AND s.status = 'open'
+        JOIN learners l ON l.id = bk.learner_id AND l.deleted_at IS NULL
+       WHERE bk.org_id = ${p.add(o)} AND bk.status = 'booked' AND s.starts_at > NOW(3) AND s.starts_at <= DATE_ADD(NOW(3), INTERVAL ${p.add(rule.offset_value)} HOUR) ORDER BY s.starts_at, bk.id LIMIT 5000`, p.values, db);
+    return rows.map((r) => ({ key: `demo_upcoming:b:${r.id}`, learner_id: r.learner_id, ctx: { ...base, batch_name: '', demo_title: r.title, demo_date: dateLabel(r.starts_at, tz), demo_time: timeLabel(r.starts_at, tz), demo_where: r.meeting_url ? 'online' : (r.location || 'our centre') } }));
   }
   const p = new Params();
   const rows = await query(`SELECT a.id, a.learner_id, s.title, s.starts_at, b.name AS batch_name FROM attendance a JOIN class_sessions s ON s.id = a.session_id JOIN batches b ON b.id = s.batch_id

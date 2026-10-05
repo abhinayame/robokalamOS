@@ -41,7 +41,7 @@ const leadFields = z.object({
 });
 
 /** Move a lead to a new status: timeline entry, conversion stamp, and open follow-ups close when the pipeline ends. */
-export async function changeStatus(db: Db, a: { orgId: string; learnerId: string; to: string; actorId: string; lostReason?: string | null }) {
+export async function changeStatus(db: Db, a: { orgId: string; learnerId: string; to: string; actorId: string | null; lostReason?: string | null }) {
   const cur = await queryOne(`SELECT lead_status FROM crm_leads WHERE learner_id = $1 FOR UPDATE`, [a.learnerId], db);
   if (!cur) throw badRequest('This learner is not in the CRM yet.');
   if (cur.lead_status === a.to) return false;

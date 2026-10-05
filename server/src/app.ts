@@ -46,6 +46,9 @@ import feeRoutes from './modules/fees/routes.js';
 import reminderRoutes from './modules/reminders/routes.js';
 import importRoutes from './modules/import/routes.js';
 import liveRoutes from './modules/live/routes.js';
+import admissionRoutes from './modules/admissions/routes.js';
+import demoRoutes, { publicDemo } from './modules/demo/routes.js';
+import payrollRoutes from './modules/payroll/routes.js';
 import emailRoutes, { publicEmail } from './modules/email/routes.js';
 import calendarRoutes, { publicCalendar } from './modules/calendar/routes.js';
 import certificateRoutes, { publicVerify } from './modules/certificates/routes.js';
@@ -98,6 +101,7 @@ export function createApp() {
   app.use('/api/webhooks', webhookRoutes);
   app.use('/api/webhooks', razorpayWebhook);
   app.use('/api/webhooks', zoomWebhook);              // public: guarded by a secret in the URL, not by a login
+  app.use('/api/public', publicDemo);                  // demo class booking page (opt-in per organization): honeypot, rate limits, no data returned about existing people
   app.use('/api/public', publicVerify);                // certificate check: only the name, course and date on the certificate
   app.use('/api/public', publicCalendar);              // personal calendar feed: the secret link is the credential
   app.use('/api/public', publicEmail);                 // one-click unsubscribe from notification e-mails
@@ -135,6 +139,9 @@ export function createApp() {
   app.use('/api/import', importRoutes);
   app.use('/api/live', liveRoutes);
   app.use('/api/branding', brandingAdmin);
+  app.use('/api/admissions', admissionRoutes);
+  app.use('/api/demo', demoRoutes);
+  app.use('/api/payroll', payrollRoutes);
   app.use('/api/email', emailRoutes);
   app.use('/api/calendar', calendarRoutes);
   app.use('/api/certificates', certificateRoutes);
