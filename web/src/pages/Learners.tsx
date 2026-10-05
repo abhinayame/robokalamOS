@@ -83,6 +83,7 @@ export default function Learners() {
       <PageHead title="All Learners" sub="The master learner database. One learner, one profile — however many batches they join."
         actions={<>
           <button className="btn" onClick={() => setDialog('byBatch')}>Select by batches</button>
+          {can('learner:create') && <Link className="btn" to="/learners/import">Import CSV</Link>}
           {can('learner:create') && <button className="btn primary" onClick={() => setDialog('add')}>＋ Add learner</button>}
         </>} />
       <div className="card">

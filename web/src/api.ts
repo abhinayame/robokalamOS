@@ -74,6 +74,24 @@ export const api = {
     else { const a = document.createElement('a'); a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove(); }
     setTimeout(() => URL.revokeObjectURL(url), 60_000);
   },
+  /** POST raw text (a CSV file) and read the JSON answer. */
+  async postText<T = any>(url: string, text: string, type = 'text/csv') {
+    const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': type, 'X-CSRF-Token': csrf() };
+    const org = getActiveOrg(); if (org) headers['X-Org-Id'] = org;
+    let res: Response;
+    try { res = await fetch(url, { method: 'POST', credentials: 'include', headers, body: text }); }
+    catch { throw new ApiError(0, 'NETWORK', 'Upload failed. Check your connection and try again.'); }
+    return json<{ data: T; meta?: any }>(res);
+  },
+  /** GET a protected file (PDF receipt, CSV) with the session; open it in a tab or save it. */
+  async getFile(url: string, filename: string, inline = false) {
+    const res = await raw('GET', url);
+    if (!res.ok) await json(res);
+    const href = URL.createObjectURL(await res.blob());
+    if (inline) window.open(href, '_blank', 'noopener');
+    else { const a = document.createElement('a'); a.href = href; a.download = filename; document.body.appendChild(a); a.click(); a.remove(); }
+    setTimeout(() => URL.revokeObjectURL(href), 60_000);
+  },
   async download(url: string, body: unknown, filename: string) {
     const res = await raw('POST', url, body);
     if (!res.ok) await json(res);

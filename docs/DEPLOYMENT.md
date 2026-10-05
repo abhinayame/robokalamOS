@@ -51,6 +51,9 @@ Optional / feature variables:
 |---|---|
 | `AISENSY_API_KEY`, `AISENSY_WA_NUMBER` | Your AiSensy project API key and WhatsApp number. **Set only here, never in chat, code or the browser.** Empty = the app sends nothing and says so on the Communication screen |
 | `AISENSY_WEBHOOK_SECRET` | 16+ random characters. Delivery callbacks are accepted only at `/api/webhooks/aisensy/<this value>`; put that full URL in AiSensy's webhook settings |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Razorpay API key pair (use *test mode* keys first). Set only here. Empty = no online fee payments, manual receipts only |
+| `RAZORPAY_WEBHOOK_SECRET` | A secret you choose (8+ chars); enter the same value in Razorpay → Webhooks with URL `https://<domain>/api/webhooks/razorpay`, event *Payment Link: paid* |
+| `REMINDERS` | `true` (default) runs automatic reminders every 5 minutes; needs `COMMS_WORKER=true` |
 | `COMMS_WORKER` | `true` (default) runs the WhatsApp sender inside the app. Run it on exactly **one** instance |
 | `WHATSAPP_RATE_PER_SECOND` | `5` (default) messages per second |
 | `MAINTENANCE` | `true` (default) runs the 6-hourly cleanup job (expired sessions, orphan uploads, old webhook logs). Never touches learner data |

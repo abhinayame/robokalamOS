@@ -6,6 +6,8 @@ import { ensureSuperAdmin } from './lib/bootstrap.js';
 import { logger } from './lib/logger.js';
 import { startCommsWorker, stopCommsWorker } from './modules/comms/worker.js';
 import { startMaintenance, stopMaintenance } from './modules/system/maintenance.js';
+import { startReminders, stopReminders } from './modules/reminders/engine.js';
+import { resumeImports } from './modules/import/runner.js';
 import { preflight } from './lib/preflight.js';
 
 async function main() {
@@ -23,11 +25,14 @@ async function main() {
   const server = app.listen(env.PORT, () => logger.info(`Robokalam Learner OS API listening on :${env.PORT} (${env.NODE_ENV})`));
 
   startCommsWorker();
+  startReminders();
+  void resumeImports().catch((e) => logger.error({ err: e }, 'could not resume imports'));
   startMaintenance();
 
   const shutdown = (sig: string) => {
     logger.info(`${sig} received, shutting down`);
     stopCommsWorker();
+    stopReminders();
     stopMaintenance();
     server.close(() => pool.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10_000).unref();

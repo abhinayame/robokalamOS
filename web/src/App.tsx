@@ -5,6 +5,10 @@ import { Skeleton } from './components/ui';
 import Account from './pages/Account';
 import Audit from './pages/Audit';
 import SystemStatus from './pages/SystemStatus';
+import Fees from './pages/Fees';
+import MyFees from './pages/MyFees';
+import Reminders from './pages/Reminders';
+import ImportLearners from './pages/ImportLearners';
 import BatchDetail from './pages/BatchDetail';
 import Batches from './pages/Batches';
 import Catalog from './pages/Catalog';
@@ -54,11 +58,15 @@ export default function App() {
       <Route element={<Layout />}>
         <Route index element={<Dashboard />} />
         <Route path="learners" element={<Guard perm="learner:read"><Learners /></Guard>} />
+        <Route path="learners/import" element={<Guard perm="learner:create"><ImportLearners /></Guard>} />
         <Route path="learners/:id" element={<Learner360 />} />
         <Route path="parents" element={<Guard perm="parent:read"><Parents /></Guard>} />
         <Route path="batches" element={<Guard perm="batch:read"><Batches /></Guard>} />
         <Route path="batches/:id" element={<BatchDetail />} />
         <Route path="classes" element={<MyClasses />} />
+        <Route path="fees" element={<Guard perm="fee:read"><Fees /></Guard>} />
+        <Route path="my-fees" element={<Guard roles={['learner', 'parent']}><MyFees /></Guard>} />
+        <Route path="settings/reminders" element={<Guard perm="comms:read"><Reminders /></Guard>} />
         <Route path="classroom" element={<Guard perm="classroom:read"><Classrooms /></Guard>} />
         <Route path="classroom/:batchId" element={<Guard perm="classroom:read"><Classroom /></Guard>} />
         <Route path="assignments" element={<Guard roles={['learner', 'parent']}><MyAssignments /></Guard>} />

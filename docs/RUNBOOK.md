@@ -27,6 +27,16 @@ System Status → *Slowest routes* and the `slow query` warnings in logs (SQL te
 | Sent but never *delivered* in the app | Webhook URL in AiSensy must be exactly `https://<domain>/api/webhooks/aisensy/<AISENSY_WEBHOOK_SECRET>`; System Status shows *last delivery callback*. Callbacks that arrive before the send is recorded are kept and replayed once it is |
 | Wrong/duplicate numbers | Audience is deduplicated by learner and phone; check learner's parent mobile numbers |
 
+## Fees, reminders, imports
+| Symptom | Check / fix |
+|---|---|
+| Learner paid online but nothing shows | System Status → *Online payments*: key pair and webhook secret set? In Razorpay → Webhooks, is the URL exactly `https://<domain>/api/webhooks/razorpay` with the same secret, and are deliveries 200? Unmatched events are kept in `webhook_events` (`outcome = unmatched`) |
+| Integrity check "installments whose paid amount differs" ≠ 0 | Never edit by hand. Compare `fee_installments.paid_amount` with `SUM(payment_allocations.amount)`; restore a copy from backup and contact the developer |
+| Reminders not going out | *Auto reminders* page: rule **On**? Inside its sending hours (or use *Run now*)? WhatsApp connected? Preview shows who would be messaged; the log shows skipped reasons (no number / opted out) |
+| Same reminder twice | Should be impossible (unique key per rule+item); report it with the rule name and learner |
+| Import stuck at "Importing…" | The app resumes unfinished imports on start; check logs for `import job crashed`. Rows already created stay; re-upload only the failed rows (problem file) |
+| Import says batch full | Capacity is enforced per row; raise the batch capacity or enrol fewer learners |
+
 ## Data
 - **Integrity check non-zero:** do not "fix" by hand. Check *Audit log* around the time it started; restore a test copy from backup to compare; contact the developer with the check name.
 - **Learner deleted by mistake:** soft delete — restore via the learner's page (admins) or `UPDATE learners SET deleted_at = NULL WHERE id = …`.

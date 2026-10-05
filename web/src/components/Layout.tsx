@@ -14,6 +14,7 @@ const GROUPS: Group[] = [
   { label: 'Learners', items: [
     { to: '/learners', label: 'All Learners', icon: '👥', perm: 'learner:read' },
     { to: '/parents', label: 'Parents', icon: '🧑‍🧒', perm: 'parent:read' },
+    { to: '/learners/import', label: 'Import learners', icon: '📥', perm: 'learner:create' },
   ] },
   { label: 'Batches', items: [
     { to: '/batches', label: 'All Batches', icon: '🗂️', perm: 'batch:read', end: true },
@@ -23,6 +24,7 @@ const GROUPS: Group[] = [
   ] },
   { label: 'Classroom', items: [{ to: '/classroom', label: 'Classroom', icon: '🏫', perm: 'classroom:read' }, { to: '/assignments', label: 'Assignments', icon: '📝', roles: ['learner', 'parent'] }, { to: '/portal', label: 'Family portal', icon: '👨‍👩‍👧', roles: ['parent'] }, { to: '/achievements', label: 'Achievements', icon: '🏅', roles: ['learner', 'parent'] }, { to: '/gamification', label: 'Gamification', icon: '🏅', perm: 'gamification:award' }] },
   { label: 'My learning', items: [{ to: '/classes', label: 'My Classes', icon: '📅', roles: ['learner', 'parent'] }] },
+  { label: 'Finance', items: [{ to: '/fees', label: 'Fees', icon: '💰', perm: 'fee:read' }, { to: '/my-fees', label: 'My fees', icon: '🧾', roles: ['learner', 'parent'] }] },
   { label: 'CRM', items: [{ to: '/crm', label: 'Leads', icon: '🎯', perm: 'crm:read', end: true }, { to: '/crm/follow-ups', label: 'Follow-ups', icon: '🔁', perm: 'crm:read' }] },
   { label: 'Communication', items: [{ to: '/communication', label: 'Communication', icon: '💬', perm: 'comms:announce' }] },
   { label: 'Insights', items: [{ to: '/analytics', label: 'Compare batches', icon: '📈', perm: 'report:read' }, { to: '/reports', label: 'Reports', icon: '🧾', perm: 'report:read' }] },
@@ -31,6 +33,7 @@ const GROUPS: Group[] = [
     { to: '/settings/catalog', label: 'Programs & Courses', icon: '📚', perm: 'catalog:read', roles: STAFF },
     { to: '/settings/tags', label: 'Tags', icon: '🏷️', perm: 'tag:read', roles: STAFF },
     { to: '/settings/users', label: 'Staff & Roles', icon: '🔑', perm: 'user:manage' },
+    { to: '/settings/reminders', label: 'Auto reminders', icon: '⏰', perm: 'comms:read' },
     { to: '/settings/audit', label: 'Audit Log', icon: '🧾', perm: 'audit:read' },
     { to: '/settings/system', label: 'System Status', icon: '🩺', perm: 'system:read' },
   ] },

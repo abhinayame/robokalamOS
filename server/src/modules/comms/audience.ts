@@ -30,6 +30,15 @@ export async function resolveAudience(user: AuthUser, orgId: string, selector: S
   const summary = await summarizeAudience(user, orgId, selector, db);
   const ids = summary.unique_learners ? await resolveLearnerIds(user, orgId, selector, db, MAX_RECIPIENTS + 1) : [];
   if (ids.length > MAX_RECIPIENTS) throw badRequest(`A campaign can reach at most ${MAX_RECIPIENTS.toLocaleString('en-IN')} people. Narrow the audience or split it into campaigns.`);
+  const people = await resolvePeople(orgId, ids, audience, db);
+  return { summary, counts: people.counts, recipients: people.recipients };
+}
+
+/**
+ * Learners (already chosen and de-duplicated) -> people to message: one phone per learner (primary parent first), opt-outs dropped,
+ * one message per phone number. Shared by campaigns and by automatic reminders so the rules cannot drift.
+ */
+export async function resolvePeople(orgId: string, ids: string[], audience: 'parents' | 'learners', db?: Db, opts: { oneMessagePerPhone?: boolean } = {}): Promise<{ counts: Resolved['counts']; recipients: Resolved['recipients']; skipped: { learner_id: string; reason: 'no_phone' | 'opted_out' | 'shared_phone' }[] }> {
   const learners: any[] = [];
   for (let i = 0; i < ids.length; i += 1000) {
     const p = new Params();
@@ -49,19 +58,20 @@ export async function resolveAudience(user: AuthUser, orgId: string, selector: S
   const optp = new Params();
   const opted = new Set((await query(`SELECT phone FROM whatsapp_optouts WHERE org_id = ${optp.add(orgId)}`, optp.values, db)).map((r) => r.phone as string));
   const counts = { with_phone: 0, no_phone: 0, opted_out: 0, shared_phone_merged: 0, recipients: 0 };
-  const seen = new Set<string>(); const recipients: Resolved['recipients'] = [];
+  const seen = new Set<string>(); const recipients: Resolved['recipients'] = []; const skipped: { learner_id: string; reason: 'no_phone' | 'opted_out' | 'shared_phone' }[] = [];
+  const merge = opts.oneMessagePerPhone !== false;
   for (const l of learners) {
     const par = audience === 'parents' ? parentOf.get(l.id) : undefined;
     const v = validateRecipient(audience === 'parents' ? par?.mobile : l.mobile);
-    if (!v) { counts.no_phone++; continue; }
+    if (!v) { counts.no_phone++; skipped.push({ learner_id: l.id, reason: 'no_phone' }); continue; }
     counts.with_phone++;
-    if (opted.has(v.e164)) { counts.opted_out++; continue; }
-    if (seen.has(v.e164)) { counts.shared_phone_merged++; continue; }
+    if (opted.has(v.e164)) { counts.opted_out++; skipped.push({ learner_id: l.id, reason: 'opted_out' }); continue; }
+    if (merge && seen.has(v.e164)) { counts.shared_phone_merged++; skipped.push({ learner_id: l.id, reason: 'shared_phone' }); continue; }
     seen.add(v.e164);
     recipients.push({ learner_id: l.id, parent_id: par?.id ?? null, phone: v.e164, learner_name: l.full_name, parent_name: par?.full_name ?? null });
   }
   counts.recipients = recipients.length;
-  return { summary, counts, recipients };
+  return { counts, recipients, skipped };
 }
 
 /** The template parameters for one recipient. */

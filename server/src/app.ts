@@ -42,6 +42,10 @@ import parentRoutes from './modules/parents/routes.js';
 import selectionRoutes from './modules/selection/routes.js';
 import userRoutes from './modules/users/routes.js';
 import auditRoutes from './modules/audit/routes.js';
+import feeRoutes from './modules/fees/routes.js';
+import reminderRoutes from './modules/reminders/routes.js';
+import importRoutes from './modules/import/routes.js';
+import razorpayWebhook from './modules/fees/webhook.js';
 
 export function createApp() {
   const app = express();
@@ -74,7 +78,8 @@ export function createApp() {
     skip: () => env.NODE_ENV === 'test' && process.env.TEST_LIMITS !== '1',
     message: { ok: false, error: { code: 'RATE_LIMITED', message: 'Too many requests. Please slow down and try again shortly.' } },
   }));
-  app.use(express.json({ limit: '1mb' }));
+  // Webhook signatures are computed over the exact bytes received, so keep them for /api/webhooks only.
+  app.use(express.json({ limit: '1mb', verify: (req, _res, buf) => { if ((req as any).url?.startsWith('/api/webhooks')) (req as any).rawBody = buf; } }));
   app.use(cookieParser());
   app.use(csrfProtection);
 
@@ -84,7 +89,8 @@ export function createApp() {
   });
 
   app.use('/api/health', healthRouter);
-  app.use('/api/webhooks', webhookRoutes);              // public: guarded by a secret in the URL, not by a login
+  app.use('/api/webhooks', webhookRoutes);
+  app.use('/api/webhooks', razorpayWebhook);              // public: guarded by a secret in the URL, not by a login
   app.use('/api/auth', authRoutes);
   app.use('/api', authenticate);                       // everything below requires a valid session
   app.use('/api/organizations', orgRoutes);
@@ -113,6 +119,9 @@ export function createApp() {
   app.use('/api/submissions', submissionsRouter);
   app.use('/api/files', fileRoutes);
   app.use('/api/audit', auditRoutes);
+  app.use('/api/fees', feeRoutes);
+  app.use('/api/reminders', reminderRoutes);
+  app.use('/api/import', importRoutes);
   app.use('/api/system', systemRouter);
   app.use('/api', catalogRoutes);                      // /branches /programs /courses
   app.use('/api', userRoutes);                         // /teachers /users

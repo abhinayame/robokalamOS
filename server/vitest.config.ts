@@ -16,6 +16,9 @@ export default defineConfig({
       AISENSY_API_KEY: 'test-aisensy-key-0001',
       AISENSY_WEBHOOK_SECRET: 'test-webhook-secret-123456',
       COMMS_WORKER: 'false',
+      RAZORPAY_KEY_ID: 'rzp_test_keyid0001',
+      RAZORPAY_KEY_SECRET: 'test-rzp-secret-0001',
+      RAZORPAY_WEBHOOK_SECRET: 'test-rzp-webhook-secret',
     },
   },
 });

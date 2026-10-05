@@ -14,6 +14,7 @@ import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middlewa
 import { enrollLearners, removeLearners } from '../batches/enrollment.js';
 import { linkParent, parentInput, upsertParent } from '../parents/service.js';
 import { LEARNER_STATUSES, learnerFiltersQuery, learnerWhere } from './filters.js';
+import { assertBranch, createLearner, findDuplicate } from './service.js';
 
 const router = Router();
 router.use(requireOrg);
@@ -44,23 +45,6 @@ const learnerFields = z.object({
 });
 
 // ---------------------------------------------------------------- helpers
-async function assertBranch(db: Db, orgId: string, branchId: string | null | undefined) {
-  if (!branchId) return;
-  if (!(await queryOne(`SELECT 1 FROM branches WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [branchId, orgId], db))) throw badRequest('Unknown branch.');
-}
-
-async function findDuplicate(db: Db, orgId: string, mobile: string | null, email: string | null, exceptId?: string) {
-  if (mobile) {
-    const d = await queryOne(`SELECT id, learner_code, full_name FROM learners WHERE org_id = $1 AND mobile = $2 AND deleted_at IS NULL AND ($3 IS NULL OR id <> $3)`, [orgId, mobile, exceptId ?? null], db);
-    if (d) return { field: 'mobile', existing: d };
-  }
-  if (email) {
-    const d = await queryOne(`SELECT id, learner_code, full_name FROM learners WHERE org_id = $1 AND email = $2 AND deleted_at IS NULL AND ($3 IS NULL OR id <> $3)`, [orgId, email, exceptId ?? null], db);
-    if (d) return { field: 'email', existing: d };
-  }
-  return null;
-}
-
 /** Load one learner the caller may see (tenant + RBAC scope enforced in SQL). */
 async function scopedLearner(req: Request, id: string, db: Db = undefined as any) {
   const p = new Params();
@@ -145,35 +129,7 @@ router.post('/', requirePerm('learner:create'), wrap(async (req, res) => {
   if (body.mobile && !mobile) throw badRequest('Enter a valid 10 digit mobile number.', [{ field: 'mobile', message: 'Invalid mobile number.' }]);
   assertWritable(req, body.branch_id ?? (req.user!.access.orgWide ? null : req.user!.access.branchIds[0] ?? null));
 
-  const created = await tx(async (db) => {
-    await assertBranch(db, orgId, body.branch_id);
-    const dup = await findDuplicate(db, orgId, mobile, body.email ?? null);
-    if (dup) throw conflict(`A learner with this ${dup.field} already exists (${dup.existing.full_name}, ${dup.existing.learner_code}).`, 'DUPLICATE_LEARNER', dup);
-
-    const org = await queryOne(`SELECT code_prefix FROM organizations WHERE id = $1`, [orgId], db);
-    const code = await nextLearnerCode(db, orgId, org!.code_prefix);
-    // Branch admins always create inside their own branch.
-    const branchId = body.branch_id ?? (req.user!.access.orgWide ? null : req.user!.access.branchIds[0] ?? null);
-    const newLearnerId = newId();
-    await exec(
-      `INSERT INTO learners (id, org_id, branch_id, learner_code, full_name, mobile, email, date_of_birth, gender, school, location, photo_url, enrolled_on, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,COALESCE($13, CURRENT_DATE),$14)`,
-      [newLearnerId, orgId, branchId, code, body.full_name, mobile, body.email ?? null, body.date_of_birth ?? null, body.gender ?? null, body.school ?? null,
-        body.location ?? null, body.photo_url ?? null, body.enrolled_on ?? null, req.user!.id], db);
-    const l = await queryOne(`SELECT * FROM learners WHERE id = $1`, [newLearnerId], db);
-    await recordActivity(db, { orgId, learnerId: l!.id, type: 'learner.created', title: 'Joined Robokalam', description: `Learner profile ${code} created`, actorUserId: req.user!.id });
-
-    if (body.parent) {
-      const { parent, created } = await upsertParent(db, orgId, body.parent);
-      await linkParent(db, orgId, l!.id, parent.id, body.parent.relationship, true);
-      await recordActivity(db, { orgId, learnerId: l!.id, type: 'parent.linked', title: `Parent linked: ${parent.full_name}`, meta: { parent_id: parent.id, reused: !created }, actorUserId: req.user!.id });
-    }
-    for (const batchId of new Set(body.batch_ids ?? [])) {
-      await enrollLearners({ db, user: req.user!, orgId, req }, batchId, [l!.id]);
-    }
-    await audit({ orgId, actor: req.user, action: 'learner.created', entityType: 'learner', entityId: l!.id, next: { learner_code: code, full_name: l!.full_name, batch_ids: body.batch_ids ?? [] }, req }, db);
-    return l!;
-  });
+  const created = await tx((db) => createLearner(db, { user: req.user!, orgId, req }, body, mobile));
   ok(res, await getLearner360(req, created.id), undefined, 201);
 }));
 

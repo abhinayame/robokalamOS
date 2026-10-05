@@ -42,9 +42,17 @@ const schema = z.object({
   AISENSY_CAMPAIGN_PATH: z.preprocess(blank, z.string().startsWith('/').default('/campaign/t1/api/v2')),
   WHATSAPP_RATE_PER_SECOND: z.coerce.number().min(0.1).max(50).default(5),
   // The campaign sender runs inside this process. Set to false to run it elsewhere.
+  // Online fee payments via Razorpay Payment Links (backend only). Without the key id + secret the app records manual payments only.
+  RAZORPAY_KEY_ID: z.preprocess(blank, z.string().optional()),
+  RAZORPAY_KEY_SECRET: z.preprocess(blank, z.string().optional()),
+  RAZORPAY_BASE_URL: z.preprocess(blank, z.string().url().default('https://api.razorpay.com')),
+  // Webhooks are accepted at /api/webhooks/razorpay only with a valid X-Razorpay-Signature made with this secret.
+  RAZORPAY_WEBHOOK_SECRET: z.preprocess(blank, z.string().min(8, 'must be at least 8 characters').optional()),
   // Daily-ish clean-up of expired sessions, unattached uploads and old webhook payloads (see modules/system/maintenance.ts).
   MAINTENANCE: z.enum(['true', 'false']).default('true'),
   COMMS_WORKER: z.enum(['true', 'false']).default('true'),
+  // Automatic reminders (fee due/overdue, class, absence) are queued by a pass every 5 minutes inside the comms worker.
+  REMINDERS: z.enum(['true', 'false']).default('true'),
   // Apply migrations and create the owner login on start (idempotent). Set to false to run them manually.
   AUTO_MIGRATE: z.enum(['true', 'false']).default('true'),
   SUPER_ADMIN_EMAIL: z.string().optional(),
