@@ -40,6 +40,15 @@ const schema = z.object({
   // Delivery-status webhooks are accepted only at /api/webhooks/aisensy/<this secret>. Use a long random value.
   AISENSY_WEBHOOK_SECRET: z.preprocess(blank, z.string().min(16, 'must be at least 16 characters').optional()),
   AISENSY_CAMPAIGN_PATH: z.preprocess(blank, z.string().startsWith('/').default('/campaign/t1/api/v2')),
+  // Which WhatsApp provider sends: aisensy (default) or meta (WhatsApp Cloud API directly; webhooks are free).
+  WHATSAPP_PROVIDER: z.enum(['aisensy', 'meta']).default('aisensy'),
+  META_WA_TOKEN: z.preprocess(blank, z.string().optional()),             // permanent system-user access token
+  META_PHONE_NUMBER_ID: z.preprocess(blank, z.string().regex(/^\d{5,25}$/, 'digits only').optional()),
+  META_APP_SECRET: z.preprocess(blank, z.string().min(8).optional()),    // signs webhook calls (X-Hub-Signature-256)
+  META_VERIFY_TOKEN: z.preprocess(blank, z.string().min(8).optional()),  // you choose it; Meta echoes it when you save the webhook
+  META_API_BASE: z.preprocess(blank, z.string().url().default('https://graph.facebook.com')),   // tests point this at a stand-in
+  META_API_VERSION: z.preprocess(blank, z.string().regex(/^v\d+\.\d+$/).default('v21.0')),
+  META_TEMPLATE_LANGUAGE: z.preprocess(blank, z.string().regex(/^[a-z]{2}(_[A-Z]{2})?$/).default('en')),
   WHATSAPP_RATE_PER_SECOND: z.coerce.number().min(0.1).max(50).default(5),
   // The campaign sender runs inside this process. Set to false to run it elsewhere.
   // Online fee payments via Razorpay Payment Links (backend only). Without the key id + secret the app records manual payments only.

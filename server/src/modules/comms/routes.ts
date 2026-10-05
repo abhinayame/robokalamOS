@@ -9,7 +9,7 @@ import { normalizeMobile } from '../../lib/phone.js';
 import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { selectorSchema, type Selector } from '../selection/resolver.js';
-import { isConfigured, isWebhookConfigured } from './aisensy.js';
+import { isConfigured, isWebhookConfigured, senderNumberSet } from './aisensy.js';
 import { TOKENS, paramsFor, resolveAudience, singleBatchName, tokensIn } from './audience.js';
 import { env } from '../../config/env.js';
 
@@ -26,8 +26,8 @@ const ownOnly = (req: any, p: Params, col = 'c.created_by') => (req.user!.isSupe
 
 router.get('/status', wrap(async (_req, res) => {
   // Only whether things are set. Values are never returned.
-  ok(res, { configured: isConfigured(), webhook_configured: isWebhookConfigured(), sender_number_set: !!env.AISENSY_WA_NUMBER, worker_enabled: env.COMMS_WORKER === 'true', rate_per_second: env.WHATSAPP_RATE_PER_SECOND,
-    webhook_path: isWebhookConfigured() ? '/api/webhooks/aisensy/<AISENSY_WEBHOOK_SECRET>' : null, tokens: TOKENS, use_cases: USE_CASES });
+  ok(res, { configured: isConfigured(), webhook_configured: isWebhookConfigured(), provider: env.WHATSAPP_PROVIDER, sender_number_set: senderNumberSet(), worker_enabled: env.COMMS_WORKER === 'true', rate_per_second: env.WHATSAPP_RATE_PER_SECOND,
+    webhook_path: isWebhookConfigured() ? (env.WHATSAPP_PROVIDER === 'meta' ? '/api/webhooks/meta' : '/api/webhooks/aisensy/<AISENSY_WEBHOOK_SECRET>') : null, tokens: TOKENS, use_cases: USE_CASES });
 }));
 
 // ------------------------------------------------------------------ templates

@@ -26,7 +26,10 @@ export function preflight(cfg: { env: typeof realEnv; isProd: boolean; corsOrigi
   if ((env.ZOOM_ACCOUNT_ID || env.ZOOM_CLIENT_ID || env.ZOOM_CLIENT_SECRET) && !(env.ZOOM_ACCOUNT_ID && env.ZOOM_CLIENT_ID && env.ZOOM_CLIENT_SECRET)) add('warn', 'ZOOM_INCOMPLETE', 'Zoom needs ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET together: meeting creation stays off until all three are set.');
   if (env.ZOOM_ACCOUNT_ID && env.ZOOM_CLIENT_ID && env.ZOOM_CLIENT_SECRET && !env.ZOOM_WEBHOOK_SECRET_TOKEN) add('warn', 'ZOOM_WEBHOOK_MISSING', 'Zoom is configured but ZOOM_WEBHOOK_SECRET_TOKEN is not: who joined a class (and recordings) can never be received.');
   if (env.BCRYPT_COST < 10) add('warn', 'BCRYPT_LOW', 'BCRYPT_COST is below 10.');
-  if (env.AISENSY_API_KEY && !env.AISENSY_WEBHOOK_SECRET) add('warn', 'WEBHOOK_SECRET_MISSING', 'WhatsApp is configured but AISENSY_WEBHOOK_SECRET is not: delivery status can never be received.');
+  if (env.WHATSAPP_PROVIDER === 'meta') {
+    if (!(env.META_WA_TOKEN && env.META_PHONE_NUMBER_ID)) add('warn', 'META_INCOMPLETE', 'WHATSAPP_PROVIDER is meta but META_WA_TOKEN and META_PHONE_NUMBER_ID are not both set: nothing is sent.');
+    else if (!(env.META_APP_SECRET && env.META_VERIFY_TOKEN)) add('warn', 'META_WEBHOOK_MISSING', 'WhatsApp (Meta) is configured but META_APP_SECRET / META_VERIFY_TOKEN are not: delivery status can never be received.');
+  } else if (env.AISENSY_API_KEY && !env.AISENSY_WEBHOOK_SECRET) add('warn', 'WEBHOOK_SECRET_MISSING', 'WhatsApp is configured but AISENSY_WEBHOOK_SECRET is not: delivery status can never be received.');
   if (env.DATABASE_SSL !== 'true' && !/^(localhost|127\.0\.0\.1)$/.test(process.env.DB_HOST ?? (process.env.DATABASE_URL ? new URL(process.env.DATABASE_URL).hostname : 'localhost'))) add('warn', 'DB_NO_TLS', 'The database is on another host but DATABASE_SSL is not "true".');
   return out;
 }

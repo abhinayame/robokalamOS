@@ -55,7 +55,7 @@ export default function SystemStatus() {
               <div className="card">
                 <h3>WhatsApp</h3>
                 <div className="table-wrap"><table className="t"><tbody>
-                  <tr><td>AiSensy API key</td><td className="right">{s.whatsapp.configured ? <Badge tone="ok">Set</Badge> : <Badge tone="warn">Not set</Badge>}</td></tr>
+                  <tr><td>{s.whatsapp.provider === 'meta' ? 'WhatsApp Cloud API (Meta) token' : 'AiSensy API key'}</td><td className="right">{s.whatsapp.configured ? <Badge tone="ok">Set</Badge> : <Badge tone="warn">Not set</Badge>}</td></tr>
                   <tr><td>Webhook secret</td><td className="right">{s.whatsapp.webhook_configured ? <Badge tone="ok">Set</Badge> : <Badge tone="warn">Not set</Badge>}</td></tr>
                   <tr><td>Sending worker</td><td className="right">{s.whatsapp.worker_enabled ? <Badge tone="ok">Running</Badge> : <Badge tone="warn">Off</Badge>}</td></tr>
                   <tr><td>Waiting / in flight / failed unsent</td><td className="right">{s.whatsapp.waiting} / {s.whatsapp.in_flight} / {s.whatsapp.failed_unsent}</td></tr>
