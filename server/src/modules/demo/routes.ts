@@ -33,7 +33,7 @@ const manage = requirePerm('crm:manage');
 
 router.get('/settings', wrap(async (req, res) => {
   const o = await queryOne(`SELECT slug, demo_booking_enabled FROM organizations WHERE id = $1`, [orgIdOf(req)]);
-  ok(res, { enabled: !!o?.demo_booking_enabled, public_url: `${appUrl()}/demo/${o?.slug}` });
+  ok(res, { enabled: !!o?.demo_booking_enabled, public_url: `${appUrl()}/book-demo/${o?.slug}` });
 }));
 router.put('/settings', manage, wrap(async (req, res) => {
   const b = parse(z.object({ enabled: z.boolean() }), req.body); const orgId = orgIdOf(req);

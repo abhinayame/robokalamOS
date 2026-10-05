@@ -23,6 +23,7 @@ export default function Fees() {
           <Stat label="Overdue" value={<span className={Number(s.overdue) > 0 ? 'err' : ''}>{fmtMoney(s.overdue)}</span>} sub={`${fmtNum(s.overdue_learners)} learner(s) · ${fmtNum(s.overdue_installments)} installment(s)`} />
           <Stat label="Collection rate" value={s.collection_rate_pct == null ? '—' : `${s.collection_rate_pct}%`} sub="Collected ÷ billed" />
         </div>)}</Async>
+      <ReceiptSwitch />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'dues', label: 'Dues' }, { id: 'payments', label: 'Payments' }, ...(can('fee:read') ? [{ id: 'plans' as Tab, label: 'Plans' }] : [])]} />
       {tab === 'dues' && <Dues onChanged={summary.reload} />}
       {tab === 'payments' && <Payments />}
@@ -174,4 +175,11 @@ function AssignModal({ plan, onClose, onDone }: { plan: any; onClose: () => void
       </div>
     </Modal>
   );
+}
+
+/** E-mail a receipt to the parent as soon as a payment is recorded. */
+function ReceiptSwitch() {
+  const { can } = useAuth(); const s = useFetch(() => api.get('/api/fees/settings').then((r) => r.data), []); const { busy, run } = useAction();
+  if (!s.data) return null;
+  return <label className="row gap-s small" style={{ margin: '0 0 12px' }}><input type="checkbox" checked={s.data.receipt_email} disabled={busy || !can('fee:manage')} onChange={(e) => run(async () => { await api.put('/api/fees/settings', { receipt_email: e.target.checked }); s.reload(); }, e.target.checked ? 'Receipts will be e-mailed.' : 'Receipt e-mails are off.')} /> E-mail a receipt to the parent when a payment is recorded (needs e-mail set up)</label>;
 }

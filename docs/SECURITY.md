@@ -47,6 +47,12 @@ The only unauthenticated additions are three read-only endpoints under `/api/pub
 * E-mail HTML escapes every value; unsubscribe and reset links are built from `APP_URL`, never from request headers. The SMTP password stays in the environment and is scrubbed from error text.
 * Certificate PDFs are served only to staff in scope, the learner and their parents; verification never returns contact details.
 
+## Admissions, demo booking, replies and payroll (Phase 14)
+* The public demo booking page is opt-in per school, creates nothing for bots (honeypot), is rate limited per address, per phone and per child, locks the slot row, and returns no data about people already on file. The meeting link is shown only after booking.
+* Inbound WhatsApp: accepted only with a valid Meta signature over the raw body. STOP applies to every school that knows the number; other text is never attributed when two schools know it.
+* Admission is atomic and idempotent; fee and payment steps need their own permissions.
+* Payroll needs `payroll:read`, rates need `payroll:manage`, branch admins see only their branches, and the CSV neutralises formula-like text.
+
 ## Dependencies
 `npm audit --omit=dev` reports 0 vulnerabilities at the time of Phase 9. Re-run before each release.
 

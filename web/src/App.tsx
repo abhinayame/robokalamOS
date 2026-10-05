@@ -38,6 +38,9 @@ import Organizations from './pages/Organizations';
 import Parents from './pages/Parents';
 import Teachers from './pages/Teachers';
 import Users from './pages/Users';
+import Demo from './pages/Demo';
+import DemoBooking from './pages/DemoBooking';
+import Payroll from './pages/Payroll';
 import Certificates from './pages/Certificates';
 import MyCertificates from './pages/MyCertificates';
 import VerifyCertificate from './pages/VerifyCertificate';
@@ -57,6 +60,7 @@ export default function App() {
   const loc = useLocation();
   // Pages that work without signing in (certificate check, password reset).
   if (loc.pathname === '/verify' || loc.pathname.startsWith('/verify/')) return <Routes><Route path="/verify/:code?" element={<VerifyCertificate />} /></Routes>;
+  if (loc.pathname.startsWith('/book-demo/')) return <Routes><Route path="/book-demo/:slug" element={<DemoBooking />} /></Routes>;
   if (!me && !loading && loc.pathname === '/forgot-password') return <ForgotPassword />;
   if (!me && !loading && loc.pathname === '/reset-password') return <ResetPassword />;
   if (loading) return <div style={{ padding: 40 }}><Skeleton h={24} w={240} /></div>;
@@ -74,6 +78,8 @@ export default function App() {
         <Route path="batches/:id" element={<BatchDetail />} />
         <Route path="classes" element={<MyClasses />} />
         <Route path="fees" element={<Guard perm="fee:read"><Fees /></Guard>} />
+        <Route path="demo" element={<Guard perm="crm:read"><Demo /></Guard>} />
+        <Route path="payroll" element={<Guard perm="payroll:read"><Payroll /></Guard>} />
         <Route path="certificates" element={<Guard perm="cert:read"><Certificates /></Guard>} />
         <Route path="my-certificates" element={<Guard roles={['learner', 'parent']}><MyCertificates /></Guard>} />
         <Route path="my-fees" element={<Guard roles={['learner', 'parent']}><MyFees /></Guard>} />
