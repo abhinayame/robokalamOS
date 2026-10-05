@@ -6,6 +6,7 @@ import Account from './pages/Account';
 import Audit from './pages/Audit';
 import SystemStatus from './pages/SystemStatus';
 import Fees from './pages/Fees';
+import Branding from './pages/Branding';
 import MyFees from './pages/MyFees';
 import Reminders from './pages/Reminders';
 import ImportLearners from './pages/ImportLearners';
@@ -37,6 +38,10 @@ import Organizations from './pages/Organizations';
 import Parents from './pages/Parents';
 import Teachers from './pages/Teachers';
 import Users from './pages/Users';
+import Certificates from './pages/Certificates';
+import MyCertificates from './pages/MyCertificates';
+import VerifyCertificate from './pages/VerifyCertificate';
+import { ForgotPassword, ResetPassword } from './pages/PasswordReset';
 import { ErrorState } from './components/ui';
 import { ApiError } from './api';
 import type { ReactNode } from 'react';
@@ -50,6 +55,10 @@ function Guard({ perm, roles, children }: { perm?: string; roles?: string[]; chi
 export default function App() {
   const { me, loading } = useAuth();
   const loc = useLocation();
+  // Pages that work without signing in (certificate check, password reset).
+  if (loc.pathname === '/verify' || loc.pathname.startsWith('/verify/')) return <Routes><Route path="/verify/:code?" element={<VerifyCertificate />} /></Routes>;
+  if (!me && !loading && loc.pathname === '/forgot-password') return <ForgotPassword />;
+  if (!me && !loading && loc.pathname === '/reset-password') return <ResetPassword />;
   if (loading) return <div style={{ padding: 40 }}><Skeleton h={24} w={240} /></div>;
   if (!me) return loc.pathname === '/login' ? <Login /> : <Navigate to="/login" replace state={{ from: loc.pathname + loc.search }} />;
   if (loc.pathname === '/login') return <Navigate to="/" replace />;
@@ -65,7 +74,10 @@ export default function App() {
         <Route path="batches/:id" element={<BatchDetail />} />
         <Route path="classes" element={<MyClasses />} />
         <Route path="fees" element={<Guard perm="fee:read"><Fees /></Guard>} />
+        <Route path="certificates" element={<Guard perm="cert:read"><Certificates /></Guard>} />
+        <Route path="my-certificates" element={<Guard roles={['learner', 'parent']}><MyCertificates /></Guard>} />
         <Route path="my-fees" element={<Guard roles={['learner', 'parent']}><MyFees /></Guard>} />
+        <Route path="settings/branding" element={<Guard perm="org:manage"><Branding /></Guard>} />
         <Route path="settings/reminders" element={<Guard perm="comms:read"><Reminders /></Guard>} />
         <Route path="classroom" element={<Guard perm="classroom:read"><Classrooms /></Guard>} />
         <Route path="classroom/:batchId" element={<Guard perm="classroom:read"><Classroom /></Guard>} />

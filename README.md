@@ -18,6 +18,9 @@ LMS · virtual classroom · student information system · gamification · parent
 | **6 CRM** | Leads, activities, follow-ups, tags | ✅ [`PHASE-6`](docs/PHASE-6-CRM.md) |
 | **7 Communication** | AiSensy WhatsApp campaigns, webhooks, announcements | ✅ [`PHASE-7`](docs/PHASE-7-COMMUNICATION.md) |
 | **8 Analytics** | Batch comparison, reports registry, CSV/XLSX export | ✅ [`PHASE-8`](docs/PHASE-8-ANALYTICS.md) |
+| **12 Branding & app** | Logo, name, colors and custom domain per organization; installable app (PWA) with offline page | ✅ [`PHASE-12`](docs/PHASE-12-BRANDING-PWA.md) |
+| **13 E-mail, certificates & calendar** | E-mail channel with password reset, e-mail reminders, personal calendar feeds (Google/Apple/Outlook), certificates with QR and public verification | ✅ [`PHASE-13`](docs/PHASE-13-CERTIFICATES-CALENDAR-EMAIL.md) |
+| **11 Live classes** | Zoom meetings from the schedule, automatic attendance from who joined, recordings | ✅ [`PHASE-11`](docs/PHASE-11-LIVE-CLASSES.md) |
 | **10 Fees, reminders, import** | Fee plans, installments, payments, receipts, Razorpay payment links, automatic WhatsApp reminders, CSV import | ✅ [`PHASE-10`](docs/PHASE-10-FEES-REMINDERS-IMPORT.md) |
 | **9 Production hardening** | Security audit, observability, system status, backups, performance, Postman, runbooks | ✅ [`PHASE-9`](docs/PHASE-9-HARDENING.md) |
 
@@ -26,6 +29,7 @@ LMS · virtual classroom · student information system · gamification · parent
 * [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — system, diagrams, ERD, API, RBAC matrix, selection/dedupe, WhatsApp, CRM, security, roadmap
 * [`docs/database/later-phases-schema.sql`](docs/database/later-phases-schema.sql) — full schema for phases 2–9 (validated against migration 001)
 * [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) — Hostinger runbook, env vars, SSL, backups & restore drill, secret rotation, monitoring
+* [`docs/Robokalam-Learner-OS-Developer-Guide.pptx`](docs/Robokalam-Learner-OS-Developer-Guide.pptx) — 38-slide step-by-step onboarding deck for junior developers (version 2: Phases 1-13)
 * [`docs/SECURITY.md`](docs/SECURITY.md) · [`docs/RUNBOOK.md`](docs/RUNBOOK.md) — security model and operations playbook
 * [`postman/`](postman) — collection + environment (34 requests, 61 assertions)
 
@@ -54,7 +58,7 @@ Scale test: `npm run seed:large -w server -- robokalam-demo 100000`.
 ```bash
 # needs a MySQL/MariaDB database whose name ends in _test (it is DROPPED and recreated every run)
 # TEST_DATABASE_URL=mysql://rk:…@127.0.0.1:3306/rk_test   (the user needs CREATE/DROP rights)
-npm test                 # 52 API/integration tests against a real MySQL/MariaDB
+npm test                 # 158 API/integration tests against a real MySQL/MariaDB
 npm run typecheck        # server + web
 npx newman run postman/robokalam-learner-os.postman_collection.json \
   -e postman/robokalam-learner-os.postman_environment.json --env-var SUPER_ADMIN_PASSWORD=…

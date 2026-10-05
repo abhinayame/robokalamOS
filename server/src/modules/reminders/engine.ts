@@ -3,6 +3,8 @@ import { Params, exec, newId, query, queryOne, tx, type Db } from '../../db/pool
 import { logger } from '../../lib/logger.js';
 import { isConfigured } from '../comms/aisensy.js';
 import { render, resolvePeople } from '../comms/audience.js';
+import { isConfigured as emailConfigured } from '../email/provider.js';
+import { queueMessage, validEmail } from '../email/outbox.js';
 import { createPayLink } from '../fees/paylinks.js';
 import { isConfigured as paymentsConfigured } from '../fees/razorpay.js';
 import { rupees, toPaise, todayIn } from '../fees/money.js';
@@ -26,7 +28,7 @@ export const KIND_INFO: Record<Kind, { label: string; offset_label: string; defa
 };
 
 export interface Rule {
-  id: string; org_id: string; name: string; kind: Kind; template_id: string; audience: 'parents' | 'learners'; variables: string[]; offset_value: number; repeat_days: number | null;
+  id: string; org_id: string; name: string; kind: Kind; channel: 'whatsapp' | 'email'; template_id: string | null; audience: 'parents' | 'learners'; variables: string[]; offset_value: number; repeat_days: number | null;
   max_sends: number; send_from_hour: number; send_to_hour: number; enabled: number | boolean; created_by: string | null;
 }
 
@@ -93,15 +95,16 @@ export interface RunResult { candidates: number; fresh: number; queued: number; 
  */
 export async function runRule(ruleId: string, opts: { force?: boolean; dryRun?: boolean } = {}): Promise<RunResult> {
   const out: RunResult = { candidates: 0, fresh: 0, queued: 0, campaigns: 0, skipped: { no_phone: 0, opted_out: 0 }, window_open: true, sample: [] };
-  const rule = await queryOne(`SELECT r.*, t.variable_names, t.status AS template_status FROM reminder_rules r JOIN whatsapp_templates t ON t.id = r.template_id AND t.org_id = r.org_id WHERE r.id = $1`, [ruleId]) as (Rule & { variable_names: string[] | null; template_status: string }) | null;
+  const rule = await queryOne(`SELECT r.*, t.variable_names, t.status AS template_status FROM reminder_rules r LEFT JOIN whatsapp_templates t ON t.id = r.template_id AND t.org_id = r.org_id WHERE r.id = $1`, [ruleId]) as (Rule & { variable_names: string[] | null; template_status: string | null }) | null;
   if (!rule) throw new Error('Rule not found');
   const org = await orgInfo(rule.org_id);
   const hour = hourIn(org.tz);
   out.window_open = hour >= rule.send_from_hour && hour < rule.send_to_hour;
   if (!opts.dryRun) {
     if (!opts.force && !out.window_open) { out.skipped_reason = 'outside sending hours'; return out; }
-    if (rule.template_status !== 'active') { out.skipped_reason = 'template is switched off'; return out; }
-    if (!isConfigured()) { out.skipped_reason = 'WhatsApp is not configured'; return out; }
+    if (rule.channel === 'email' && !emailConfigured()) { out.skipped_reason = 'E-mail is not configured'; return out; }
+    if (rule.channel === 'whatsapp' && rule.template_status !== 'active') { out.skipped_reason = 'template is switched off'; return out; }
+    if (rule.channel === 'whatsapp' && !isConfigured()) { out.skipped_reason = 'WhatsApp is not configured'; return out; }
   }
   const all = await candidatesFor(rule, org.tz, org.name);
   out.candidates = all.length;
@@ -120,6 +123,7 @@ export async function runRule(ruleId: string, opts: { force?: boolean; dryRun?: 
     }
   }
   const ids = [...new Set(fresh.map((c) => c.learner_id))];
+  if (rule.channel === 'email') return runEmailRule(rule, org, fresh, ids, out, !!opts.dryRun);
   const people = await resolvePeople(rule.org_id, ids, rule.audience, undefined, { oneMessagePerPhone: false });
   const who = new Map(people.recipients.map((r) => [r.learner_id, r]));
   const why = new Map(people.skipped.map((s) => [s.learner_id, s.reason]));
@@ -166,6 +170,47 @@ export async function runRule(ruleId: string, opts: { force?: boolean; dryRun?: 
   });
   return out;
 }
+
+/** The e-mail branch: same candidates, same once-only log, but each reminder becomes a message in the e-mail outbox. */
+async function runEmailRule(rule: Rule, org: { tz: string; name: string }, fresh: Candidate[], ids: string[], out: RunResult, dryRun: boolean): Promise<RunResult> {
+  const branding = await queryOne(`SELECT COALESCE(brand_app_name, name) AS name, brand_color FROM organizations WHERE id = $1`, [rule.org_id]);
+  const addr = new Map<string, { email: string; name: string; parent_name: string | null; learner_name: string }>();
+  for (let i = 0; i < ids.length; i += 1000) {
+    const p = new Params(); const part = ids.slice(i, i + 1000);
+    const ls = await query(`SELECT id, full_name, email FROM learners WHERE id IN ${p.in(part)} AND deleted_at IS NULL`, p.values);
+    const pp = new Params();
+    const ps = rule.audience === 'parents' ? await query(`SELECT lp.learner_id, pa.full_name, pa.email FROM learner_parents lp JOIN parents pa ON pa.id = lp.parent_id AND pa.deleted_at IS NULL WHERE lp.learner_id IN ${pp.in(part)} AND pa.email IS NOT NULL ORDER BY lp.is_primary DESC, lp.created_at, pa.id`, pp.values) : [];
+    const par = new Map<string, any>(); for (const r of ps) if (validEmail(r.email) && !par.has(r.learner_id)) par.set(r.learner_id, r);
+    for (const l of ls) {
+      const x = rule.audience === 'parents' ? par.get(l.id) : l;
+      if (x && validEmail(x.email)) addr.set(l.id, { email: x.email.trim().toLowerCase(), name: x.full_name, parent_name: rule.audience === 'parents' ? x.full_name : null, learner_name: l.full_name });
+    }
+  }
+  const opted = new Set((await query(`SELECT email FROM email_optouts WHERE org_id = $1 OR org_id IS NULL`, [rule.org_id])).map((r) => r.email as string));
+  const reasonFor = (c: Candidate) => { const a = addr.get(c.learner_id); return !a ? 'no_email' : opted.has(a.email) ? 'opted_out' : null; };
+  const sendable = fresh.filter((c) => !reasonFor(c));
+  out.skipped = { no_phone: fresh.filter((c) => reasonFor(c) === 'no_email').length, opted_out: fresh.filter((c) => reasonFor(c) === 'opted_out').length };
+  const make = (c: Candidate) => { const a = addr.get(c.learner_id)!; const ctx = { ...c.ctx, learner_name: a.learner_name, learner_first_name: a.learner_name.split(/\s+/)[0] ?? a.learner_name, parent_name: a.parent_name ?? 'Parent' }; return { subject: render(rule.variables[0] ?? '', ctx), text: (rule as any).email_body ? renderBody((rule as any).email_body as string, ctx) : '' }; };
+  out.sample = sendable.slice(0, 5).map((c) => { const m = make(c); return { learner: addr.get(c.learner_id)!.learner_name, phone: addr.get(c.learner_id)!.email.replace(/^(.).*(@.*)$/, '$1•••$2'), params: [m.subject] }; });
+  if (dryRun) { out.queued = sendable.length; return out; }
+  await tx(async (db) => {
+    await queryOne(`SELECT id FROM reminder_rules WHERE id = $1 FOR UPDATE`, [rule.id], db);
+    const again = await alreadyDone(rule.id, fresh.map((c) => c.key), db);
+    const todo = fresh.filter((c) => !again.has(c.key));
+    for (const c of todo) {
+      const why = reasonFor(c); const lp = new Params();
+      if (why) { await exec(`INSERT INTO reminder_log (org_id, rule_id, dedupe_key, learner_id, outcome, reason) VALUES (${lp.add(rule.org_id)},${lp.add(rule.id)},${lp.add(c.key)},${lp.add(c.learner_id)},'skipped',${lp.add(why)})`, lp.values, db); continue; }
+      const a = addr.get(c.learner_id)!; const m = make(c);
+      await queueMessage({ orgId: rule.org_id, orgName: branding?.name ?? org.name, color: branding?.brand_color ?? undefined, to: a.email, toName: a.name, subject: m.subject, paragraphs: m.text.split(/\n{2,}/).map((t) => t.trim()).filter(Boolean), category: 'notification', learnerId: c.learner_id, dedupeKey: `rule:${rule.id}:${c.key}` }, db);
+      await exec(`INSERT INTO reminder_log (org_id, rule_id, dedupe_key, learner_id, outcome) VALUES (${lp.add(rule.org_id)},${lp.add(rule.id)},${lp.add(c.key)},${lp.add(c.learner_id)},'queued')`, lp.values, db);
+      out.queued++;
+    }
+    await exec(`UPDATE reminder_rules SET last_run_at = NOW(3) WHERE id = $1`, [rule.id], db);
+  });
+  return out;
+}
+/** Like render(), but keeps paragraph breaks (e-mail bodies are several paragraphs). */
+const renderBody = (t: string, ctx: Record<string, string>) => t.split(/\n{2,}/).map((x) => render(x, ctx)).join('\n\n');
 
 async function fallbackCreator(orgId: string, db: Db) {
   const u = await queryOne(`SELECT u.id FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id WHERE u.org_id = $1 AND r.code = 'org_admin' AND u.deleted_at IS NULL ORDER BY u.created_at LIMIT 1`, [orgId], db);

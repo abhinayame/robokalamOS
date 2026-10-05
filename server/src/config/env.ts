@@ -48,6 +48,24 @@ const schema = z.object({
   RAZORPAY_BASE_URL: z.preprocess(blank, z.string().url().default('https://api.razorpay.com')),
   // Webhooks are accepted at /api/webhooks/razorpay only with a valid X-Razorpay-Signature made with this secret.
   RAZORPAY_WEBHOOK_SECRET: z.preprocess(blank, z.string().min(8, 'must be at least 8 characters').optional()),
+  // Zoom (Server-to-Server OAuth app): creates meetings and receives join/leave/recording webhooks. Backend only.
+  ZOOM_ACCOUNT_ID: z.preprocess(blank, z.string().optional()),
+  ZOOM_CLIENT_ID: z.preprocess(blank, z.string().optional()),
+  ZOOM_CLIENT_SECRET: z.preprocess(blank, z.string().optional()),
+  ZOOM_WEBHOOK_SECRET_TOKEN: z.preprocess(blank, z.string().min(8, 'must be at least 8 characters').optional()),
+  ZOOM_HOST_USER: z.preprocess(blank, z.string().default('me')),
+  ZOOM_API_URL: z.preprocess(blank, z.string().url().default('https://api.zoom.us')),
+  ZOOM_OAUTH_URL: z.preprocess(blank, z.string().url().default('https://zoom.us')),
+  // E-mail (SMTP). Without SMTP_HOST nothing is sent and the app says so (password reset then asks people to contact their administrator).
+  SMTP_HOST: z.preprocess(blank, z.string().optional()),
+  SMTP_PORT: z.preprocess(blank, z.coerce.number().int().min(1).max(65535).default(587)),
+  SMTP_SECURE: z.preprocess(blank, z.enum(['true', 'false']).default('false')),
+  SMTP_USER: z.preprocess(blank, z.string().optional()),
+  SMTP_PASSWORD: z.preprocess(blank, z.string().optional()),
+  SMTP_FROM: z.preprocess(blank, z.string().max(200).optional()),
+  EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
+  // Public address of the app (used in e-mail links, calendar feeds and certificate QR codes). Default: the first https origin in CORS_ORIGINS.
+  APP_URL: z.preprocess(blank, z.string().url().optional()),
   // Daily-ish clean-up of expired sessions, unattached uploads and old webhook payloads (see modules/system/maintenance.ts).
   MAINTENANCE: z.enum(['true', 'false']).default('true'),
   COMMS_WORKER: z.enum(['true', 'false']).default('true'),

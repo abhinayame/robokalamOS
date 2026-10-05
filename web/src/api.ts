@@ -65,6 +65,15 @@ export const api = {
     catch { throw new ApiError(0, 'NETWORK', 'Upload failed. Check your connection and try again.'); }
     return (await json<{ data: any }>(res)).data;
   },
+  /** Upload a file's raw bytes to any endpoint that takes them (the organization logo). */
+  async upload2(url: string, file: File) {
+    const headers: Record<string, string> = { Accept: 'application/json', 'Content-Type': 'application/octet-stream', 'X-CSRF-Token': csrf() };
+    const org = getActiveOrg(); if (org) headers['X-Org-Id'] = org;
+    let res: Response;
+    try { res = await fetch(url, { method: 'POST', credentials: 'include', headers, body: file }); }
+    catch { throw new ApiError(0, 'NETWORK', 'Upload failed. Check your connection and try again.'); }
+    return (await json<{ data: any }>(res)).data;
+  },
   /** Fetch a protected file with the session and save it (or open inline for pdf/images). */
   async openFile(id: string, name: string, inline = false) {
     const res = await raw('GET', `/api/files/${id}${inline ? '?inline=1' : ''}`);

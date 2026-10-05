@@ -45,6 +45,12 @@ import auditRoutes from './modules/audit/routes.js';
 import feeRoutes from './modules/fees/routes.js';
 import reminderRoutes from './modules/reminders/routes.js';
 import importRoutes from './modules/import/routes.js';
+import liveRoutes from './modules/live/routes.js';
+import emailRoutes, { publicEmail } from './modules/email/routes.js';
+import calendarRoutes, { publicCalendar } from './modules/calendar/routes.js';
+import certificateRoutes, { publicVerify } from './modules/certificates/routes.js';
+import { adminRouter as brandingAdmin, publicRouter as brandingPublic } from './modules/branding/routes.js';
+import zoomWebhook from './modules/live/webhook.js';
 import razorpayWebhook from './modules/fees/webhook.js';
 
 export function createApp() {
@@ -90,7 +96,12 @@ export function createApp() {
 
   app.use('/api/health', healthRouter);
   app.use('/api/webhooks', webhookRoutes);
-  app.use('/api/webhooks', razorpayWebhook);              // public: guarded by a secret in the URL, not by a login
+  app.use('/api/webhooks', razorpayWebhook);
+  app.use('/api/webhooks', zoomWebhook);              // public: guarded by a secret in the URL, not by a login
+  app.use('/api/public', publicVerify);                // certificate check: only the name, course and date on the certificate
+  app.use('/api/public', publicCalendar);              // personal calendar feed: the secret link is the credential
+  app.use('/api/public', publicEmail);                 // one-click unsubscribe from notification e-mails
+  app.use('/api/public', brandingPublic);              // branding for the sign-in page and the app manifest: public fields only
   app.use('/api/auth', authRoutes);
   app.use('/api', authenticate);                       // everything below requires a valid session
   app.use('/api/organizations', orgRoutes);
@@ -122,6 +133,11 @@ export function createApp() {
   app.use('/api/fees', feeRoutes);
   app.use('/api/reminders', reminderRoutes);
   app.use('/api/import', importRoutes);
+  app.use('/api/live', liveRoutes);
+  app.use('/api/branding', brandingAdmin);
+  app.use('/api/email', emailRoutes);
+  app.use('/api/calendar', calendarRoutes);
+  app.use('/api/certificates', certificateRoutes);
   app.use('/api/system', systemRouter);
   app.use('/api', catalogRoutes);                      // /branches /programs /courses
   app.use('/api', userRoutes);                         // /teachers /users
@@ -131,7 +147,7 @@ export function createApp() {
   const here = path.dirname(fileURLToPath(import.meta.url));
   const webDist = path.resolve(here, '../../web/dist');
   if (fs.existsSync(path.join(webDist, 'index.html'))) {
-    app.use(express.static(webDist, { index: false, maxAge: '1h', setHeaders: (r, p) => { if (p.includes('/assets/')) r.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); } }));
+    app.use(express.static(webDist, { index: false, maxAge: '1h', setHeaders: (r, p) => { if (p.includes('/assets/')) r.setHeader('Cache-Control', 'public, max-age=31536000, immutable'); else if (/(sw\.js|offline\.html|manifest\.webmanifest)$/.test(p)) r.setHeader('Cache-Control', 'no-cache'); if (/\.webmanifest$/.test(p)) r.setHeader('Content-Type', 'application/manifest+json; charset=utf-8'); if (/sw\.js$/.test(p)) r.setHeader('Service-Worker-Allowed', '/'); } }));
     app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(webDist, 'index.html')));
   }
 

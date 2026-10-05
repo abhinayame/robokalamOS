@@ -1,3 +1,4 @@
+import { startEmailWorker, stopEmailWorker } from './modules/email/outbox.js';
 import { createApp } from './app.js';
 import { db as dbConfig, env } from './config/env.js';
 import { migrate } from './db/migrate.js';
@@ -26,6 +27,7 @@ async function main() {
 
   startCommsWorker();
   startReminders();
+  startEmailWorker();
   void resumeImports().catch((e) => logger.error({ err: e }, 'could not resume imports'));
   startMaintenance();
 
@@ -33,6 +35,7 @@ async function main() {
     logger.info(`${sig} received, shutting down`);
     stopCommsWorker();
     stopReminders();
+    stopEmailWorker();
     stopMaintenance();
     server.close(() => pool.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10_000).unref();

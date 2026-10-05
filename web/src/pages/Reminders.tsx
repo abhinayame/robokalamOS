@@ -21,6 +21,7 @@ export default function Reminders() {
     <>
       <PageHead title="Automatic reminders" sub="Tell parents about fees and classes without anyone remembering to. Each reminder is sent once, only in your sending hours, through the same WhatsApp pipeline as campaigns."
         actions={manage ? <button className="btn primary" onClick={() => setEdit({})}>＋ New reminder</button> : undefined} />
+      {meta.data && !meta.data.email_configured && <div className="card card-pad" style={{ marginBottom: 12, borderColor: 'var(--warn)' }}><b>E-mail is not connected.</b> E-mail reminders can be prepared, but nothing is sent until an admin sets the SMTP details on the server.</div>}
       {meta.data && !meta.data.whatsapp_configured && <div className="card card-pad" style={{ marginBottom: 12, borderColor: 'var(--warn)' }}><b>WhatsApp is not connected.</b> Rules can be prepared, but nothing is sent until an admin sets the AiSensy details on the server.</div>}
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'rules', label: 'Rules' }, { id: 'log', label: 'What was sent' }]} />
       {tab === 'rules' && (
@@ -29,7 +30,7 @@ export default function Reminders() {
             <div className="card card-pad" key={r.id}>
               <div className="row between wrap">
                 <div><b style={{ fontSize: 16 }}>{r.name}</b> {r.enabled ? <Badge tone="ok">On</Badge> : <Badge>Off</Badge>}<br />
-                  <span className="muted small">{kinds.find((k) => k.kind === r.kind)?.label} · {when(r)} · template “{r.template_name}” · to {r.audience} · {hourLabel(r.send_from_hour)}–{hourLabel(r.send_to_hour)}</span></div>
+                  <span className="muted small">{kinds.find((k) => k.kind === r.kind)?.label} · {when(r)} · {r.channel === 'email' ? `e-mail “${r.email_subject}”` : `WhatsApp template “${r.template_name}”`} · to {r.audience} · {hourLabel(r.send_from_hour)}–{hourLabel(r.send_to_hour)}</span></div>
                 <div className="row wrap gap-s">
                   <span className="small muted">{fmtNum(r.sent_7d)} sent in 7 days · {fmtNum(r.sent_total)} total{r.skipped_total ? ` · ${fmtNum(r.skipped_total)} skipped` : ''}</span>
                   {manage && <>
@@ -47,7 +48,7 @@ export default function Reminders() {
         <Modal title={prev.kind === 'run' ? `Ran “${prev.rule.name}”` : `Preview · ${prev.rule.name}`} onClose={() => setPrev(null)} footer={<button className="btn primary" onClick={() => setPrev(null)}>Close</button>}>
           <div className="stack">
             {prev.r.skipped_reason && <p className="err"><b>Nothing was sent:</b> {prev.r.skipped_reason}.</p>}
-            <div className="summary-grid"><div><b>{fmtNum(prev.r.candidates)}</b><span>Matching now</span></div><div><b>{fmtNum(prev.r.fresh)}</b><span>Not reminded before</span></div><div className="hl"><b>{fmtNum(prev.r.queued)}</b><span>{prev.kind === 'run' ? 'Queued to send' : 'Would be sent'}</span></div><div><b>{fmtNum(prev.r.skipped.no_phone + prev.r.skipped.opted_out)}</b><span>Skipped (no number / opted out)</span></div></div>
+            <div className="summary-grid"><div><b>{fmtNum(prev.r.candidates)}</b><span>Matching now</span></div><div><b>{fmtNum(prev.r.fresh)}</b><span>Not reminded before</span></div><div className="hl"><b>{fmtNum(prev.r.queued)}</b><span>{prev.kind === 'run' ? 'Queued to send' : 'Would be sent'}</span></div><div><b>{fmtNum(prev.r.skipped.no_phone + prev.r.skipped.opted_out)}</b><span>Skipped (no number or address / opted out)</span></div></div>
             {prev.kind === 'preview' && !prev.r.window_open && <p className="muted small">Outside this rule’s sending hours right now, so the scheduler would wait. “Run now” ignores the hours.</p>}
             {prev.r.sample.length > 0 && <div><b className="small">Examples</b>{prev.r.sample.map((s: any, i: number) => <div key={i} className="small" style={{ marginTop: 4 }}><b>{s.learner}</b> ({s.phone}): {s.params.join(' · ')}</div>)}</div>}
             {prev.kind === 'run' && prev.r.campaigns > 0 && <p className="small">Created {prev.r.campaigns} campaign(s); see them under <Link to="/communication">Communication</Link>.</p>}
@@ -78,17 +79,18 @@ function Log({ rules }: { rules: any[] }) {
 function RuleModal({ rule, meta, onClose, onDone }: { rule: any; meta: any; onClose: () => void; onDone: () => void }) {
   const isNew = !rule.id;
   const templates = useFetch(() => api.get('/api/whatsapp/templates').then((r) => (r.data as any[]).filter((t) => t.status === 'active')), []);
-  const [f, setF] = useState<any>({ name: rule.name ?? '', kind: rule.kind ?? 'fee_due', template_id: rule.template_id ?? '', audience: rule.audience ?? 'parents', variables: rule.variables ?? [], offset_value: rule.offset_value ?? 3, repeat_days: rule.repeat_days ?? '', max_sends: rule.max_sends ?? 1, send_from_hour: rule.send_from_hour ?? 9, send_to_hour: rule.send_to_hour ?? 20 });
+  const [f, setF] = useState<any>({ name: rule.name ?? '', kind: rule.kind ?? 'fee_due', channel: rule.channel ?? 'whatsapp', email_subject: rule.email_subject ?? '', email_body: rule.email_body ?? '', template_id: rule.template_id ?? '', audience: rule.audience ?? 'parents', variables: rule.variables ?? [], offset_value: rule.offset_value ?? 3, repeat_days: rule.repeat_days ?? '', max_sends: rule.max_sends ?? 1, send_from_hour: rule.send_from_hour ?? 9, send_to_hour: rule.send_to_hour ?? 20 });
   const [err, setErr] = useState<string | null>(null);
   const { busy, run } = useAction();
   const kind = meta.kinds.find((k: any) => k.kind === f.kind);
   const tpl = (templates.data ?? []).find((t: any) => t.id === f.template_id);
   const names: string[] = tpl?.variable_names ?? [];
   const vars = names.map((_, i) => f.variables[i] ?? '');
-  const valid = f.name.trim().length >= 2 && f.template_id && vars.every((v: string) => v.trim());
+  const email = f.channel === 'email';
+  const valid = f.name.trim().length >= 2 && (email ? f.email_subject.trim() && f.email_body.trim() : f.template_id && vars.every((v: string) => v.trim()));
   const save = () => run(async () => {
     setErr(null);
-    const body = { name: f.name, kind: f.kind, template_id: f.template_id, audience: f.audience, variables: vars, offset_value: Number(f.offset_value), repeat_days: f.kind === 'fee_overdue' && f.repeat_days ? Number(f.repeat_days) : null, max_sends: f.kind === 'fee_overdue' ? Number(f.max_sends) : 1, send_from_hour: Number(f.send_from_hour), send_to_hour: Number(f.send_to_hour) };
+    const body = { name: f.name, kind: f.kind, channel: f.channel, template_id: email ? null : f.template_id, email_subject: email ? f.email_subject : null, email_body: email ? f.email_body : null, audience: f.audience, variables: email ? [] : vars, offset_value: Number(f.offset_value), repeat_days: f.kind === 'fee_overdue' && f.repeat_days ? Number(f.repeat_days) : null, max_sends: f.kind === 'fee_overdue' ? Number(f.max_sends) : 1, send_from_hour: Number(f.send_from_hour), send_to_hour: Number(f.send_to_hour) };
     try { if (isNew) await api.post('/api/reminders/rules', body); else await api.patch(`/api/reminders/rules/${rule.id}`, body); onDone(); onClose(); }
     catch (e: any) { setErr(e?.message ?? 'Could not save.'); throw e; }
   });
@@ -104,8 +106,15 @@ function RuleModal({ rule, meta, onClose, onDone }: { rule: any; meta: any; onCl
         <p className="muted small" style={{ margin: 0 }}>{kind?.description}</p>
         {f.kind === 'fee_overdue' && <div className="row wrap"><Field label="Repeat every (days, optional)"><input className="input" style={{ width: 90 }} inputMode="numeric" value={f.repeat_days} onChange={(e) => setF({ ...f, repeat_days: e.target.value.replace(/\D/g, '') })} /></Field><Field label="At most (times)"><input className="input" style={{ width: 90 }} inputMode="numeric" value={f.max_sends} onChange={(e) => setF({ ...f, max_sends: e.target.value.replace(/\D/g, '') || '1' })} /></Field></div>}
         <div className="row wrap"><Field label="Send only from"><select className="select" value={f.send_from_hour} onChange={(e) => setF({ ...f, send_from_hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h} value={h}>{hourLabel(h)}</option>)}</select></Field><Field label="until"><select className="select" value={f.send_to_hour} onChange={(e) => setF({ ...f, send_to_hour: Number(e.target.value) })}>{Array.from({ length: 24 }, (_, h) => <option key={h + 1} value={h + 1}>{hourLabel(h + 1)}</option>)}</select></Field></div>
-        <Field label="WhatsApp template"><select className="select" value={f.template_id} onChange={(e) => setF({ ...f, template_id: e.target.value, variables: [] })}><option value="">Choose…</option>{(templates.data ?? []).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>
-        {tpl && (
+        <Field label="Send by"><select className="select" value={f.channel} onChange={(e) => setF({ ...f, channel: e.target.value, variables: [] })}><option value="whatsapp">WhatsApp</option><option value="email">E-mail</option></select></Field>
+        {email && (
+          <div className="stack-s">
+            <Field label="E-mail subject"><input className="input" value={f.email_subject} onChange={(e) => setF({ ...f, email_subject: e.target.value })} placeholder="Fee due on {due_date}" /></Field>
+            <Field label="Message" hint="Leave a blank line between paragraphs."><textarea className="input" rows={6} value={f.email_body} onChange={(e) => setF({ ...f, email_body: e.target.value })} placeholder={'Hi {parent_name},\n\n{learner_first_name}\'s fee of {amount} is due on {due_date}.'} /></Field>
+            <div className="small muted">Placeholders you can use: {kind.tokens.map((t: string) => <code key={t} style={{ marginRight: 6 }}>{`{${t}}`}</code>)}. Everyone can unsubscribe from reminder e-mails with one click; people with no e-mail address are skipped and shown in the log.</div>
+          </div>)}
+        {!email && <Field label="WhatsApp template"><select className="select" value={f.template_id} onChange={(e) => setF({ ...f, template_id: e.target.value, variables: [] })}><option value="">Choose…</option>{(templates.data ?? []).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select></Field>}
+        {!email && tpl && (
           <div className="stack-s">
             <b className="small">What each template value says</b>
             {names.map((n, i) => <Field key={i} label={`{{${i + 1}}} · ${n}`}><input className="input" value={vars[i]} onChange={(e) => setF({ ...f, variables: vars.map((v: string, j: number) => (j === i ? e.target.value : v)) })} placeholder="e.g. {parent_name}" /></Field>)}

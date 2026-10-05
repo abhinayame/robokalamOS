@@ -11,6 +11,9 @@ import { verifyAccess,
 } from '../../lib/security.js';
 import { ACCESS_COOKIE, authenticate } from '../../middleware/auth.js';
 import { limit } from '../../middleware/limits.js';
+import { appUrl } from '../../lib/appurl.js';
+import { isConfigured as emailConfigured } from '../email/provider.js';
+import { queueMessage } from '../email/outbox.js';
 import { CSRF_COOKIE } from '../../middleware/csrf.js';
 
 const REFRESH_COOKIE = 'rk_rt';
@@ -160,6 +163,58 @@ router.post('/change-password', authenticate, limit('password change', 10), wrap
   await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE user_id = $1 AND id <> $2 AND revoked_at IS NULL`, [req.user!.id, req.user!.sessionId]);
   await audit({ orgId: req.user!.userOrgId, actor: req.user, action: 'auth.password_changed', entityType: 'user', entityId: req.user!.id, req });
   ok(res, { changed: true });
+}));
+
+// ---- Password reset by e-mail (only when e-mail is configured) ----
+const RESET_MINUTES = 30;
+router.get('/capabilities', (_req, res) => { ok(res, { password_reset: emailConfigured() }); });
+
+router.post('/forgot-password', limit('password reset', 5), wrap(async (req, res) => {
+  const body = parse(z.object({ email: z.string().trim().toLowerCase().email() }), req.body);
+  // The answer is always the same, so nobody can use this to find out who has an account.
+  const reply = () => ok(res, { sent: true });
+  if (!emailConfigured()) return reply();
+  const u = await queryOne(
+    `SELECT u.id, u.org_id, u.email, u.full_name, u.status, o.name AS org_name, o.brand_app_name, o.brand_color
+       FROM users u LEFT JOIN organizations o ON o.id = u.org_id WHERE lower(u.email) = $1 AND u.deleted_at IS NULL`, [body.email]);
+  if (!u || u.status !== 'active') return reply();
+  const recent = await queryOne(`SELECT COUNT(*) AS n FROM password_resets WHERE user_id = $1 AND created_at > DATE_SUB(NOW(3), INTERVAL 1 HOUR)`, [u.id]);
+  if (Number(recent?.n ?? 0) >= 3) return reply();
+  const token = randomToken(32);
+  await exec(`UPDATE password_resets SET used_at = NOW(3) WHERE user_id = $1 AND used_at IS NULL`, [u.id]);
+  await exec(`INSERT INTO password_resets (id, user_id, token_hash, expires_at, requested_ip) VALUES ($1,$2,$3, DATE_ADD(NOW(3), INTERVAL ${RESET_MINUTES} MINUTE), $4)`, [newId(), u.id, sha256(token), req.ip ?? null]);
+  await queueMessage({ orgId: u.org_id, orgName: u.brand_app_name || u.org_name || 'Learner OS', color: u.brand_color ?? undefined, to: u.email, toName: u.full_name,
+    subject: 'Reset your password', paragraphs: [`Hi ${u.full_name}, we got a request to reset your password.`, `This link works once and expires in ${RESET_MINUTES} minutes. If you did not ask for it, you can ignore this e-mail; your password stays the same.`],
+    button: { label: 'Choose a new password', url: `${appUrl()}/reset-password?token=${token}` }, category: 'transactional' });
+  await audit({ orgId: u.org_id, action: 'auth.password_reset_requested', entityType: 'user', entityId: u.id, req });
+  reply();
+}));
+
+const resetRow = (token: string) => queryOne(
+  `SELECT id, user_id FROM password_resets WHERE token_hash = $1 AND used_at IS NULL AND expires_at > NOW(3)`, [sha256(token)]);
+
+router.get('/reset-password/check', limit('password reset', 20), wrap(async (req, res) => {
+  const t = typeof req.query.token === 'string' ? req.query.token : '';
+  ok(res, { valid: t.length >= 20 && t.length <= 200 && !!(await resetRow(t)) });
+}));
+
+router.post('/reset-password', limit('password reset', 10), wrap(async (req, res) => {
+  const body = parse(z.object({ token: z.string().min(20).max(200), new_password: z.string() }), req.body);
+  const problem = passwordProblem(body.new_password);
+  if (problem) throw badRequest(problem);
+  const r = await resetRow(body.token);
+  if (!r) throw new AppError(400, 'RESET_INVALID', 'This link has expired or was already used. Ask for a new one.');
+  // Claim the token first, so two clicks cannot both succeed.
+  const claim = await exec(`UPDATE password_resets SET used_at = NOW(3) WHERE id = $1 AND used_at IS NULL`, [r.id]);
+  if (!claim.affectedRows) throw new AppError(400, 'RESET_INVALID', 'This link has expired or was already used. Ask for a new one.');
+  await exec(`UPDATE users SET password_hash = $2, must_change_password = FALSE, failed_login_count = 0, locked_until = NULL WHERE id = $1`, [r.user_id, await hashPassword(body.new_password)]);
+  await exec(`UPDATE auth_sessions SET revoked_at = NOW(3) WHERE user_id = $1 AND revoked_at IS NULL`, [r.user_id]);
+  await exec(`UPDATE password_resets SET used_at = COALESCE(used_at, NOW(3)) WHERE user_id = $1`, [r.user_id]);
+  const u = await queryOne(`SELECT u.org_id, u.email, u.full_name, o.name AS org_name, o.brand_app_name, o.brand_color FROM users u LEFT JOIN organizations o ON o.id = u.org_id WHERE u.id = $1`, [r.user_id]);
+  await audit({ orgId: u?.org_id ?? null, action: 'auth.password_reset_done', entityType: 'user', entityId: r.user_id, req });
+  if (u) await queueMessage({ orgId: u.org_id, orgName: u.brand_app_name || u.org_name || 'Learner OS', color: u.brand_color ?? undefined, to: u.email, toName: u.full_name, subject: 'Your password was changed',
+    paragraphs: ['Your password was just changed and you were signed out on all devices.', 'If this was not you, contact your school right away.'], category: 'transactional' });
+  ok(res, { reset: true });
 }));
 
 export default router;
