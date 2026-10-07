@@ -53,6 +53,10 @@ The only unauthenticated additions are three read-only endpoints under `/api/pub
 * Admission is atomic and idempotent; fee and payment steps need their own permissions.
 * Payroll needs `payroll:read`, rates need `payroll:manage`, branch admins see only their branches, and the CSV neutralises formula-like text.
 
+## Progress reports and portfolio (Phase 15)
+* A report and its PDF are visible only to staff in scope, the learner and their parents (404 otherwise); sending is confirmed, capped at 1000 learners, deduplicated per learner and month, and audited.
+* Portfolio items are hidden, with their pictures, from parents and classmates until a teacher approves them. Files are content-checked (pictures/PDF), served with nosniff and a sandbox CSP, and removed with their project. Video links must be https.
+
 ## Dependencies
 `npm audit --omit=dev` reports 0 vulnerabilities at the time of Phase 9. Re-run before each release.
 

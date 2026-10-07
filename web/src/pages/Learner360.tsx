@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { FeeLedger } from '../components/Fees';
+import { ReportView, monthBefore } from '../components/Progress';
+import { PortfolioGrid } from '../components/Portfolio';
 import { AdmitModal } from '../components/Admit';
 import { CertificateList } from './MyCertificates';
 import { Async, Avatar, Badge, Empty, Field, Modal, PageHead, Pager, StatusBadge, Tabs, fieldErrors, useAction, useFetch, useToast } from '../components/ui';
@@ -15,7 +17,7 @@ import { ScoreList } from './Grades';
 import { AssignmentList } from './MyAssignments';
 import { cap, fmtDate, fmtDateTime, fmtMobile, fmtSchedule } from '../format';
 
-type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'crm' | 'messages' | 'fees' | 'certificates' | 'timeline';
+type Tab = 'overview' | 'personal' | 'parents' | 'batches' | 'courses' | 'assignments' | 'performance' | 'achievements' | 'attendance' | 'analytics' | 'crm' | 'messages' | 'fees' | 'certificates' | 'report' | 'portfolio' | 'timeline';
 
 export default function Learner360() {
   const { id } = useParams();
@@ -23,6 +25,7 @@ export default function Learner360() {
   const toast = useToast();
   const { busy, run } = useAction();
   const [tab, setTab] = useState<Tab>('overview');
+  const [reportMonth, setReportMonth] = useState(monthBefore());
   const [modal, setModal] = useState<null | 'edit' | 'enroll' | 'parent' | 'transfer' | 'login' | 'admit'>(null);
   const q = useFetch(() => api.get(`/api/learners/${id}`).then((r) => r.data), [id]);
   const staff = can('learner:read');
@@ -58,7 +61,7 @@ export default function Learner360() {
           {l.tags && <div className="card card-pad"><TagEditor learnerId={l.id} tags={l.tags} onChange={q.reload} /></div>}
           <Tabs value={tab} onChange={setTab} tabs={[
             { id: 'overview', label: 'Overview' }, { id: 'personal', label: 'Personal information' }, { id: 'parents', label: 'Parents', badge: l.parents.length },
-            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('fee:read') ? [{ id: 'fees' as Tab, label: 'Fees' }] : []), ...(can('cert:read') ? [{ id: 'certificates' as Tab, label: 'Certificates' }] : []), ...(can('crm:read') ? [{ id: 'crm' as Tab, label: 'CRM' }] : []), ...(can('comms:read') ? [{ id: 'messages' as Tab, label: 'Messages' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
+            { id: 'batches', label: 'Batches', badge: l.stats.total_batches }, { id: 'courses', label: 'Courses', badge: courses.length }, ...(can('classroom:read') ? [{ id: 'assignments' as Tab, label: 'Assignments' }, { id: 'performance' as Tab, label: 'Performance' }] : []), ...(can('gamification:read') ? [{ id: 'achievements' as Tab, label: 'Achievements' }] : []), ...(can('fee:read') ? [{ id: 'fees' as Tab, label: 'Fees' }] : []), ...(can('classroom:read') ? [{ id: 'report' as Tab, label: 'Progress report' }, { id: 'portfolio' as Tab, label: 'Portfolio' }] : []), ...(can('cert:read') ? [{ id: 'certificates' as Tab, label: 'Certificates' }] : []), ...(can('crm:read') ? [{ id: 'crm' as Tab, label: 'CRM' }] : []), ...(can('comms:read') ? [{ id: 'messages' as Tab, label: 'Messages' }] : []), ...(can('attendance:read') ? [{ id: 'attendance' as Tab, label: 'Attendance' }, { id: 'analytics' as Tab, label: 'Analytics' }] : []), { id: 'timeline', label: 'Activity timeline' },
           ]} />
 
           {tab === 'overview' && (
@@ -99,6 +102,8 @@ export default function Learner360() {
           {tab === 'messages' && <LearnerMessages learnerId={l.id} />}
           {tab === 'crm' && <LearnerCrm learnerId={l.id} />}
           {tab === 'fees' && <FeeLedger learnerId={l.id} learnerName={l.full_name} staff={{ record: can('payment:record'), manage: can('fee:manage'), refund: can('payment:refund') }} />}
+          {tab === 'report' && <div className="stack"><Field label="Month"><input className="input" type="month" value={reportMonth} onChange={(e) => e.target.value && setReportMonth(e.target.value)} /></Field><ReportView learnerId={l.id} month={reportMonth} /></div>}
+          {tab === 'portfolio' && <PortfolioGrid learnerId={l.id} />}
           {tab === 'certificates' && <LearnerCertificates learnerId={l.id} />}
           {tab === 'attendance' && <AttendanceSummary learnerId={l.id} />}
           {tab === 'analytics' && <LearnerAnalytics learnerId={l.id} />}
