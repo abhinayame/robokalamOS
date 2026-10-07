@@ -48,6 +48,8 @@ import importRoutes from './modules/import/routes.js';
 import liveRoutes from './modules/live/routes.js';
 import admissionRoutes from './modules/admissions/routes.js';
 import demoRoutes, { publicDemo } from './modules/demo/routes.js';
+import progressRoutes from './modules/progress/routes.js';
+import portfolioRoutes from './modules/portfolio/routes.js';
 import payrollRoutes from './modules/payroll/routes.js';
 import emailRoutes, { publicEmail } from './modules/email/routes.js';
 import calendarRoutes, { publicCalendar } from './modules/calendar/routes.js';
@@ -142,6 +144,8 @@ export function createApp() {
   app.use('/api/admissions', admissionRoutes);
   app.use('/api/demo', demoRoutes);
   app.use('/api/payroll', payrollRoutes);
+  app.use('/api/progress', progressRoutes);
+  app.use('/api/portfolio', portfolioRoutes);
   app.use('/api/email', emailRoutes);
   app.use('/api/calendar', calendarRoutes);
   app.use('/api/certificates', certificateRoutes);

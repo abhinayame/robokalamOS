@@ -1,6 +1,7 @@
 import express, { Router, type Request } from 'express';
 import { env } from '../../config/env.js';
-import { exec, newId, queryOne } from '../../db/pool.js';
+import { Params, exec, newId, queryOne } from '../../db/pool.js';
+import { learnerScope } from '../../lib/scope.js';
 import { audit } from '../../lib/audit.js';
 import { badRequest, notFound } from '../../lib/errors.js';
 import { ok, parse, uuid, wrap } from '../../lib/http.js';
@@ -39,6 +40,14 @@ router.get('/allowed', requireAnyPerm('classroom:read', 'classroom:manage', 'cla
 async function canRead(req: Request, f: { uploader_user_id: string; owner_type: string | null; owner_id: string | null }): Promise<boolean> {
   if (f.uploader_user_id === req.user!.id) return true;
   if (!f.owner_type || !f.owner_id) return false;
+  if (f.owner_type === 'portfolio') {
+    // visible to anyone who may see the learner, but a pending or rejected item only to the learner and reviewers
+    const it = await queryOne(`SELECT learner_id, status FROM portfolio_items WHERE id = $1 AND deleted_at IS NULL`, [f.owner_id]);
+    if (!it) return false;
+    const p = new Params(); const sc = learnerScope(req.user!, p, 'l');
+    if (!(await queryOne(`SELECT 1 FROM learners l WHERE l.id = ${p.add(it.learner_id)} AND l.org_id = ${p.add(orgIdOf(req))} ${sc ? `AND ${sc}` : ''}`, p.values))) return false;
+    return it.status === 'published' || req.user!.isSuperAdmin || req.user!.permissions.has('portfolio:review') || (req.user!.roles.includes('learner') && req.user!.access.ownLearnerIds.includes(it.learner_id));
+  }
   let ctx: { batch_id: string; learner_id?: string } | null = null;
   if (f.owner_type === 'material') ctx = await queryOne(`SELECT batch_id FROM materials WHERE id = $1 AND deleted_at IS NULL`, [f.owner_id]);
   else if (f.owner_type === 'assignment') ctx = await queryOne(`SELECT batch_id FROM assignments WHERE id = $1 AND deleted_at IS NULL`, [f.owner_id]);
