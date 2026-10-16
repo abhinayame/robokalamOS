@@ -66,14 +66,15 @@ export function cardSvg(c: Card): string {
   const W = 1080, H = c.format === 'story' ? 1920 : 1080; const story = c.format === 'story';
   const bgA = c.color, bgB = '#0b1730';
   const top = 70; const logo = c.logoDataUri ? `<image href="${c.logoDataUri}" x="64" y="${top}" width="96" height="96" preserveAspectRatio="xMidYMid meet"/>` : `<rect x="64" y="${top}" width="96" height="96" rx="24" fill="${c.accent}"/><text x="112" y="${top + 70}" text-anchor="middle" font-size="64" font-weight="700" fill="#0b1730">${esc(c.orgName.charAt(0).toUpperCase())}</text>`;
-  const badgeSize = c.pictureDataUri ? 0 : story ? 520 : 360; const badgeY = story ? 640 : 420;
+  const dense = !story && !!(c.stat || c.bar); const step = dense ? 62 : 76;
+  const badgeSize = c.pictureDataUri ? 0 : story ? 520 : dense ? 220 : 340; const badgeY = story ? 640 : dense ? 372 : 430;
   const picture = c.pictureDataUri ? `<g filter="url(#shadowP)"><clipPath id="clipP"><rect x="90" y="${story ? 300 : 210}" width="900" height="${story ? 700 : 520}" rx="40"/></clipPath><rect x="84" y="${(story ? 300 : 210) - 6}" width="912" height="${(story ? 700 : 520) + 12}" rx="46" fill="${c.accent}"/><image href="${c.pictureDataUri}" x="90" y="${story ? 300 : 210}" width="900" height="${story ? 700 : 520}" preserveAspectRatio="xMidYMid slice" clip-path="url(#clipP)"/></g>` : '';
-  const textY = c.pictureDataUri ? (story ? 1090 : 790) : story ? 1120 : 790;
+  const textY = c.pictureDataUri ? (story ? 1090 : 790) : story ? 1120 : dense ? 565 : 790;
   const titleLines = wrap(c.title, story ? 20 : 26, 3); const headLines = wrap(c.headline, 28, 2);
-  const stat = c.stat ? `<text x="540" y="${textY + 60 + titleLines.length * 76}" text-anchor="middle" font-size="${story ? 150 : 110}" font-weight="700" fill="${c.accent}">${esc(c.stat.big)}</text><text x="540" y="${textY + 100 + titleLines.length * 76 + (story ? 60 : 30)}" text-anchor="middle" font-size="34" fill="#cfd9e8">${esc(c.stat.small)}</text>` : '';
-  const barY = textY + 130 + titleLines.length * 76 + (story ? 190 : 120);
-  const bar = c.bar ? `<rect x="190" y="${barY}" width="700" height="26" rx="13" fill="rgba(255,255,255,.16)"/><rect x="190" y="${barY}" width="${Math.max(26, 700 * c.bar.pct / 100)}" height="26" rx="13" fill="${c.accent}"/><text x="540" y="${barY + 70}" text-anchor="middle" font-size="30" fill="#cfd9e8">${esc(c.bar.label)}</text>` : '';
-  const footY = H - 250;
+  const stat = c.stat ? `<text x="540" y="${textY + (dense ? 0 : 60) + titleLines.length * step + (dense ? 60 : 0)}" text-anchor="middle" font-size="${story ? 150 : dense ? 88 : 110}" font-weight="700" fill="${c.accent}">${esc(c.stat.big)}</text><text x="540" y="${textY + titleLines.length * step + (dense ? 108 : 130 + (story ? 30 : 0))}" text-anchor="middle" font-size="${dense ? 30 : 34}" fill="#cfd9e8">${esc(c.stat.small)}</text>` : '';
+  const barY = textY + titleLines.length * step + (dense ? 144 : story ? 320 : 250);
+  const bar = c.bar ? `<rect x="190" y="${barY}" width="700" height="26" rx="13" fill="rgba(255,255,255,.16)"/><rect x="190" y="${barY}" width="${Math.max(26, 700 * c.bar.pct / 100)}" height="26" rx="13" fill="${c.accent}"/><text x="540" y="${barY + (dense ? 58 : 70)}" text-anchor="middle" font-size="30" fill="#cfd9e8">${esc(c.bar.label)}</text>` : '';
+  const footY = story ? H - 250 : H - 235;
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" font-family="DejaVu Sans">
 <defs><linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${bgA}"/><stop offset=".6" stop-color="${bgB}"/><stop offset="1" stop-color="#050b1a"/></linearGradient>
 <radialGradient id="glow" cx=".5" cy=".5" r=".5"><stop offset="0" stop-color="${c.accent}" stop-opacity=".55"/><stop offset="1" stop-color="${c.accent}" stop-opacity="0"/></radialGradient>
@@ -82,10 +83,10 @@ export function cardSvg(c: Card): string {
 <circle cx="900" cy="170" r="420" fill="url(#glow)" opacity=".5"/><circle cx="120" cy="${H - 300}" r="360" fill="url(#glow)" opacity=".28"/>
 ${Array.from({ length: 14 }, (_, i) => `<circle cx="${(i * 197 + 80) % 1000 + 40}" cy="${(i * 311 + 120) % (H - 400) + 120}" r="${4 + (i % 4) * 3}" fill="#fff" opacity="${0.12 + (i % 3) * 0.08}"/>`).join('')}
 ${logo}<text x="180" y="${top + 42}" font-size="40" font-weight="700" fill="#fff">${esc(c.orgName)}</text><text x="180" y="${top + 82}" font-size="28" fill="#f5a524" letter-spacing="3">${esc(c.who.toUpperCase())}</text>
-<text x="540" y="${story ? 230 : 190}" text-anchor="middle" font-size="${story ? 64 : 54}" font-weight="700" fill="#fff">${tspans(headLines, 540, story ? 76 : 64)}</text>
+<text x="540" y="${story ? 250 : 240}" text-anchor="middle" font-size="${story ? 64 : 54}" font-weight="700" fill="#fff">${tspans(headLines, 540, story ? 76 : 64)}</text>
 ${picture}${badgeSize ? badge3d('b', 540, badgeY, badgeSize, c.badgeKey, c.glyph, c.badgeLabel) : ''}
-<text x="540" y="${textY}" text-anchor="middle" font-size="${story ? 68 : 60}" font-weight="700" fill="#fff">${tspans(titleLines, 540, 76)}</text>
-${c.sub ? `<text x="540" y="${textY + 20 + titleLines.length * 76}" text-anchor="middle" font-size="34" fill="#cfd9e8">${esc(c.sub)}</text>` : ''}${stat}${bar}
+<text x="540" y="${textY}" text-anchor="middle" font-size="${story ? 68 : dense ? 52 : 60}" font-weight="700" fill="#fff">${tspans(titleLines, 540, step)}</text>
+${c.sub ? `<text x="540" y="${textY + 20 + titleLines.length * step}" text-anchor="middle" font-size="34" fill="#cfd9e8">${esc(c.sub)}</text>` : ''}${stat}${bar}
 <rect x="48" y="${footY}" width="984" height="190" rx="36" fill="rgba(255,255,255,.1)" stroke="rgba(255,255,255,.2)"/>
 <rect x="76" y="${footY + 24}" width="142" height="142" rx="18" fill="#fff"/><image href="${c.qrDataUri}" x="84" y="${footY + 32}" width="126" height="126"/>
 <text x="250" y="${footY + 84}" font-size="44" font-weight="700" fill="#fff">${esc(c.cta)}</text><text x="250" y="${footY + 132}" font-size="30" fill="#cfd9e8">${esc(c.ctaSmall)}</text>

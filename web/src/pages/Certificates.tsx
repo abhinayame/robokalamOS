@@ -6,24 +6,30 @@ import { BatchSelector, type AudienceSummary } from '../components/BatchSelector
 import { Async, Badge, Empty, Field, Modal, PageHead, Pager, Tabs, useAction, useDebounced, useFetch, useToast } from '../components/ui';
 import { fmtDate, fmtNum } from '../format';
 
+const TEMPLATES: { id: string; name: string; note: string; swatch: string }[] = [
+  { id: 'classic', name: 'Classic', note: 'Gold frame, formal', swatch: 'linear-gradient(135deg,#fff7dc,#d9a441)' }, { id: 'modern', name: 'Modern', note: 'Clean bar, bold name', swatch: 'linear-gradient(135deg,#e8f0ff,#3b6fd4)' },
+  { id: 'playful', name: 'Playful', note: 'Bright, made for kids', swatch: 'linear-gradient(135deg,#ffe0ef,#7ff0e8)' }, { id: 'minimal', name: 'Minimal', note: 'White, thin lines', swatch: 'linear-gradient(135deg,#fff,#e6e9ee)' },
+  { id: 'midnight', name: 'Midnight', note: 'Dark, gold text', swatch: 'linear-gradient(135deg,#1a2540,#0b1226)' },
+];
 const TOKENS = ['name', 'course_name', 'batch_name', 'date', 'org_name'];
 
 export default function Certificates() {
   const { can } = useAuth(); const manage = can('cert:manage');
-  const [tab, setTab] = useState<'issued' | 'designs'>('issued');
+  const [tab, setTab] = useState<'issued' | 'designs' | 'auto'>('issued');
   const designs = useFetch(() => api.get('/api/certificates/designs').then((r) => r.data as any[]), []);
   const [edit, setEdit] = useState<any>(null); const [issue, setIssue] = useState<any>(null);
   return (
     <>
       <PageHead title="Certificates" sub="Design a certificate once, then give it to a whole batch. Each one gets a code and QR that anyone can check on the public verify page."
         actions={manage ? <button className="btn primary" onClick={() => setEdit({})}>＋ New design</button> : undefined} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'issued', label: 'Issued' }, { id: 'designs', label: 'Designs', badge: designs.data?.length }]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'issued', label: 'Issued' }, { id: 'designs', label: 'Designs', badge: designs.data?.length }, { id: 'auto', label: 'Automation' }]} />
       {tab === 'designs' && <Async q={designs}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="🎓" title="No designs yet" action={manage ? <button className="btn primary" onClick={() => setEdit({})}>Create the first design</button> : undefined}>Say what the certificate says, who signs it, then issue it to a batch.</Empty></div> : (
         <div className="stack">{list.map((d) => (
           <div className="card card-pad" key={d.id}><div className="row between wrap">
             <div><b style={{ fontSize: 16 }}>{d.name}</b> {d.status === 'archived' && <Badge>Archived</Badge>}<br /><span className="muted small">“{d.title_text}” · {fmtNum(d.issued)} issued{d.signatory_name ? ` · signed by ${d.signatory_name}` : ''}</span><p className="small" style={{ margin: '6px 0 0' }}>{d.body_text}</p></div>
             {manage && <div className="row gap-s"><button className="btn sm primary" disabled={d.status !== 'active'} onClick={() => setIssue(d)}>Issue to learners</button><button className="btn sm" onClick={() => setEdit(d)}>Edit</button></div>}
           </div></div>))}</div>)}</Async>}
+      {tab === 'auto' && <Automation designs={(designs.data ?? []).filter((d: any) => d.status === 'active')} manage={manage} />}
       {tab === 'issued' && <Issued manage={manage} />}
       {edit && <DesignModal design={edit} onClose={() => setEdit(null)} onDone={designs.reload} />}
       {issue && <IssueModal design={issue} onClose={() => setIssue(null)} onDone={designs.reload} />}
@@ -52,12 +58,17 @@ function Issued({ manage }: { manage: boolean }) {
 
 function DesignModal({ design, onClose, onDone }: { design: any; onClose: () => void; onDone: () => void }) {
   const isNew = !design.id; const { busy, run } = useAction(); const toast = useToast(); const [err, setErr] = useState('');
-  const [f, setF] = useState({ name: design.name ?? '', title_text: design.title_text ?? 'Certificate of Completion', body_text: design.body_text ?? 'has successfully completed {course_name} ({batch_name}) on {date}.', signatory_name: design.signatory_name ?? '', signatory_title: design.signatory_title ?? '', show_logo: design.show_logo === undefined ? true : !!design.show_logo, status: design.status ?? 'active' });
-  const body = { ...f, signatory_name: f.signatory_name || null, signatory_title: f.signatory_title || null };
+  const [f, setF] = useState({ name: design.name ?? '', title_text: design.title_text ?? 'Certificate of Completion', body_text: design.body_text ?? 'has successfully completed {course_name} ({batch_name}) on {date}.', signatory_name: design.signatory_name ?? '', signatory_title: design.signatory_title ?? '', show_logo: design.show_logo === undefined ? true : !!design.show_logo, template: design.template ?? 'classic', accent: design.accent ?? '', status: design.status ?? 'active' });
+  const body = { ...f, accent: f.accent || null, signatory_name: f.signatory_name || null, signatory_title: f.signatory_title || null };
   return (
     <Modal wide title={isNew ? 'New certificate design' : `Edit · ${design.name}`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || f.name.trim().length < 2 || f.body_text.trim().length < 5} onClick={() => run(async () => { setErr(''); try { if (isNew) await api.post('/api/certificates/designs', body); else await api.put(`/api/certificates/designs/${design.id}`, body); toast('Saved.'); onDone(); onClose(); } catch (e: any) { setErr(e?.message ?? 'Could not save.'); throw e; } })}>{busy ? 'Saving…' : 'Save'}</button></>}>
       <div className="stack">
         <Field label="Design name (for you)"><input className="input" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoFocus /></Field>
+        <Field label="Template" hint="You can change this later. Certificates already issued keep the look they were issued with."><div className="row wrap" style={{ gap: 10 }}>{TEMPLATES.map((t) => (
+          <button type="button" key={t.id} aria-pressed={f.template === t.id} onClick={() => setF({ ...f, template: t.id })} className="card" style={{ width: 118, padding: 8, textAlign: 'left', cursor: 'pointer', outline: f.template === t.id ? '2px solid var(--brand, #12263f)' : 'none' }}>
+            <div style={{ height: 54, borderRadius: 6, background: t.swatch, border: '1px solid rgba(0,0,0,.12)' }} /><b className="small">{t.name}</b><div className="muted" style={{ fontSize: 11 }}>{t.note}</div></button>))}</div></Field>
+        <div className="row wrap"><Field label="Accent color (optional)"><input type="color" value={f.accent || '#d9a441'} onChange={(e) => setF({ ...f, accent: e.target.value })} aria-label="Accent color" /></Field>{f.accent && <button type="button" className="btn ghost sm" onClick={() => setF({ ...f, accent: '' })}>Use the default</button>}
+          {!isNew && <button type="button" className="btn sm" onClick={() => api.getFile(`/api/certificates/designs/${design.id}/preview.pdf${qs({ template: f.template, accent: f.accent || undefined })}`, 'preview.pdf', true)}>Preview PDF</button>}</div>
         <Field label="Title on the certificate"><input className="input" value={f.title_text} onChange={(e) => setF({ ...f, title_text: e.target.value })} /></Field>
         <Field label="Wording" hint={`After “This is to certify that <name>”. You can use ${TOKENS.map((t) => `{${t}}`).join(' ')}.`}><textarea className="input" rows={3} value={f.body_text} onChange={(e) => setF({ ...f, body_text: e.target.value })} /></Field>
         <div className="row wrap"><Field label="Signed by"><input className="input" value={f.signatory_name} onChange={(e) => setF({ ...f, signatory_name: e.target.value })} /></Field><Field label="Their title"><input className="input" value={f.signatory_title} onChange={(e) => setF({ ...f, signatory_title: e.target.value })} /></Field></div>
@@ -89,5 +100,18 @@ function IssueModal({ design, onClose, onDone }: { design: any; onClose: () => v
         <p className="muted small" style={{ margin: 0 }}>A learner in several selected batches gets one. Nothing is issued until you confirm.</p>
       </div>
     </Modal>
+  );
+}
+
+function Automation({ designs, manage }: { designs: any[]; manage: boolean }) {
+  const q = useFetch(() => api.get('/api/certificates/automation').then((r) => r.data as any[]), []); const { busy, run } = useAction();
+  return (
+    <div className="card"><div className="card-pad muted small">Choose a design for a batch. When the batch is marked <b>Completed</b>, every active learner in it gets that certificate automatically, once, with their own code and QR. Nothing is sent twice.</div>
+      <Async q={q}>{(rows: any[]) => !rows.length ? <Empty icon="🤖" title="No batches yet" /> : (
+        <div className="table-wrap"><table className="t"><thead><tr><th>Batch</th><th>Status</th><th>Learners</th><th>Certificate when completed</th></tr></thead><tbody>
+          {rows.map((b) => <tr key={b.id}><td>{b.name}</td><td><Badge>{b.status}</Badge></td><td>{fmtNum(b.learners)}</td>
+            <td>{manage ? <select className="select" aria-label={`Certificate design for ${b.name}`} disabled={busy} value={b.design_id ?? ''} onChange={(e) => run(async () => { await api.put(`/api/certificates/automation/${b.id}`, { design_id: e.target.value || null }); q.reload(); }, 'Saved.')}>
+              <option value="">None (issue by hand)</option>{designs.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select> : (designs.find((d) => d.id === b.design_id)?.name ?? 'None')}
+              {b.issued_at && <div className="muted small">Issued {fmtDate(b.issued_at)}</div>}</td></tr>)}</tbody></table></div>)}</Async></div>
   );
 }

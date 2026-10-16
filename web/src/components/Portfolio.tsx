@@ -1,3 +1,4 @@
+import { ShareModal } from './ShareModal';
 import { useRef, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -11,7 +12,7 @@ const LABEL: Record<string, string> = { pending: 'Waiting for a teacher', publis
 export function PortfolioGrid({ learnerId, canAdd, learners }: { learnerId: string; canAdd?: boolean; learners?: never }) {
   void learners; const { can, hasRole } = useAuth(); const toast = useToast(); const { busy, run } = useAction();
   const q = useFetch(() => api.get(`/api/portfolio/learners/${learnerId}`).then((r) => r.data as any[]), [learnerId]);
-  const [add, setAdd] = useState(false); const reviewer = can('portfolio:review'); const mine = hasRole('learner');
+  const [add, setAdd] = useState(false); const [share, setShare] = useState<any>(null); const reviewer = can('portfolio:review'); const mine = hasRole('learner');
   return (
     <div className="stack">
       {(canAdd ?? (mine || reviewer)) && <div><button className="btn primary" onClick={() => setAdd(true)}>＋ Add a project</button></div>}
@@ -28,11 +29,13 @@ export function PortfolioGrid({ learnerId, canAdd, learners }: { learnerId: stri
               {it.status === 'rejected' && it.reject_reason && <p className="err small" style={{ margin: 0 }}>{it.reject_reason}</p>}
               {it.feedback && <p className="small" style={{ margin: 0, padding: 8, background: 'var(--bg-soft, #f3f6fa)', borderRadius: 8 }}><b>{it.feedback_by_name ?? 'Teacher'}:</b> {it.feedback}</p>}
               <div className="row gap-s wrap">
+                {it.status === 'published' && !reviewer && <button className="btn sm" onClick={() => setShare(it)}>📤 Share</button>}
                 {reviewer && <button className="btn sm" disabled={busy} onClick={() => { const f = prompt('Your comment for the learner', it.feedback ?? ''); if (f !== null) run(async () => { await api.put(`/api/portfolio/${it.id}/feedback`, { feedback: f }); q.reload(); }, 'Comment saved.'); }}>Comment</button>}
                 {(reviewer || (mine && true)) && <button className="btn sm" disabled={busy} onClick={() => { if (confirm(`Remove “${it.title}”?`)) run(async () => { await api.del(`/api/portfolio/${it.id}`); q.reload(); }, 'Project removed.'); }}>Remove</button>}
               </div>
             </div>
           </div>))}</div>)}</Async>
+      {share && <ShareModal kind="project" id={share.id} title={share.title} onClose={() => setShare(null)} />}
       {add && <AddModal learnerId={learnerId} onClose={() => setAdd(false)} onDone={() => { q.reload(); toast(reviewer ? 'Project published.' : 'Sent to your teacher for a quick check.'); }} />}
     </div>
   );

@@ -72,7 +72,7 @@ export function createApp() {
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: true,
-      directives: { 'img-src': ["'self'", 'data:', 'https:'], 'connect-src': ["'self'"] },
+      directives: { 'img-src': ["'self'", 'data:', 'blob:', 'https:'], 'connect-src': ["'self'"] },
     },
     crossOriginEmbedderPolicy: false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
