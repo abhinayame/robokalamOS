@@ -62,3 +62,8 @@ The only unauthenticated additions are three read-only endpoints under `/api/pub
 
 ## Reporting
 Security issues: email the platform owner directly; do not open a public issue with details.
+
+## LMS and share cards (Phase 16)
+- Quiz answers never leave the server; learner routes act only on the caller's own enrollments.
+- Share cards are authenticated PNGs (no public links, rate-limited, `no-store`), first name only, no school/contact details. CSP allows `blob:` images so the browser can preview them.
+- Certificates freeze template and accent at issue; batch auto-issue runs once per batch and is audited (`certificate.auto_issued`).
