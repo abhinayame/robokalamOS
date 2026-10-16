@@ -8,25 +8,21 @@ import { audit } from '../../lib/audit.js';
 import { appUrl } from '../../lib/appurl.js';
 import { AppError, badRequest, conflict, notFound } from '../../lib/errors.js';
 import { ok, paging, parse, uuid, wrap } from '../../lib/http.js';
-import { learnerScope } from '../../lib/scope.js';
+import { batchScope, learnerScope } from '../../lib/scope.js';
 import { notifyAbout } from '../../lib/notify.js';
 import { recordActivity } from '../../lib/timeline.js';
 import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { resolveLearnerIds, selectorSchema } from '../selection/resolver.js';
+import { TEMPLATES, TOKENS, fillBody, fmtDate, issueCertificate, issueForBatch } from './service.js';
+import { drawCertificate } from './render.js';
 
 const router = Router(); // mounted at /api/certificates
 router.use(requireOrg);
 const read = requirePerm('cert:read');
 const manage = requirePerm('cert:manage');
 const MAX_ISSUE = 2000;
-const TOKENS = ['name', 'course_name', 'batch_name', 'date', 'org_name'];
-
-/** A code people can read out over the phone: no 0/O/1/I/L. */
-const ALPHA = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
-const newCode = () => { const b = crypto.randomBytes(8); const c = (i: number) => ALPHA[b[i]! % ALPHA.length]!; return `RKC-${c(0)}${c(1)}${c(2)}${c(3)}-${c(4)}${c(5)}${c(6)}${c(7)}`; };
-export const fillBody = (tpl: string, v: Record<string, string>) => tpl.replace(/\{(\w+)\}/g, (m, k) => (TOKENS.includes(k) ? (v[k] ?? '') : m)).replace(/\s+/g, ' ').trim();
-const fmtDate = (d: string | Date) => new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' });
+export { fillBody };
 const iso = (d: any) => (d instanceof Date ? d.toISOString().slice(0, 10) : String(d).slice(0, 10));
 
 // ------------------------------------------------------------------ designs
@@ -35,21 +31,21 @@ const designBody = z.object({
   title_text: z.string().trim().min(2).max(120).default('Certificate of Completion'),
   body_text: z.string().trim().min(5).max(600).refine((s) => [...s.matchAll(/\{(\w+)\}/g)].every((m) => TOKENS.includes(m[1]!)), `Only these placeholders work: ${TOKENS.map((t) => `{${t}}`).join(' ')}`),
   signatory_name: z.string().trim().max(120).nullish().transform((v) => v || null), signatory_title: z.string().trim().max(120).nullish().transform((v) => v || null),
-  show_logo: z.boolean().default(true),
+  show_logo: z.boolean().default(true), template: z.enum(TEMPLATES).default('classic'), accent: z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'Use a color like #12263f.').nullish().transform((v) => v?.toLowerCase() ?? null),
 });
 router.get('/designs', read, wrap(async (req, res) => {
   ok(res, await query(`SELECT d.*, (SELECT COUNT(*) FROM certificates c WHERE c.design_id = d.id AND c.revoked_at IS NULL) AS issued FROM certificate_designs d WHERE d.org_id = $1 ORDER BY d.status, d.name`, [orgIdOf(req)]));
 }));
 router.post('/designs', manage, wrap(async (req, res) => {
   const b = parse(designBody, req.body); const orgId = orgIdOf(req); const id = newId();
-  try { await exec(`INSERT INTO certificate_designs (id, org_id, name, title_text, body_text, signatory_name, signatory_title, show_logo, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`, [id, orgId, b.name, b.title_text, b.body_text, b.signatory_name, b.signatory_title, b.show_logo, req.user!.id]); }
+  try { await exec(`INSERT INTO certificate_designs (id, org_id, name, title_text, body_text, signatory_name, signatory_title, show_logo, template, accent, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`, [id, orgId, b.name, b.title_text, b.body_text, b.signatory_name, b.signatory_title, b.show_logo, b.template, b.accent, req.user!.id]); }
   catch (e: any) { if (e?.errno === 1062) throw conflict('A design with this name already exists.'); throw e; }
   await audit({ orgId, actor: req.user, action: 'certificate.design_created', entityType: 'certificate_design', entityId: id, req });
   ok(res, { id }, undefined, 201);
 }));
 router.put('/designs/:id', manage, wrap(async (req, res) => {
   const id = parse(uuid, req.params.id); const b = parse(designBody.extend({ status: z.enum(['active', 'archived']).default('active') }), req.body); const orgId = orgIdOf(req);
-  let r; try { r = await exec(`UPDATE certificate_designs SET name=$3, title_text=$4, body_text=$5, signatory_name=$6, signatory_title=$7, show_logo=$8, status=$9 WHERE id=$1 AND org_id=$2`, [id, orgId, b.name, b.title_text, b.body_text, b.signatory_name, b.signatory_title, b.show_logo, b.status]); }
+  let r; try { r = await exec(`UPDATE certificate_designs SET name=$3, title_text=$4, body_text=$5, signatory_name=$6, signatory_title=$7, show_logo=$8, status=$9, template=$10, accent=$11 WHERE id=$1 AND org_id=$2`, [id, orgId, b.name, b.title_text, b.body_text, b.signatory_name, b.signatory_title, b.show_logo, b.status, b.template, b.accent]); }
   catch (e: any) { if (e?.errno === 1062) throw conflict('A design with this name already exists.'); throw e; }
   if (!r.affectedRows) throw notFound('Design');
   await audit({ orgId, actor: req.user, action: 'certificate.design_updated', entityType: 'certificate_design', entityId: id, req });
@@ -76,20 +72,7 @@ router.post('/issue', manage, wrap(async (req, res) => {
     if (b.dry_run) return { dry_run: true, selected: L.length, to_issue: todo.length, already_have: have.size, sample: todo.slice(0, 8).map((l) => l.full_name) };
     const org = await queryOne(`SELECT name FROM organizations WHERE id = $1`, [orgId], db);
     let issued = 0;
-    for (const l of todo) {
-      const body = fillBody(d.body_text, { name: l.full_name, course_name: batch?.course_name ?? '', batch_name: batch?.name ?? '', date: fmtDate(date), org_name: org?.name ?? '' });
-      const cid = newId();
-      for (let attempt = 0; ; attempt++) {
-        try {
-          await exec(`INSERT INTO certificates (id, org_id, learner_id, batch_id, design_id, code, title, recipient_name, body, course_name, batch_name, signatory_name, signatory_title, issued_on, issued_by) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
-            [cid, orgId, l.id, batch?.id ?? null, d.id, newCode(), d.title_text, l.full_name, body, batch?.course_name ?? null, batch?.name ?? null, d.signatory_name, d.signatory_title, date, req.user!.id], db);
-          break;
-        } catch (e: any) { if (e?.errno === 1062 && String(e.message).includes('uq_cert_code') && attempt < 5) continue; if (e?.errno === 1062) { issued--; break; } throw e; }
-      }
-      issued++;
-      await recordActivity(db, { orgId, learnerId: l.id, type: 'certificate.issued', title: `Certificate issued: ${d.title_text}`, meta: { certificate_id: cid }, actorUserId: req.user!.id });
-      await notifyAbout(db, { orgId, learnerIds: [l.id], kind: 'certificate.issued', title: 'You received a certificate', body: d.title_text, link: '/my-certificates', excludeUserId: req.user!.id });
-    }
+    for (const l of todo) if (await issueCertificate(db, { orgId, orgName: org?.name ?? '', design: d, learner: l, date, issuedBy: req.user!.id, batch })) issued++;
     await audit({ orgId, actor: req.user, action: 'certificate.issued', entityType: 'certificate_design', entityId: d.id, next: { issued, skipped: L.length - issued }, req }, db);
     return { dry_run: false, selected: L.length, issued, already_have: L.length - issued };
   });
@@ -127,31 +110,52 @@ router.post('/:id/revoke', manage, wrap(async (req, res) => {
   ok(res, { revoked: true });
 }));
 
-router.get('/:id/pdf', requireAnyPerm('cert:read', 'portal:learner', 'portal:parent'), wrap(async (req, res) => {
-  const c = await visibleCert(req, parse(uuid, req.params.id)); const orgId = orgIdOf(req);
+async function brandFor(orgId: string, showLogo: boolean) {
   const org = await queryOne(`SELECT name, brand_color, brand_logo_file_id FROM organizations WHERE id = $1`, [orgId]);
   const color = /^#[0-9a-f]{6}$/i.test(org?.brand_color ?? '') ? org!.brand_color : '#12263f';
-  const design = await queryOne(`SELECT show_logo FROM certificate_designs WHERE id = $1`, [c.design_id]);
-  const logo = design?.show_logo && org?.brand_logo_file_id ? (await queryOne(`SELECT data FROM files WHERE id = $1 AND org_id = $2 AND owner_type = 'branding' AND deleted_at IS NULL`, [org.brand_logo_file_id, orgId]))?.data : null;
-  const verifyUrl = `${appUrl()}/verify/${c.code}`;
-  const qr = await QRCode.toBuffer(verifyUrl, { margin: 1, width: 220 });
-  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margins: { top: 50, left: 50, right: 50, bottom: 0 }, info: { Title: `${c.title} - ${c.recipient_name}`, Author: org?.name ?? '' } });
-  res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="${c.code}.pdf"`); res.setHeader('Cache-Control', 'private, no-store');
+  const logo = showLogo && org?.brand_logo_file_id ? ((await queryOne(`SELECT data FROM files WHERE id = $1 AND org_id = $2 AND owner_type = 'branding' AND deleted_at IS NULL`, [org.brand_logo_file_id, orgId]))?.data as Buffer | undefined) ?? null : null;
+  return { name: org?.name ?? '', color, logo };
+}
+async function sendPdf(res: any, c: any, brand: { name: string; color: string; logo: Buffer | null }, filename: string) {
+  const qr = await QRCode.toBuffer(`${appUrl()}/verify/${c.code}`, { margin: 1, width: 220 });
+  const doc = new PDFDocument({ size: 'A4', layout: 'landscape', margins: { top: 50, left: 50, right: 50, bottom: 0 }, info: { Title: `${c.title} - ${c.recipient_name}`, Author: brand.name } });
+  res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="${filename}"`); res.setHeader('Cache-Control', 'private, no-store');
   doc.pipe(res);
-  const W = doc.page.width; const H = doc.page.height;
-  doc.rect(24, 24, W - 48, H - 48).lineWidth(3).strokeColor(color).stroke(); doc.rect(32, 32, W - 64, H - 64).lineWidth(0.8).stroke();
-  if (logo) { try { doc.image(logo, W / 2 - 32, 56, { fit: [64, 64] }); } catch { /* unreadable logo: skip it */ } }
-  doc.fillColor(color).font('Helvetica-Bold').fontSize(14).text(org?.name ?? '', 50, logo ? 126 : 70, { align: 'center', width: W - 100 });
-  doc.fontSize(34).text(c.title, 50, 160, { align: 'center', width: W - 100 });
-  doc.fillColor('#555').font('Helvetica').fontSize(13).text('This is to certify that', 50, 225, { align: 'center', width: W - 100 });
-  doc.fillColor('#000').font('Helvetica-Bold').fontSize(30).text(c.recipient_name, 50, 252, { align: 'center', width: W - 100 });
-  doc.font('Helvetica').fontSize(14).fillColor('#222').text(c.body, 120, 305, { align: 'center', width: W - 240 });
-  if (c.signatory_name) { doc.moveTo(90, H - 120).lineTo(280, H - 120).lineWidth(0.8).strokeColor('#444').stroke(); doc.fontSize(12).font('Helvetica-Bold').text(c.signatory_name, 90, H - 112, { width: 200, align: 'center' }); if (c.signatory_title) doc.font('Helvetica').fontSize(10).fillColor('#555').text(c.signatory_title, 90, H - 96, { width: 200, align: 'center' }); }
-  doc.image(qr, W - 150, H - 150, { width: 80 });
-  doc.fillColor('#555').font('Helvetica').fontSize(8).text(`Verify: ${c.code}`, W - 170, H - 66, { width: 120, align: 'center' }).text(`Issued ${fmtDate(c.issued_on)}`, W - 170, H - 56, { width: 120, align: 'center' });
-  if (c.revoked_at) { doc.save().rotate(-20, { origin: [W / 2, H / 2] }).fillColor('#b00020').opacity(0.25).fontSize(90).font('Helvetica-Bold').text('REVOKED', 0, H / 2 - 50, { align: 'center', width: W }).restore(); }
+  drawCertificate(doc, { title: c.title, recipient_name: c.recipient_name, body: c.body, signatory_name: c.signatory_name, signatory_title: c.signatory_title, code: c.code, issued_on: String(c.issued_on), template: c.template ?? 'classic', accent: c.accent ?? null, revoked: !!c.revoked_at }, brand, qr, fmtDate(c.issued_on));
   doc.end();
+}
+router.get('/:id/pdf', requireAnyPerm('cert:read', 'portal:learner', 'portal:parent'), wrap(async (req, res) => {
+  const c = await visibleCert(req, parse(uuid, req.params.id));
+  const design = await queryOne(`SELECT show_logo FROM certificate_designs WHERE id = $1`, [c.design_id]);
+  await sendPdf(res, c, await brandFor(orgIdOf(req), !!design?.show_logo), `${c.code}.pdf`);
 }));
+
+// ------------------------------------------------------------------ preview of a design and automatic issue
+router.get('/designs/:id/preview.pdf', read, wrap(async (req, res) => {
+  const d = await queryOne(`SELECT * FROM certificate_designs WHERE id = $1 AND org_id = $2`, [parse(uuid, req.params.id), orgIdOf(req)]);
+  if (!d) throw notFound('Design');
+  const q = parse(z.object({ template: z.enum(TEMPLATES).optional(), accent: z.string().regex(/^#[0-9a-fA-F]{6}$/).optional() }), req.query);
+  const brand = await brandFor(orgIdOf(req), !!d.show_logo);
+  const body = fillBody(d.body_text, { name: 'Sample Learner', course_name: 'Robotics', batch_name: 'Saturday Batch A', date: fmtDate(new Date()), org_name: brand.name });
+  await sendPdf(res, { title: d.title_text, recipient_name: 'Sample Learner', body, signatory_name: d.signatory_name, signatory_title: d.signatory_title, code: 'RKC-SAMP-LE00', issued_on: new Date().toISOString().slice(0, 10), template: q.template ?? d.template, accent: q.accent ?? d.accent }, brand, 'preview.pdf');
+}));
+
+/** Which batches give a certificate by themselves when they are marked completed. */
+router.get('/automation', read, wrap(async (req, res) => {
+  const p = new Params(); const sc = batchScope(req.user!, p, 'b');
+  ok(res, await query(`SELECT b.id, b.name, b.status, b.completion_certificate_design_id AS design_id, b.completion_certificates_issued_at AS issued_at, (SELECT COUNT(*) FROM learner_batch_memberships m WHERE m.batch_id = b.id AND m.status = 'active') AS learners
+    FROM batches b WHERE b.org_id = ${p.add(orgIdOf(req))} AND b.deleted_at IS NULL AND b.status <> 'archived' ${sc ? `AND ${sc}` : ''} ORDER BY b.status, b.name LIMIT 300`, p.values));
+}));
+router.put('/automation/:batchId', manage, wrap(async (req, res) => {
+  const b = parse(z.object({ design_id: uuid.nullable() }), req.body); const orgId = orgIdOf(req); const batchId = parse(uuid, req.params.batchId);
+  const room = await queryOne(`SELECT id, status FROM batches WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [batchId, orgId]);
+  if (!room) throw notFound('Batch');
+  if (b.design_id && !(await queryOne(`SELECT 1 FROM certificate_designs WHERE id = $1 AND org_id = $2 AND status = 'active'`, [b.design_id, orgId]))) throw notFound('Design');
+  await exec(`UPDATE batches SET completion_certificate_design_id = $3 WHERE id = $1 AND org_id = $2`, [batchId, orgId, b.design_id]);
+  await audit({ orgId, actor: req.user, action: 'certificate.automation_set', entityType: 'batch', entityId: batchId, next: { design_id: b.design_id }, req });
+  ok(res, { batch_id: batchId, design_id: b.design_id, note: room.status === 'completed' ? 'This batch is already completed. Use Issue to give certificates now.' : null });
+}));
+export { issueForBatch };
 export default router;
 
 // ------------------------------------------------------------------ public verification (minimal fields, no contact details)

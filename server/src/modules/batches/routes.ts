@@ -1,3 +1,4 @@
+import { issueForBatch } from '../certificates/service.js';
 import { Router } from 'express';
 import { z } from 'zod';
 import { Params, exec, newId, query, queryOne, tx, type Db } from '../../db/pool.js';
@@ -171,6 +172,11 @@ router.patch('/:id', requirePerm('batch:update'), wrap(async (req, res) => {
     const changed = keys.filter((k) => JSON.stringify(prev[k] ?? null) !== JSON.stringify(next![k] ?? null) && String(prev[k]) !== String(next![k]));
     await audit({ orgId, actor: req.user, action: body.status && body.status !== prev.status ? 'batch.status_changed' : 'batch.updated', entityType: 'batch', entityId: id,
       previous: Object.fromEntries(changed.map((k) => [k, prev[k]])), next: Object.fromEntries(changed.map((k) => [k, next![k]])), req }, db);
+    // A batch that has a completion certificate chosen hands it out by itself the moment it is marked completed (once).
+    if (body.status === 'completed' && prev.status !== 'completed' && next!.completion_certificate_design_id && !next!.completion_certificates_issued_at) {
+      const r = await issueForBatch(db, orgId, id, req.user!.id);
+      await audit({ orgId, actor: req.user, action: 'certificate.auto_issued', entityType: 'batch', entityId: id, next: r, req }, db);
+    }
   });
   ok(res, await loadBatch(req, id));
 }));
