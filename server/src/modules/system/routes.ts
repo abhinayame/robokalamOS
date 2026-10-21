@@ -31,8 +31,12 @@ healthRouter.get('/ready', async (_req, res) => {
   res.status(ready ? 200 : 503).json({ ok: ready, data: { status: ready ? 'ready' : 'not_ready', checks } });
 });
 
+import { isConfigured as pushConfigured } from '../push/service.js';
+import selftest from './selftest.js';
 export const systemRouter = Router();
-systemRouter.use(requireOrg, requirePerm('system:read'));
+systemRouter.use(requireOrg);
+systemRouter.use(selftest);
+systemRouter.use(requirePerm('system:read'));
 
 /** Things that must always be zero. A non-zero count means a bug or a manual change somewhere. */
 async function integrity(orgId: string) {
@@ -75,6 +79,7 @@ systemRouter.get('/status', wrap(async (req, res) => {
     fees: { online_payments: razorpayConfigured(), webhook_configured: razorpayWebhook(), last_online_payment_at: (await queryOne(`SELECT MAX(paid_at) AS t FROM payments WHERE provider = 'razorpay'`))?.t ?? null },
     email: { configured: emailConfigured(), worker: env.EMAIL_WORKER === 'true', pending: Number((await queryOne(`SELECT COUNT(*) AS n FROM email_outbox WHERE status IN ('pending','sending')`))!.n), failed_7d: Number((await queryOne(`SELECT COUNT(*) AS n FROM email_outbox WHERE status = 'failed' AND created_at > DATE_SUB(NOW(3), INTERVAL 7 DAY)`))!.n) },
     live: { zoom_configured: zoomConfigured(), webhook_configured: zoomWebhook(), last_event_at: (await queryOne(`SELECT MAX(received_at) AS t FROM webhook_events WHERE provider = 'zoom'`))?.t ?? null, classes_live_now: Number((await queryOne(`SELECT COUNT(*) AS n FROM class_sessions WHERE live_started_at IS NOT NULL AND live_ended_at IS NULL`))!.n) },
+    push: { configured: pushConfigured(), worker: env.PUSH_WORKER === 'true', devices: Number((await queryOne(`SELECT COUNT(*) AS n FROM push_subscriptions WHERE org_id = $1`, [orgId]))!.n) },
     reminders: { enabled_rules: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_rules WHERE enabled = TRUE`))!.n), queued_last_24h: Number((await queryOne(`SELECT COUNT(*) AS n FROM reminder_log WHERE outcome = 'queued' AND created_at >= DATE_SUB(NOW(3), INTERVAL 24 HOUR)`))!.n) },
     imports: { running: Number((await queryOne(`SELECT COUNT(*) AS n FROM import_jobs WHERE status = 'running'`))!.n) },
     whatsapp: { provider: env.WHATSAPP_PROVIDER, configured: isConfigured(), webhook_configured: isWebhookConfigured(), worker_enabled: env.COMMS_WORKER === 'true', waiting: Number(wa!.pending), in_flight: Number(wa!.queued), failed_unsent: Number(wa!.failed), last_webhook_at: hook?.last ?? null },

@@ -34,6 +34,21 @@ router.get('/my', wrap(async (req, res) => {
   ok(res, out);
 }));
 
+/** My learning paths: each course in order, finished / current / locked. */
+router.get('/paths', wrap(async (req, res) => {
+  const { userId, learnerIds } = mine(req); const orgId = orgIdOf(req); const key = learnerIds.length ? learnerIds : [userId];
+  const members = await query(`SELECT m.id, m.path_id, m.completed_at, m.person_key, p.title, p.summary FROM lms_path_members m JOIN lms_paths p ON p.id = m.path_id AND p.deleted_at IS NULL AND p.status IN ('published','archived')
+      WHERE m.org_id = $1 AND m.removed_at IS NULL AND m.person_key IN (${key.map((_, i) => `$${i + 2}`).join(',')}) ORDER BY m.created_at DESC`, [orgId, ...key]);
+  const out = [];
+  for (const m of members) {
+    const steps = await query(`SELECT c.id, c.title, pc.position, e.status AS enr_status, e.id AS enrollment_id FROM lms_path_courses pc JOIN lms_courses c ON c.id = pc.course_id AND c.deleted_at IS NULL
+        LEFT JOIN lms_enrollments e ON e.course_id = c.id AND e.person_key = $2 WHERE pc.path_id = $1 ORDER BY pc.position`, [m.path_id, m.person_key]);
+    out.push({ id: m.id, title: m.title, summary: m.summary, finished: !!m.completed_at, done: steps.filter((s) => s.enr_status === 'completed').length, total: steps.length,
+      steps: steps.map((s) => ({ course_id: s.id, title: s.title, state: s.enr_status === 'completed' ? 'done' : s.enrollment_id ? 'open' : 'locked' })) });
+  }
+  ok(res, out);
+}));
+
 router.get('/courses/:courseId', wrap(async (req, res) => {
   const e = await myEnrollment(req, parse(uuid, req.params.courseId));
   const c = await queryOne(`SELECT id, title, summary, color, certificate_design_id IS NOT NULL AS gives_certificate FROM lms_courses WHERE id = $1`, [e.course_id]);
@@ -61,7 +76,7 @@ router.post('/courses/:courseId/lessons/:lessonId/complete', limit('lms complete
     await exec(`INSERT INTO lms_progress (id, enrollment_id, lesson_id, completed_at, best_score, attempts) VALUES ($1,$2,$3,$4,$5,1)
       ON DUPLICATE KEY UPDATE attempts = attempts + 1, best_score = GREATEST(COALESCE(best_score, 0), COALESCE(VALUES(best_score), 0)), completed_at = COALESCE(completed_at, VALUES(completed_at))`, [newId(), e.id, l.id, passed ? new Date() : null, score], db);
     const r = await afterProgress(db, e);
-    return { passed, score, pass_percent: l.pass_percent, percent: r.percent, done: r.done, total: r.total, course_completed: r.completed, just_completed: r.justCompleted, certificate_code: r.certificateCode };
+    return { passed, score, pass_percent: l.pass_percent, percent: r.percent, done: r.done, total: r.total, course_completed: r.completed, just_completed: r.justCompleted, certificate_code: r.certificateCode, path_unlocked: r.path.unlocked, path_finished: r.path.finished };
   });
   ok(res, out);
 }));

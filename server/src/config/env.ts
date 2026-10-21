@@ -73,6 +73,11 @@ const schema = z.object({
   SMTP_PASSWORD: z.preprocess(blank, z.string().optional()),
   SMTP_FROM: z.preprocess(blank, z.string().max(200).optional()),
   EMAIL_WORKER: z.enum(['true', 'false']).default('true'),
+  // Web push (phone/desktop notifications for the installed app). Generate keys once with: npx web-push generate-vapid-keys
+  VAPID_PUBLIC_KEY: z.preprocess(blank, z.string().max(200).optional()),
+  VAPID_PRIVATE_KEY: z.preprocess(blank, z.string().max(200).optional()),
+  VAPID_SUBJECT: z.preprocess(blank, z.string().max(200).optional()),
+  PUSH_WORKER: z.enum(['true', 'false']).default('true'),
   // Public address of the app (used in e-mail links, calendar feeds and certificate QR codes). Default: the first https origin in CORS_ORIGINS.
   APP_URL: z.preprocess(blank, z.string().url().optional()),
   // Daily-ish clean-up of expired sessions, unattached uploads and old webhook payloads (see modules/system/maintenance.ts).

@@ -71,7 +71,7 @@ export async function finalizeAttendance(sessionId: string, now = new Date()): P
     const newlyAbsent: string[] = [];
     for (const r of roster) {
       const prev = existing.get(r.id);
-      if (prev?.source === 'manual') { out.skipped_manual++; continue; }
+      if ((prev?.source === 'manual' || prev?.source === 'qr')) { out.skipped_manual++; continue; }
       const got = per.get(r.id);
       let status: 'present' | 'late' | 'absent'; let note: string; const minutes = got?.minutes ?? 0;
       if (!got) { status = 'absent'; note = 'Zoom: did not join'; }
