@@ -27,7 +27,7 @@ describe('provider self-test', () => {
   it('is for owners only, and runs harmless live checks that clean up after themselves', async () => {
     expect((await t1.post('/api/system/selftest/zoom')).status).toBe(403); expect((await parent.post('/api/system/selftest/email')).status).toBe(403);
     const log: string[] = [];
-    setZoom({ createMeeting: async () => { log.push('zoom:create'); return { ok: true, id: 'm1', joinUrl: 'https://z' }; }, deleteMeeting: async (id) => { log.push(`zoom:delete:${id}`); }, startUrl: async () => ({ ok: false, message: 'n/a' }) } as any);
+    setZoom({ createMeeting: async () => { log.push('zoom:create'); return { ok: true, id: 'm1', joinUrl: 'https://z' }; }, deleteMeeting: async (id: string) => { log.push(`zoom:delete:${id}`); }, startUrl: async () => ({ ok: false, message: 'n/a' }) } as any);
     setPaymentProvider({ createLink: async (i) => { log.push(`rzp:create:${i.amountPaise}`); return { ok: true, id: 'pl_1', shortUrl: 'https://r' }; }, cancelLink: async (id) => { log.push(`rzp:cancel:${id}`); } });
     setEmailProvider({ send: async (m) => { log.push(`mail:${m.to}`); return { ok: true, id: 'x' }; } });
     setWhatsApp({ send: async (m) => { log.push(`wa:${m.destination}:${m.campaignName}`); return { ok: true, providerId: 'w1' }; } });

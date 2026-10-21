@@ -9,6 +9,7 @@ export function Learn() {
   return (
     <>
       <PageHead title="My courses" sub="Courses your school or team has given you. Finish the lessons at your own pace." />
+      <MyPaths />
       <Async q={q}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="📚" title="No courses yet">When a course is shared with you, it will show up here.</Empty></div> : (
         <div className="grid cols-3">{list.map((c) => (
           <Link key={c.enrollment_id} to={`/learn/${c.course_id}`} className="card card-pad stack" style={{ textDecoration: 'none', color: 'inherit', borderTop: `5px solid ${c.color}` }}>
@@ -18,6 +19,18 @@ export function Learn() {
             <div className="row between small muted"><span>{c.done}/{c.total} lessons</span><span>{c.due_at && c.status !== 'completed' ? `Due ${fmtDate(c.due_at)}` : c.gives_certificate ? '🎓 Certificate' : ''}</span></div>
           </Link>))}</div>)}</Async>
     </>
+  );
+}
+
+function MyPaths() {
+  const q = useFetch(() => api.get('/api/learn/paths').then((r) => r.data as any[]), []);
+  if (!q.data?.length) return null;
+  return (
+    <div className="stack" style={{ marginBottom: 14 }}>{q.data.map((p) => (
+      <div key={p.id} className="card card-pad stack"><div className="row between wrap"><div><b style={{ fontSize: 16 }}>🧭 {p.title}</b>{p.summary && <div className="muted small">{p.summary}</div>}</div>{p.finished ? <Badge tone="ok">Path finished 🎉</Badge> : <span className="muted small">{p.done}/{p.total} courses</span>}</div>
+        <Progress value={Math.round((p.done / p.total) * 100)} tone={p.finished ? 'ok' : ''} />
+        <div className="row wrap gap-s">{p.steps.map((s: any, i: number) => <span key={s.course_id} className="row gap-s">{i > 0 && <span className="muted">→</span>}
+          {s.state === 'locked' ? <span className="badge" title="Finish the course before this one to unlock it">🔒 {s.title}</span> : <Link className={`badge ${s.state === 'done' ? 'ok' : 'info'}`} to={`/learn/${s.course_id}`}>{s.state === 'done' ? '✓ ' : '▶ '}{s.title}</Link>}</span>)}</div></div>))}</div>
   );
 }
 
@@ -43,7 +56,7 @@ function Lesson({ courseId, lesson: l, onDone }: { courseId: string; lesson: any
   const { busy, run } = useAction(); const toast = useToast(); const [ans, setAns] = useState<number[]>([]); const [res, setRes] = useState<any>(null);
   const finish = (answers?: number[]) => run(async () => {
     const r = (await api.post(`/api/learn/courses/${courseId}/lessons/${l.id}/complete`, answers ? { answers } : {})).data; setRes(r);
-    if (r.just_completed) toast(r.certificate_code ? `Course complete! Certificate ${r.certificate_code} 🎓` : 'Course complete! 🎉'); else if (r.passed) toast('Lesson done ✓');
+    if (r.just_completed && r.path_unlocked?.length) toast(`Course complete! Next on your path: ${r.path_unlocked[0]} 🧭`); else if (r.just_completed) toast(r.certificate_code ? `Course complete! Certificate ${r.certificate_code} 🎓` : 'Course complete! 🎉'); else if (r.passed) toast('Lesson done ✓');
     onDone();
   });
   return (

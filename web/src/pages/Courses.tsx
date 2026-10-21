@@ -3,24 +3,26 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
 import { Async, Badge, Empty, Field, Modal, PageHead, Progress, Stat, Tabs, useAction, useFetch, useToast } from '../components/ui';
+import Paths from './Paths';
 import { fmtDate, fmtDateTime } from '../format';
 
 const AUD: Record<string, string> = { learners: 'Learners', staff: 'Staff / onboarding', both: 'Everyone' };
 
 export default function Courses() {
   const { can } = useAuth(); const manage = can('lms:manage'); const q = useFetch(() => api.get('/api/lms/courses').then((r) => r.data as any[]), []);
-  const [edit, setEdit] = useState<any>(null); const [assign, setAssign] = useState<any>(null); const [prog, setProg] = useState<any>(null); const [lessons, setLessons] = useState<any>(null);
+  const [tab, setTab] = useState<'courses' | 'paths'>('courses'); const [edit, setEdit] = useState<any>(null); const [assign, setAssign] = useState<any>(null); const [prog, setProg] = useState<any>(null); const [lessons, setLessons] = useState<any>(null);
   return (
     <>
-      <PageHead title="Courses" sub="Build a course once, share it with learners or with the staff you are onboarding, and watch who has finished." actions={manage ? <button className="btn primary" onClick={() => setEdit({})}>＋ New course</button> : undefined} />
-      <Async q={q}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="📚" title="No courses yet" action={manage ? <button className="btn primary" onClick={() => setEdit({})}>Create the first course</button> : undefined}>For example: “Welcome to the team” for new teachers.</Empty></div> : (
+      <PageHead title="Courses" sub="Build a course once, share it with learners or with the staff you are onboarding, and watch who has finished." actions={manage && tab === 'courses' ? <button className="btn primary" onClick={() => setEdit({})}>＋ New course</button> : undefined} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'courses', label: 'Courses' }, { id: 'paths', label: 'Learning paths' }]} />
+      {tab === 'paths' ? <Paths manage={manage} /> : <Async q={q}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="📚" title="No courses yet" action={manage ? <button className="btn primary" onClick={() => setEdit({})}>Create the first course</button> : undefined}>For example: “Welcome to the team” for new teachers.</Empty></div> : (
         <div className="grid cols-3">{list.map((c) => (
           <div key={c.id} className="card card-pad stack" style={{ borderTop: `5px solid ${c.color}` }}>
             <div className="row between"><b style={{ fontSize: 16 }}>{c.title}</b><Badge tone={c.status === 'published' ? 'ok' : ''}>{c.status}</Badge></div>
             <div className="muted small">{AUD[c.audience]} · {c.lessons} lesson{c.lessons == 1 ? '' : 's'} · {c.enrolled} enrolled · {c.completed} finished</div>
             <div className="row gap-s wrap"><button className="btn sm" onClick={() => setProg(c)}>Progress</button>
               {manage && <><button className="btn sm" onClick={() => setLessons(c)}>Lessons</button><button className="btn sm" onClick={() => setEdit(c)}>Edit</button><button className="btn sm primary" disabled={c.status !== 'published'} onClick={() => setAssign(c)}>Assign</button></>}</div>
-          </div>))}</div>)}</Async>
+          </div>))}</div>)}</Async>}
       {edit && <CourseModal course={edit} onClose={() => setEdit(null)} onDone={q.reload} />}
       {assign && <AssignModal course={assign} onClose={() => setAssign(null)} onDone={q.reload} />}
       {prog && <ProgressModal course={prog} manage={manage} onClose={() => setProg(null)} />}
@@ -53,7 +55,7 @@ function CourseModal({ course, onClose, onDone }: { course: any; onClose: () => 
 const blank = { title: '', kind: 'text', body: '', url: '', minutes: '', required: true, pass_percent: 70, questions: [] as { q: string; options: string[]; answer: number }[] };
 function LessonsModal({ course, onClose }: { course: any; onClose: () => void }) {
   const q = useFetch(() => api.get(`/api/lms/courses/${course.id}`).then((r) => r.data as any), [course.id]); const { busy, run } = useAction();
-  const [ed, setEd] = useState<any>(null); const [err, setErr] = useState('');
+  const [ed, setEd] = useState<any>(null); const [err, setErr] = useState(''); const [pick, setPick] = useState(false); const toast = useToast();
   const move = (ids: string[], i: number, d: number) => { const a = [...ids]; const j = i + d; if (j < 0 || j >= a.length) return; [a[i], a[j]] = [a[j]!, a[i]!]; run(async () => { await api.post(`/api/lms/courses/${course.id}/lessons/reorder`, { ids: a }); q.reload(); }); };
   const save = () => run(async () => {
     setErr(''); const body = { title: ed.title, kind: ed.kind, body: ed.body || null, url: ed.url || null, minutes: ed.minutes ? Number(ed.minutes) : null, required: ed.required, pass_percent: Number(ed.pass_percent), questions: ed.kind === 'quiz' ? ed.questions : null };
@@ -74,7 +76,9 @@ function LessonsModal({ course, onClose }: { course: any; onClose: () => void })
                 {qq.options.map((o: string, j: number) => <div key={j} className="row"><input type="radio" name={`ans${i}`} checked={qq.answer === j} onChange={() => { const qs2 = [...ed.questions]; qs2[i] = { ...qq, answer: j }; setEd({ ...ed, questions: qs2 }); }} aria-label={`Option ${j + 1} is correct`} /><input className="input grow" placeholder={`Option ${j + 1}`} value={o} onChange={(e) => { const op = [...qq.options]; op[j] = e.target.value; const qs2 = [...ed.questions]; qs2[i] = { ...qq, options: op }; setEd({ ...ed, questions: qs2 }); }} /></div>)}
                 {qq.options.length < 6 && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => { const qs2 = [...ed.questions]; qs2[i] = { ...qq, options: [...qq.options, ''] }; setEd({ ...ed, questions: qs2 }); }}>＋ Option</button>}
                 <div className="muted small">Tick the circle next to the right answer. Learners never see which one it is.</div></div>))}
-            <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => setEd({ ...ed, questions: [...ed.questions, { q: '', options: ['', ''], answer: 0 }] })}>＋ Add a question</button></>}
+            <div className="row gap-s wrap"><button className="btn sm" onClick={() => setEd({ ...ed, questions: [...ed.questions, { q: '', options: ['', ''], answer: 0 }] })}>＋ Add a question</button>
+              <button className="btn sm" onClick={() => setPick(true)}>📚 Add from question bank</button>
+              {ed.questions.length > 0 && <button className="btn sm" onClick={() => { const topic = prompt('Save these questions to the bank under which topic?', ''); if (topic && topic.trim().length >= 2) run(async () => { const r = (await api.post('/api/bank/bulk', { topic, questions: ed.questions.filter((x: any) => x.q.trim() && x.options.filter((o: string) => o.trim()).length >= 2) })).data; toast(`${r.added} saved, ${r.skipped} already there.`); }); }}>Save these to the bank</button>}</div></>}
           <label className="row gap-s"><input type="checkbox" checked={ed.required} onChange={(e) => setEd({ ...ed, required: e.target.checked })} /> Required to finish the course</label>
           {err && <p className="err" role="alert">{err}</p>}
           <div className="row gap-s"><button className="btn primary" disabled={busy || ed.title.trim().length < 2} onClick={save}>Save lesson</button><button className="btn" onClick={() => setEd(null)}>Cancel</button></div>
@@ -89,6 +93,20 @@ function LessonsModal({ course, onClose }: { course: any; onClose: () => void })
           {!c.lessons.length && <Empty icon="📄" title="No lessons yet" />}
           <div><button className="btn primary" onClick={() => setEd({ ...blank })}>＋ Add a lesson</button></div></div>)}</Async>
       )}
+    {pick && ed && <BankPicker onClose={() => setPick(false)} onAdd={(qs2) => { setEd({ ...ed, questions: [...ed.questions, ...qs2] }); setPick(false); }} />}
+    </Modal>
+  );
+}
+
+function BankPicker({ onClose, onAdd }: { onClose: () => void; onAdd: (q: any[]) => void }) {
+  const topics = useFetch(() => api.get('/api/bank/topics').then((r) => r.data as any[]), []); const [topic, setTopic] = useState(''); const [sel, setSel] = useState<Record<string, any>>({}); const [n, setN] = useState(5); const { busy, run } = useAction();
+  const list = useFetch(() => api.get(`/api/bank?page_size=100${topic ? `&topic=${encodeURIComponent(topic)}` : ''}`).then((r) => r.data as any[]), [topic]); const picked = Object.values(sel);
+  const strip = (x: any) => ({ q: x.q, options: x.options, answer: x.answer });
+  return (
+    <Modal wide title="Add from the question bank" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!picked.length} onClick={() => onAdd(picked.map(strip))}>Add {picked.length || ''} selected</button></>}>
+      <div className="stack"><div className="row wrap"><select className="select" style={{ width: 220 }} aria-label="Topic" value={topic} onChange={(e) => setTopic(e.target.value)}><option value="">All topics</option>{(topics.data ?? []).map((t: any) => <option key={t.topic} value={t.topic}>{t.topic} ({t.questions})</option>)}</select>
+        <input className="input" type="number" min={1} max={30} style={{ width: 80 }} aria-label="How many" value={n} onChange={(e) => setN(Number(e.target.value))} /><button className="btn sm" disabled={busy} onClick={() => run(async () => { const r = (await api.post('/api/bank/pick', { topic: topic || undefined, count: n })).data as any[]; setSel(Object.fromEntries(r.map((x) => [x.id, x]))); }, 'Random questions chosen.')}>🎲 Pick {n} at random</button></div>
+        <Async q={list as any}>{(rows: any[]) => !rows.length ? <Empty icon="❓" title="The bank is empty">Add questions under Question bank first.</Empty> : <>{rows.map((x) => <label key={x.id} className="m-card" style={{ alignItems: 'flex-start', cursor: 'pointer' }}><input type="checkbox" checked={!!sel[x.id]} onChange={(e) => setSel((c) => { const d = { ...c }; if (e.target.checked) d[x.id] = x; else delete d[x.id]; return d; })} /><div className="grow"><b>{x.q}</b><div className="muted small">{x.topic} · {x.difficulty}</div></div></label>)}</>}</Async></div>
     </Modal>
   );
 }
