@@ -48,6 +48,9 @@ System Status → *Slowest routes* and the `slow query` warnings in logs (SQL te
 | Public demo page says it is unavailable | Booking page switched on (CRM → Demo classes)? Slot open, in the future, with seats left? Link is `/book-demo/<slug>` |
 | A reply of STOP did not opt someone out | Replies need the Meta webhook (`/api/webhooks/meta`); AiSensy does not deliver replies. Check Communication → Replies |
 | Teacher pay shows no hours | Classes must be marked completed and the teacher must have been on the batch that day |
+| Progress report shows nothing | Only recorded data appears: attendance marked, scores entered, assignments due that month. Check the month |
+| "Send reports" will not send | E-mail not configured (SMTP), or the month was already sent to that learner |
+| A learner's project is invisible to parents | It is still pending: Classroom → Portfolio review |
 | "Reset it by e-mail" missing on sign-in | `SMTP_HOST` and `SMTP_FROM` both set? System Status → e-mail |
 | E-mails stay "pending" or "failed" | `GET /api/email/outbox` (staff) shows the last error. Wrong port/secure pair (465 needs `SMTP_SECURE=true`), wrong password, or the sender address not allowed by the mailbox |
 | Reset / calendar / certificate links point to the wrong address | Set `APP_URL` to the public https address |

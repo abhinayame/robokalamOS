@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { fmtDate, fmtDateTime } from '../format';
+import { Badge3D } from './Badge3D';
+import { ShareModal } from './ShareModal';
 import { Async, Badge, Empty, Field, Modal, Progress, fieldErrors, useAction, useFetch, useToast } from './ui';
 
 export interface Target { id: string; name: string }
@@ -9,6 +11,7 @@ export interface Target { id: string; name: string }
 /** XP, level, progress to the next level. */
 export function XpCard({ learnerId }: { learnerId?: string }) {
   const q = useFetch(() => api.get(`/api/gamification/overview${qs({ learner_id: learnerId })}`).then((r) => r.data), [learnerId]);
+  const { can } = useAuth(); const [share, setShare] = useState(false);
   return (
     <Async q={q} rows={2}>{(o: any) => (
       <div className="card card-pad stack">
@@ -17,7 +20,8 @@ export function XpCard({ learnerId }: { learnerId?: string }) {
           <div style={{ textAlign: 'right' }}><div style={{ fontSize: 28, fontWeight: 800 }}>{o.xp} XP</div><div className="muted small">{o.xp_last_7_days >= 0 ? '+' : ''}{o.xp_last_7_days} this week · {o.badges} badge{o.badges === 1 ? '' : 's'}</div></div>
         </div>
         <Progress value={o.progress_pct} tone="ok" />
-        <div className="muted small">{o.next ? `${o.xp_to_next} XP to ${o.next.name}` : 'Top level reached 🎉'}</div>
+        <div className="row between wrap"><div className="muted small">{o.next ? `${o.xp_to_next} XP to ${o.next.name}` : 'Top level reached 🎉'}</div>{!can('gamification:award') && <button className="btn sm" onClick={() => setShare(true)}>📤 Share my XP</button>}</div>
+        {share && <ShareModal kind="xp" id={o.learner.id} title={`Level ${o.level.level_no}`} onClose={() => setShare(false)} />}
       </div>)}</Async>
   );
 }
@@ -27,17 +31,18 @@ export function BadgeWall({ learnerId, onRevoked }: { learnerId?: string; onRevo
   const { can } = useAuth();
   const q = useFetch(() => api.get(`/api/gamification/achievements${qs({ learner_id: learnerId })}`).then((r) => r.data), [learnerId]);
   const { run } = useAction();
+  const [share, setShare] = useState<{ id: string; title: string } | null>(null);
   const revoke = (id: string) => { const reason = prompt('Why is this badge being taken back?'); if (reason && reason.trim().length >= 2) run(async () => { await api.post(`/api/gamification/learner-badges/${id}/revoke`, { reason }); q.reload(); onRevoked?.(); }, 'Badge revoked'); };
   return (
     <Async q={q} rows={2}>{(rows: any[]) => rows.length ? (
       <div className="grid cols-3">{rows.map((b) => (
         <div key={b.id} className="card card-pad stack" style={{ gap: 6 }}>
-          <div className="row"><span style={{ fontSize: 34 }} aria-hidden>{b.icon}</span><div className="grow"><b>{b.name}</b>{b.category && <div className="muted small">{b.category}</div>}</div>{b.xp_awarded > 0 && <Badge tone="ok">+{b.xp_awarded} XP</Badge>}</div>
+          <div className="row"><Badge3D name={b.name} size={56} /><div className="grow"><b>{b.name}</b>{b.category && <div className="muted small">{b.category}</div>}</div>{b.xp_awarded > 0 && <Badge tone="ok">+{b.xp_awarded} XP</Badge>}</div>
           {b.description && <div className="small">{b.description}</div>}
           {b.reason && <div className="small">“{b.reason}”</div>}
           <div className="muted small">{fmtDate(b.awarded_at)} · by {b.awarded_by}{b.batch_name ? ` · ${b.batch_name}` : ''}</div>
-          {can('gamification:award') && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => revoke(b.id)}>Revoke</button>}
-        </div>))}</div>
+          {can('gamification:award') ? <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => revoke(b.id)}>Revoke</button> : <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => setShare({ id: b.id, title: b.name })}>📤 Share</button>}
+        </div>))}{share && <ShareModal kind="badge" id={share.id} title={share.title} onClose={() => setShare(null)} />}</div>
     ) : <div className="card"><Empty icon="🏅" title="No badges yet">Badges your teachers award will appear here.</Empty></div>}</Async>
   );
 }

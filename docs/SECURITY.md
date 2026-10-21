@@ -53,8 +53,17 @@ The only unauthenticated additions are three read-only endpoints under `/api/pub
 * Admission is atomic and idempotent; fee and payment steps need their own permissions.
 * Payroll needs `payroll:read`, rates need `payroll:manage`, branch admins see only their branches, and the CSV neutralises formula-like text.
 
+## Progress reports and portfolio (Phase 15)
+* A report and its PDF are visible only to staff in scope, the learner and their parents (404 otherwise); sending is confirmed, capped at 1000 learners, deduplicated per learner and month, and audited.
+* Portfolio items are hidden, with their pictures, from parents and classmates until a teacher approves them. Files are content-checked (pictures/PDF), served with nosniff and a sandbox CSP, and removed with their project. Video links must be https.
+
 ## Dependencies
 `npm audit --omit=dev` reports 0 vulnerabilities at the time of Phase 9. Re-run before each release.
 
 ## Reporting
 Security issues: email the platform owner directly; do not open a public issue with details.
+
+## LMS and share cards (Phase 16)
+- Quiz answers never leave the server; learner routes act only on the caller's own enrollments.
+- Share cards are authenticated PNGs (no public links, rate-limited, `no-store`), first name only, no school/contact details. CSP allows `blob:` images so the browser can preview them.
+- Certificates freeze template and accent at issue; batch auto-issue runs once per batch and is audited (`certificate.auto_issued`).

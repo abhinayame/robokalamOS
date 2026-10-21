@@ -1,3 +1,4 @@
+import { Badge3D } from '../components/Badge3D';
 import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -29,7 +30,7 @@ function Badges({ canManage }: { canManage: boolean }) {
       {canManage && <div><button className="btn primary" onClick={() => setEdit('new')}>＋ New badge</button></div>}
       <Async q={q}>{(rows: any[]) => rows.length ? <div className="grid cols-3">{rows.map((b) => (
         <div key={b.id} className="card card-pad stack" style={{ gap: 6, opacity: b.status === 'active' ? 1 : 0.6 }}>
-          <div className="row"><span style={{ fontSize: 32 }} aria-hidden>{b.icon}</span><div className="grow"><b>{b.name}</b><div className="muted small">{b.category || 'General'}</div></div>{b.status !== 'active' && <Badge>{b.status}</Badge>}</div>
+          <div className="row"><Badge3D name={b.name} size={52} /><div className="grow"><b>{b.name}</b><div className="muted small">{b.category || 'General'}</div></div>{b.status !== 'active' && <Badge>{b.status}</Badge>}</div>
           {b.description && <div className="small">{b.description}</div>}
           {b.criteria && <div className="muted small">Criteria: {b.criteria}</div>}
           <div className="row between small"><span>{b.xp_reward ? `+${b.xp_reward} XP` : 'No XP'}</span><span className="muted">{b.awarded} awarded</span></div>

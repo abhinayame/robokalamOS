@@ -22,6 +22,7 @@
     "restore:prod": "node dist/scripts/restore.js"
   },
   "dependencies": {
+    "@resvg/resvg-js": "^2.6.2",
     "bcryptjs": "^3.0.3",
     "compression": "^1.8.2",
     "cookie-parser": "^1.4.7",

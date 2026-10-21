@@ -21,6 +21,8 @@ LMS · virtual classroom · student information system · gamification · parent
 | **12 Branding & app** | Logo, name, colors and custom domain per organization; installable app (PWA) with offline page | ✅ [`PHASE-12`](docs/PHASE-12-BRANDING-PWA.md) |
 | **13 E-mail, certificates & calendar** | E-mail channel with password reset, e-mail reminders, personal calendar feeds (Google/Apple/Outlook), certificates with QR and public verification | ✅ [`PHASE-13`](docs/PHASE-13-CERTIFICATES-CALENDAR-EMAIL.md) |
 | **14 Admissions, demos & pay** | One-step admission of a lead, public demo-class booking, WhatsApp STOP/YES replies, receipt e-mails, teacher workload and pay estimate | ✅ [`PHASE-14`](docs/PHASE-14-ADMISSIONS-DEMO-PAYROLL.md) |
+| **15 Progress reports & portfolio** | Monthly report for parents (PDF, teacher notes, e-mailed), learner project portfolio with teacher approval | ✅ [`PHASE-15`](docs/PHASE-15-PROGRESS-PORTFOLIO.md) |
+| **16 LMS, sharing & templates** | Courses for learners and staff onboarding with progress tracking, shareable branded achievement images, certificate templates with per-batch auto-issue, weekly timetable | ✅ [`PHASE-16`](docs/PHASE-16-LMS-SHARING-TEMPLATES.md) |
 | **11 Live classes** | Zoom meetings from the schedule, automatic attendance from who joined, recordings | ✅ [`PHASE-11`](docs/PHASE-11-LIVE-CLASSES.md) |
 | **10 Fees, reminders, import** | Fee plans, installments, payments, receipts, Razorpay payment links, automatic WhatsApp reminders, CSV import | ✅ [`PHASE-10`](docs/PHASE-10-FEES-REMINDERS-IMPORT.md) |
 | **9 Production hardening** | Security audit, observability, system status, backups, performance, Postman, runbooks | ✅ [`PHASE-9`](docs/PHASE-9-HARDENING.md) |

@@ -20,6 +20,9 @@ import Login from './pages/Login';
 import Classrooms from './pages/Classrooms';
 import Classroom from './pages/Classroom';
 import Assignment from './pages/Assignment';
+import { Learn, LearnCourse } from './pages/Learn';
+import Courses from './pages/Courses';
+import Timetable from './pages/Timetable';
 import Achievements from './pages/Achievements';
 import Gamification from './pages/Gamification';
 import Analytics from './pages/Analytics';
@@ -38,6 +41,9 @@ import Organizations from './pages/Organizations';
 import Parents from './pages/Parents';
 import Teachers from './pages/Teachers';
 import Users from './pages/Users';
+import MyReport from './pages/MyReport';
+import ProgressNotes from './pages/ProgressNotes';
+import { MyPortfolio, PortfolioReview } from './pages/PortfolioPages';
 import Demo from './pages/Demo';
 import DemoBooking from './pages/DemoBooking';
 import Payroll from './pages/Payroll';
@@ -78,9 +84,17 @@ export default function App() {
         <Route path="batches/:id" element={<BatchDetail />} />
         <Route path="classes" element={<MyClasses />} />
         <Route path="fees" element={<Guard perm="fee:read"><Fees /></Guard>} />
+        <Route path="my-report" element={<Guard roles={['learner', 'parent']}><MyReport /></Guard>} />
+        <Route path="my-portfolio" element={<Guard roles={['learner', 'parent']}><MyPortfolio /></Guard>} />
+        <Route path="progress" element={<Guard perm="classroom:manage"><ProgressNotes /></Guard>} />
+        <Route path="portfolio/review" element={<Guard perm="portfolio:review"><PortfolioReview /></Guard>} />
         <Route path="demo" element={<Guard perm="crm:read"><Demo /></Guard>} />
         <Route path="payroll" element={<Guard perm="payroll:read"><Payroll /></Guard>} />
         <Route path="certificates" element={<Guard perm="cert:read"><Certificates /></Guard>} />
+        <Route path="learn" element={<Learn />} />
+        <Route path="learn/:id" element={<LearnCourse />} />
+        <Route path="courses" element={<Guard perm="lms:read"><Courses /></Guard>} />
+        <Route path="timetable" element={<Timetable />} />
         <Route path="my-certificates" element={<Guard roles={['learner', 'parent']}><MyCertificates /></Guard>} />
         <Route path="my-fees" element={<Guard roles={['learner', 'parent']}><MyFees /></Guard>} />
         <Route path="settings/branding" element={<Guard perm="org:manage"><Branding /></Guard>} />
