@@ -25,6 +25,7 @@ export function preflight(cfg: { env: typeof realEnv; isProd: boolean; corsOrigi
   if (env.SMTP_HOST && env.SMTP_FROM && !env.APP_URL) add('warn', 'APP_URL_MISSING', 'APP_URL is not set: links in e-mails, calendar feeds and certificate QR codes fall back to the first CORS origin.');
   if ((env.ZOOM_ACCOUNT_ID || env.ZOOM_CLIENT_ID || env.ZOOM_CLIENT_SECRET) && !(env.ZOOM_ACCOUNT_ID && env.ZOOM_CLIENT_ID && env.ZOOM_CLIENT_SECRET)) add('warn', 'ZOOM_INCOMPLETE', 'Zoom needs ZOOM_ACCOUNT_ID, ZOOM_CLIENT_ID and ZOOM_CLIENT_SECRET together: meeting creation stays off until all three are set.');
   if (env.ZOOM_ACCOUNT_ID && env.ZOOM_CLIENT_ID && env.ZOOM_CLIENT_SECRET && !env.ZOOM_WEBHOOK_SECRET_TOKEN) add('warn', 'ZOOM_WEBHOOK_MISSING', 'Zoom is configured but ZOOM_WEBHOOK_SECRET_TOKEN is not: who joined a class (and recordings) can never be received.');
+  { const v = [env.VAPID_PUBLIC_KEY, env.VAPID_PRIVATE_KEY, env.VAPID_SUBJECT].filter(Boolean).length; if (v > 0 && v < 3) add('warn', 'VAPID_INCOMPLETE', 'Push notifications need VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and VAPID_SUBJECT together: they are off until all three are set.'); }
   if (env.BCRYPT_COST < 10) add('warn', 'BCRYPT_LOW', 'BCRYPT_COST is below 10.');
   if (env.WHATSAPP_PROVIDER === 'meta') {
     if (!(env.META_WA_TOKEN && env.META_PHONE_NUMBER_ID)) add('warn', 'META_INCOMPLETE', 'WHATSAPP_PROVIDER is meta but META_WA_TOKEN and META_PHONE_NUMBER_ID are not both set: nothing is sent.');

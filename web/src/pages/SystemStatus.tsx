@@ -1,4 +1,6 @@
+import { useState } from 'react';
 import { api } from '../api';
+import { useAuth } from '../auth';
 import { Async, Badge, PageHead, Stat, useFetch } from '../components/ui';
 import { fmtDateTime } from '../format';
 
@@ -15,6 +17,7 @@ export default function SystemStatus() {
         const errs = Object.entries(s.traffic.by_status ?? {});
         return (
           <>
+            <LiveTests />
             <div className="grid cols-4">
               <Stat label="Database" value={<Badge tone="ok">Reachable</Badge>} sub={`${s.database.latency_ms} ms · pool ${s.database.pool_connections ?? '?'} · waiting ${s.database.pool_waiting ?? 0}`} />
               <Stat label="Migrations" value={s.migrations.pending.length ? <Badge tone="bad">{s.migrations.pending.length} pending</Badge> : <Badge tone="ok">Up to date</Badge>} sub={`${s.migrations.applied}/${s.migrations.available} · ${s.migrations.latest ?? '—'}`} />
@@ -78,5 +81,26 @@ export default function SystemStatus() {
         );
       }}</Async>
     </>
+  );
+}
+
+function LiveTests() {
+  const { can } = useAuth(); const [res, setRes] = useState<Record<string, any>>({}); const [busy, setBusy] = useState(''); const [wa, setWa] = useState({ phone: '', campaign_name: '' });
+  if (!can('system:test')) return null;
+  const run = async (id: string, body?: object) => { setBusy(id); try { setRes((r) => ({ ...r, [id]: (null as any) })); const d = (await api.post(`/api/system/selftest/${id}`, body ?? {})).data; setRes((r) => ({ ...r, [id]: d })); } catch (e: any) { setRes((r) => ({ ...r, [id]: { ok: false, step: 'error', detail: e?.message ?? 'Failed' } })); } finally { setBusy(''); } };
+  const row = (id: string, label: string, note: string, extra?: React.ReactNode) => (
+    <div className="m-card" style={{ alignItems: 'flex-start' }}><div className="grow"><b>{label}</b><div className="muted small">{note}</div>{extra}
+      {res[id] && <div className={res[id].ok ? 'small' : 'err small'} role="status" style={{ marginTop: 6 }}>{res[id].ok ? '✅' : '❌'} {res[id].detail}</div>}</div>
+      <button className="btn sm" disabled={!!busy || (id === 'whatsapp' && (wa.phone.length < 8 || wa.campaign_name.length < 2))} onClick={() => run(id, id === 'whatsapp' ? wa : undefined)}>{busy === id ? 'Testing…' : 'Run test'}</button></div>);
+  return (
+    <div className="card" style={{ marginBottom: 14 }}><div className="card-head"><h2>Live provider tests</h2></div>
+      <div className="card-pad muted small">Once the keys are set in Hostinger, press a button to check each provider really works. Each test is harmless and cleans up after itself.</div>
+      {row('email', 'E-mail (SMTP)', 'Sends a short test e-mail to your own address.')}
+      {row('razorpay', 'Razorpay', 'Creates a Rs 1 payment link, then cancels it. Nobody is charged.')}
+      {row('zoom', 'Zoom', 'Creates a meeting for tomorrow, then deletes it.')}
+      {row('push', 'Push notifications', 'Sends a test notification to your own devices that allowed them (Account → Turn on notifications).')}
+      {row('whatsapp', 'WhatsApp', 'Sends ONE approved template message to the number below. Templates can cost money, so this is never automatic.',
+        <div className="row wrap gap-s" style={{ marginTop: 6 }}><input className="input" style={{ maxWidth: 170 }} placeholder="Your mobile" aria-label="Test mobile number" value={wa.phone} onChange={(e) => setWa({ ...wa, phone: e.target.value })} /><input className="input" style={{ maxWidth: 240 }} placeholder="Approved campaign/template name" aria-label="Template name" value={wa.campaign_name} onChange={(e) => setWa({ ...wa, campaign_name: e.target.value })} /></div>)}
+    </div>
   );
 }

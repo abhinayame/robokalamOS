@@ -46,6 +46,10 @@ describe('every route says who may call it', () => {
     'modules/demo/routes.ts: GET /demo/:slug/slots': 'public by design: only for schools that switched the booking page on; lists open future slots with seats left, no personal data',
     'modules/demo/routes.ts: POST /demo/:slug/book': 'public by design: honeypot, 6/min per IP, 4 per phone per day, slot row lock; never returns anything about people already on file',
     'modules/lms/learn.ts': 'the learning side acts only on the signed-in person\'s own enrollments (their learner profile, or themselves as staff); the quiz answers never leave the server',
+    'modules/checkin/routes.ts': 'teacher routes go through openRoom + assertManage on the class\'s batch; a learner check-in needs the learner role, an active membership of that batch and a code signed with a server-side secret',
+    'modules/polls/routes.ts': 'every route opens the batch through openRoom (404 outside scope); creating and closing need assertManage, voting needs the learner role in that batch',
+    'modules/push/routes.ts': 'each person manages only their own devices; endpoints must be real browser push services',
+    'modules/system/selftest.ts': 'each handler is behind the system:test permission (spread as a gate) and a 10/min limit',
     'modules/organizations/routes.ts: GET /current': 'returns only the caller\'s own organization',
   };
   it('each route file applies requirePerm / requireAnyPerm / requireSuperAdmin to every handler (or is on the reviewed allow-list)', () => {
