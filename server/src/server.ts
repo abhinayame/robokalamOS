@@ -1,3 +1,4 @@
+import { startLmsReminders, stopLmsReminders } from './modules/lms/auto.js';
 import { startPushWorker, stopPushWorker } from './modules/push/service.js';
 import { startEmailWorker, stopEmailWorker } from './modules/email/outbox.js';
 import { createApp } from './app.js';
@@ -30,6 +31,7 @@ async function main() {
   startReminders();
   startEmailWorker();
   startPushWorker();
+  startLmsReminders();
   void resumeImports().catch((e) => logger.error({ err: e }, 'could not resume imports'));
   startMaintenance();
 
@@ -39,6 +41,7 @@ async function main() {
     stopReminders();
     stopEmailWorker();
     stopPushWorker();
+    stopLmsReminders();
     stopMaintenance();
     server.close(() => pool.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10_000).unref();

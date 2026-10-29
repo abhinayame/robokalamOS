@@ -7,6 +7,7 @@ import { ok, paging, parse, uuid, wrap } from '../../lib/http.js';
 import { normalizeMobile } from '../../lib/phone.js';
 import { generatePassword, hashPassword, passwordProblem } from '../../lib/security.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
+import { autoEnrolStaff } from '../lms/auto.js';
 
 /** Staff roles that can be granted through the API (learner/parent logins have their own endpoints). */
 const STAFF_ROLES = ['org_admin', 'branch_admin', 'teacher', 'counsellor', 'accountant'] as const;
@@ -94,6 +95,7 @@ async function createStaff(req: Request, forceRole?: z.infer<typeof roleGrant>) 
       await exec(`INSERT INTO user_roles (id, user_id, role_id, org_id, branch_id) SELECT $1, $2, id, $3, $4 FROM roles WHERE code = $5`, [newId(), id, orgIdOf(req), g.branch_id ?? null, g.role], db);
     }
     const u = { id, email: body.email, full_name: body.full_name, mobile, status: 'active' };
+    await autoEnrolStaff(db, orgIdOf(req), id, grants.map((g) => g.role));   // onboarding courses set up for these roles
     await audit({ orgId: orgIdOf(req), actor: req.user, action: 'user.created', entityType: 'user', entityId: id, next: { email: u.email, roles: grants }, req }, db);
     return u;
   });
@@ -175,6 +177,7 @@ router.put('/users/:id/roles', requirePerm('user:manage'), wrap(async (req, res)
     for (const g of roles) {
       await exec(`INSERT INTO user_roles (id, user_id, role_id, org_id, branch_id) SELECT $1, $2, id, $3, $4 FROM roles WHERE code = $5`, [newId(), id, orgIdOf(req), g.branch_id ?? null, g.role], db);
     }
+    await autoEnrolStaff(db, orgIdOf(req), id, roles.map((g) => g.role));
     await audit({ orgId: orgIdOf(req), actor: req.user, action: 'permission.changed', entityType: 'user', entityId: id, previous: prev, next: roles, req }, db);
     return roles;
   });

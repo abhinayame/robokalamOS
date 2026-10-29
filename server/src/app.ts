@@ -55,6 +55,7 @@ import lmsLearn from './modules/lms/learn.js';
 import shareRoutes from './modules/share/routes.js';
 import chatRoutes from './modules/chat/routes.js';
 import lmsLearn2 from './modules/lms/learn2.js';
+import lmsTeam from './modules/lms/team.js';
 import lmsStudio from './modules/lms/studio.js';
 import lmsPaths from './modules/lms/paths.js';
 import bankRoutes from './modules/lms/bank.js';
@@ -164,6 +165,7 @@ export function createApp() {
   app.use('/api/timetable', timetableRoutes);
   app.use('/api/lms/paths', lmsPaths);
   app.use('/api/bank', bankRoutes);
+  app.use('/api/lms', lmsTeam);
   app.use('/api/lms', lmsStudio);
   app.use('/api/lms', lmsManage);
   app.use('/api/learn', lmsLearn);

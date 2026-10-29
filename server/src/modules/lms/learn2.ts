@@ -8,7 +8,7 @@ import { notifyUsers } from '../../lib/notify.js';
 import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { attachFiles, filesFor } from '../files/store.js';
-import { afterProgress, courseView, enrollInCourse, markLessonDone, standing } from './service.js';
+import { afterProgress, courseView, enrollInCourse, LESSON_JOIN, LESSON_ORDER, markLessonDone, standing } from './service.js';
 import { mine, myEnrollment } from './learn.js';
 
 /** The learner's side of the fuller LMS: catalog and self-enrolment, notes, handing in work, reviews, course discussion, announcements and the learning record. */
@@ -53,8 +53,8 @@ router.get('/catalog/:courseId', wrap(async (req, res) => {
   const enr = await queryOne(`SELECT id, status, due_at, completed_at FROM lms_enrollments WHERE course_id = $1 AND status <> 'removed' AND (user_id = $2 ${learnerIds.length ? `OR learner_id IN (${learnerIds.map((_, i) => `$${i + 3}`).join(',')})` : ''}) LIMIT 1`, [id, userId, ...learnerIds]);
   const visible = enr || manager || (c.status === 'published' && c.enrollment_mode === 'open' && (isLearnerUser(req) ? c.audience !== 'staff' : c.audience !== 'learners'));
   if (!visible) throw notFound('Course');
-  const modules = await query(`SELECT id, position, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position, id`, [id]);
-  const lessons = await query(`SELECT l.id, l.module_id, l.title, l.kind, l.minutes, l.required FROM lms_lessons l LEFT JOIN lms_modules m ON m.id = l.module_id AND m.deleted_at IS NULL WHERE l.course_id = $1 AND l.deleted_at IS NULL ORDER BY COALESCE(m.position, 0), l.position, l.id`, [id]);
+  const modules = await query(`SELECT id, position, parent_id, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position, id`, [id]);
+  const lessons = await query(`SELECT l.id, l.module_id, l.title, l.kind, l.minutes, l.required FROM lms_lessons l ${LESSON_JOIN} WHERE l.course_id = $1 AND l.deleted_at IS NULL ORDER BY ${LESSON_ORDER}`, [id]);
   const rating = await queryOne(`SELECT AVG(rating) AS avg, COUNT(*) AS n FROM lms_reviews WHERE course_id = $1 AND hidden_at IS NULL`, [id]);
   const reviews = await query(`SELECT r.rating, r.comment, r.created_at, COALESCE(l.full_name, u.full_name) AS name, (r.learner_id IS NOT NULL) AS is_learner FROM lms_reviews r LEFT JOIN learners l ON l.id = r.learner_id LEFT JOIN users u ON u.id = r.user_id WHERE r.course_id = $1 AND r.hidden_at IS NULL AND r.comment IS NOT NULL ORDER BY r.created_at DESC LIMIT 20`, [id]);
   const learners = Number((await queryOne(`SELECT COUNT(*) AS n FROM lms_enrollments WHERE course_id = $1 AND status <> 'removed'`, [id]))!.n);
@@ -69,7 +69,7 @@ router.post('/catalog/:courseId/enrol', limit('lms enrol', 30), wrap(async (req,
     const c = await queryOne(`SELECT id, title, audience, status, enrollment_mode FROM lms_courses WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [id, orgId], db); if (!c) throw notFound('Course');
     if (c.status !== 'published' || c.enrollment_mode !== 'open') throw new AppError(409, 'NOT_OPEN', 'This course is not open for joining. Ask your school to give it to you.');
     if (isLearnerUser(req) ? c.audience === 'staff' : c.audience === 'learners') throw notFound('Course');
-    const made = await enrollInCourse(db, { orgId, courseId: id, who: isLearnerUser(req) ? { userId: null, learnerId: learnerIds[0]! } : { userId, learnerId: null }, assignedBy: null, dueAt: null });
+    const made = await enrollInCourse(db, { orgId, courseId: id, who: isLearnerUser(req) ? { userId: null, learnerId: learnerIds[0]! } : { userId, learnerId: null }, assignedBy: null, dueAt: null, source: 'self' });
     if (made) await audit({ orgId, actor: req.user, action: 'lms.self_enrolled', entityType: 'lms_course', entityId: id, req }, db);
     return { enrolled: true, already: !made };
   }); ok(res, out, undefined, out.already ? 200 : 201);

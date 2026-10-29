@@ -9,7 +9,7 @@ import { notifyAbout, notifyUsers } from '../../lib/notify.js';
 import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { resolveLearnerIds, selectorSchema } from '../selection/resolver.js';
-import { standing } from './service.js';
+import { resolveStaff, standing } from './service.js';
 
 const router = Router(); // mounted at /api/lms
 router.use(requireOrg, requireAnyPerm('lms:read', 'lms:manage'));
@@ -129,9 +129,9 @@ router.post('/courses/:id/lessons/reorder', manage, wrap(async (req, res) => {
 
 // ---- assigning: learners through the usual selector, staff by person or all at once
 router.post('/courses/:id/assign', manage, limit('lms assign', 20), wrap(async (req, res) => {
-  const orgId = orgIdOf(req); const b = parse(z.object({ selector: selectorSchema.optional(), user_ids: z.array(uuid).max(500).default([]), all_staff: z.boolean().default(false), due_at: z.string().datetime({ offset: true }).nullish(), dry_run: z.boolean().default(false), confirm: z.boolean().optional() }), req.body);
+  const orgId = orgIdOf(req); const b = parse(z.object({ selector: selectorSchema.optional(), user_ids: z.array(uuid).max(500).default([]), roles: z.array(z.string().max(30)).max(5).default([]), all_staff: z.boolean().default(false), due_at: z.string().datetime({ offset: true }).nullish(), dry_run: z.boolean().default(false), confirm: z.boolean().optional() }), req.body);
   if (!b.dry_run && b.confirm !== true) throw new AppError(400, 'CONFIRMATION_REQUIRED', 'Review who will get this course and confirm.');
-  if (!b.selector && !b.user_ids.length && !b.all_staff) throw badRequest('Choose who should take this course.');
+  if (!b.selector && !b.user_ids.length && !b.all_staff && !b.roles.length) throw badRequest('Choose who should take this course.');
   const out = await tx(async (db) => {
     const c = await loadCourse(orgId, parse(uuid, req.params.id), db);
     if (c.status !== 'published') throw conflict('Publish the course before assigning it.', 'NOT_PUBLISHED');
@@ -142,10 +142,9 @@ router.post('/courses/:id/assign', manage, limit('lms assign', 20), wrap(async (
       learnerIds = await resolveLearnerIds(req.user!, orgId, b.selector, db, MAX_ASSIGN + 1); if (learnerIds.length > MAX_ASSIGN) throw badRequest(`That selects more than ${MAX_ASSIGN} learners. Narrow it down.`);
     }
     let staffIds: string[] = [];
-    if (b.user_ids.length || b.all_staff) {
+    if (b.user_ids.length || b.all_staff || b.roles.length) {
       if (c.audience === 'learners') throw badRequest('This course is for learners only.');
-      const p = new Params();
-      staffIds = (await query(`SELECT DISTINCT u.id FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id WHERE u.org_id = ${p.add(orgId)} AND u.status = 'active' AND u.deleted_at IS NULL AND r.code IN ('teacher','counsellor','accountant','branch_admin','org_admin') ${b.all_staff ? '' : `AND u.id IN ${p.in(b.user_ids)}`}`, p.values, db)).map((r) => r.id as string);
+      staffIds = await resolveStaff(db, orgId, { all: b.all_staff, roles: b.roles, userIds: b.user_ids });
     }
     const lp = new Params(); const haveL = new Set(learnerIds.length ? (await query(`SELECT learner_id FROM lms_enrollments WHERE course_id = ${lp.add(c.id)} AND status <> 'removed' AND learner_id IN ${lp.in(learnerIds)}`, lp.values, db)).map((r) => r.learner_id) : []);
     const sp = new Params(); const haveS = new Set(staffIds.length ? (await query(`SELECT user_id FROM lms_enrollments WHERE course_id = ${sp.add(c.id)} AND status <> 'removed' AND user_id IN ${sp.in(staffIds)}`, sp.values, db)).map((r) => r.user_id) : []);

@@ -8,7 +8,7 @@ import { notifyAbout, notifyUsers } from '../../lib/notify.js';
 import { limit } from '../../middleware/limits.js';
 import { orgIdOf, requireAnyPerm, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { resolveLearnerIds, selectorSchema } from '../selection/resolver.js';
-import { enrollInCourse } from './service.js';
+import { enrollInCourse, resolveStaff } from './service.js';
 
 /** Learning paths: courses in a set order. Assigning a path enrols the person in the first course; each later course unlocks when the one before it is finished. */
 const router = Router(); // mounted at /api/lms/paths
@@ -57,9 +57,9 @@ router.delete('/:id', manage, wrap(async (req, res) => {
 }));
 
 router.post('/:id/assign', manage, limit('lms assign', 20), wrap(async (req, res) => {
-  const orgId = orgIdOf(req); const b = parse(z.object({ selector: selectorSchema.optional(), user_ids: z.array(uuid).max(500).default([]), all_staff: z.boolean().default(false), due_days: z.number().int().min(1).max(365).nullish(), dry_run: z.boolean().default(false), confirm: z.boolean().optional() }), req.body);
+  const orgId = orgIdOf(req); const b = parse(z.object({ selector: selectorSchema.optional(), user_ids: z.array(uuid).max(500).default([]), roles: z.array(z.string().max(30)).max(5).default([]), all_staff: z.boolean().default(false), due_days: z.number().int().min(1).max(365).nullish(), dry_run: z.boolean().default(false), confirm: z.boolean().optional() }), req.body);
   if (!b.dry_run && b.confirm !== true) throw new AppError(400, 'CONFIRMATION_REQUIRED', 'Review who will get this path and confirm.');
-  if (!b.selector && !b.user_ids.length && !b.all_staff) throw badRequest('Choose who should take this path.');
+  if (!b.selector && !b.user_ids.length && !b.all_staff && !b.roles.length) throw badRequest('Choose who should take this path.');
   const out = await tx(async (db) => {
     const p = await loadPath(orgId, parse(uuid, req.params.id), db); if (p.status !== 'published') throw conflict('Publish the path before assigning it.', 'NOT_PUBLISHED');
     const steps = await stepsOf(p.id, db); if (steps.some((s) => s.status !== 'published')) throw conflict('Every course on the path must be published first.', 'COURSE_NOT_PUBLISHED');
@@ -68,10 +68,9 @@ router.post('/:id/assign', manage, limit('lms assign', 20), wrap(async (req, res
       if (steps.some((s) => s.audience === 'staff')) throw badRequest('A course on this path is for staff only, so it cannot be given to learners.');
       learnerIds = await resolveLearnerIds(req.user!, orgId, b.selector, db, 2001); if (learnerIds.length > 2000) throw badRequest('That selects more than 2000 learners. Narrow it down.');
     }
-    if (b.user_ids.length || b.all_staff) {
+    if (b.user_ids.length || b.all_staff || b.roles.length) {
       if (steps.some((s) => s.audience === 'learners')) throw badRequest('A course on this path is for learners only, so it cannot be given to staff.');
-      const sp = new Params();
-      staffIds = (await query(`SELECT DISTINCT u.id FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id WHERE u.org_id = ${sp.add(orgId)} AND u.status = 'active' AND u.deleted_at IS NULL AND r.code IN ('teacher','counsellor','accountant','branch_admin','org_admin') ${b.all_staff ? '' : `AND u.id IN ${sp.in(b.user_ids)}`}`, sp.values, db)).map((r) => r.id as string);
+      staffIds = await resolveStaff(db, orgId, { all: b.all_staff, roles: b.roles, userIds: b.user_ids });
     }
     const haveL = new Set((await query(`SELECT learner_id FROM lms_path_members WHERE path_id = $1 AND removed_at IS NULL AND learner_id IS NOT NULL`, [p.id], db)).map((r) => r.learner_id));
     const haveS = new Set((await query(`SELECT user_id FROM lms_path_members WHERE path_id = $1 AND removed_at IS NULL AND user_id IS NOT NULL`, [p.id], db)).map((r) => r.user_id));
