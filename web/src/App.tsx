@@ -22,6 +22,9 @@ import Classroom from './pages/Classroom';
 import Assignment from './pages/Assignment';
 import { Learn, LearnCourse } from './pages/Learn';
 import Courses from './pages/Courses';
+import Messages from './pages/Messages';
+import QuestionBank from './pages/QuestionBank';
+import Checkin from './pages/Checkin';
 import Timetable from './pages/Timetable';
 import Achievements from './pages/Achievements';
 import Gamification from './pages/Gamification';
@@ -94,7 +97,10 @@ export default function App() {
         <Route path="learn" element={<Learn />} />
         <Route path="learn/:id" element={<LearnCourse />} />
         <Route path="courses" element={<Guard perm="lms:read"><Courses /></Guard>} />
+        <Route path="messages/:id?" element={<Guard perm="chat:use"><Messages /></Guard>} />
+        <Route path="question-bank" element={<Guard perm="qbank:manage"><QuestionBank /></Guard>} />
         <Route path="timetable" element={<Timetable />} />
+        <Route path="checkin/:token" element={<Guard roles={['learner']}><Checkin /></Guard>} />
         <Route path="my-certificates" element={<Guard roles={['learner', 'parent']}><MyCertificates /></Guard>} />
         <Route path="my-fees" element={<Guard roles={['learner', 'parent']}><MyFees /></Guard>} />
         <Route path="settings/branding" element={<Guard perm="org:manage"><Branding /></Guard>} />

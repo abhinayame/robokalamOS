@@ -1,3 +1,4 @@
+import { startPushWorker, stopPushWorker } from './modules/push/service.js';
 import { startEmailWorker, stopEmailWorker } from './modules/email/outbox.js';
 import { createApp } from './app.js';
 import { db as dbConfig, env } from './config/env.js';
@@ -28,6 +29,7 @@ async function main() {
   startCommsWorker();
   startReminders();
   startEmailWorker();
+  startPushWorker();
   void resumeImports().catch((e) => logger.error({ err: e }, 'could not resume imports'));
   startMaintenance();
 
@@ -36,6 +38,7 @@ async function main() {
     stopCommsWorker();
     stopReminders();
     stopEmailWorker();
+    stopPushWorker();
     stopMaintenance();
     server.close(() => pool.end().then(() => process.exit(0)));
     setTimeout(() => process.exit(1), 10_000).unref();
