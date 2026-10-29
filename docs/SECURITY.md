@@ -73,3 +73,9 @@ Security issues: email the platform owner directly; do not open a public issue w
 - Push endpoints must be on the browser vendors' push hosts (no arbitrary server-side requests); VAPID keys live only in the environment.
 - QR check-in codes are HMAC-signed with a server-side per-class secret, rotate every 30 s, and need an active batch membership; polls are anonymous.
 - Live provider tests need `system:test` (owners), are rate-limited and audited, and never return keys.
+
+## LMS pro (Phase 18)
+- Quiz answers and explanations are only sent after a pass or the last attempt (and only if the author allows); locked lessons expose title and type only.
+- Lesson files readable only by people enrolled in that course (and authors); submissions only by their author and reviewers. `lms:learn` is not granted to parents.
+- Open enrolment checks audience and published state on the server; reviews, discussions and announcements are scoped to the course audience; children appear by first name.
+- CSP now allows frames from YouTube (nocookie) and Vimeo only, for lesson videos.

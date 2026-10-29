@@ -20,7 +20,11 @@ import Login from './pages/Login';
 import Classrooms from './pages/Classrooms';
 import Classroom from './pages/Classroom';
 import Assignment from './pages/Assignment';
-import { Learn, LearnCourse } from './pages/Learn';
+import { Learn, LearnCourse, PreviewCourse } from './pages/Learn';
+import CourseStudio from './pages/CourseStudio';
+import CourseCatalog from './pages/Catalog';
+import CourseLanding from './pages/CourseLanding';
+import LearningRecord from './pages/LearningRecord';
 import Courses from './pages/Courses';
 import Messages from './pages/Messages';
 import QuestionBank from './pages/QuestionBank';
@@ -95,7 +99,12 @@ export default function App() {
         <Route path="payroll" element={<Guard perm="payroll:read"><Payroll /></Guard>} />
         <Route path="certificates" element={<Guard perm="cert:read"><Certificates /></Guard>} />
         <Route path="learn" element={<Learn />} />
+        <Route path="learn/record" element={<LearningRecord />} />
+        <Route path="learn/preview/:id" element={<Guard perm="lms:read"><PreviewCourse /></Guard>} />
         <Route path="learn/:id" element={<LearnCourse />} />
+        <Route path="catalog" element={<Guard perm="lms:learn"><CourseCatalog /></Guard>} />
+        <Route path="catalog/:id" element={<Guard perm="lms:learn"><CourseLanding /></Guard>} />
+        <Route path="courses/:id" element={<Guard perm="lms:read"><CourseStudio /></Guard>} />
         <Route path="courses" element={<Guard perm="lms:read"><Courses /></Guard>} />
         <Route path="messages/:id?" element={<Guard perm="chat:use"><Messages /></Guard>} />
         <Route path="question-bank" element={<Guard perm="qbank:manage"><QuestionBank /></Guard>} />
