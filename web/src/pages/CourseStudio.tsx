@@ -24,6 +24,7 @@ export default function CourseStudio() {
             <Link className="btn" to="/courses">← All courses</Link>
             <button className="btn" onClick={() => nav(`/learn/preview/${c.id}`)}>👁 Preview</button>
             {manage && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${c.id}/duplicate`)).data; nav(`/courses/${r.id}`); }, 'Copied as a draft.')}>⧉ Copy</button>}
+            {manage && live && c.audience !== 'learners' && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${c.id}/enrol-me`)).data; if (r.already) toast('You are already on this course.'); else toast('Added to your courses.'); }, undefined)}>＋ Take it myself</button>}
             {manage && live && <button className="btn primary" onClick={() => setAssign(true)}>Assign</button>}
             {manage && (live ? <button className="btn" disabled={busy} onClick={() => confirm('Take this course back to draft? People already on it keep their progress but will not see it until it is published again.') && run(async () => { await api.post(`/api/lms/courses/${c.id}/unpublish`); q.reload(); }, 'Back to draft.')}>Unpublish</button>
               : <button className="btn primary" onClick={() => setPub(true)}>Publish…</button>)}
@@ -56,37 +57,46 @@ function PublishModal({ d, onClose, onDone }: { d: any; onClose: () => void; onD
 }
 
 // ------------------------------------------------------------------ content
+/** Chapters (top level) with sections inside them, then lessons in either. */
+export const moduleOptions = (modules: any[]) => modules.filter((m) => !m.parent_id).flatMap((m) => [{ id: m.id, title: m.title }, ...modules.filter((x) => x.parent_id === m.id).map((x) => ({ id: x.id, title: `${m.title} › ${x.title}` }))]);
+
 function Content({ d, manage, reload }: { d: any; manage: boolean; reload: () => void }) {
-  const { busy, run } = useAction(); const [ed, setEd] = useState<any>(null); const [modForm, setModForm] = useState<any>(null); const c = d.course;
+  const { busy, run } = useAction(); const [ed, setEd] = useState<any>(null); const [modForm, setModForm] = useState<any>(null); const c = d.course; const mods: any[] = d.modules;
   const order: string[] = d.lessons.map((l: any) => l.id);
   const move = (id: string, delta: number) => { const i = order.indexOf(id); const j = i + delta; const a = d.lessons[i], b = d.lessons[j]; if (!b || a.module_id !== b.module_id) return; const next = [...order]; [next[i], next[j]] = [next[j], next[i]]; run(async () => { await api.post(`/api/lms/courses/${c.id}/lessons/reorder`, { ids: next }); reload(); }); };
-  const moveMod = (id: string, delta: number) => { const ids = d.modules.map((m: any) => m.id); const i = ids.indexOf(id); const j = i + delta; if (j < 0 || j >= ids.length) return; [ids[i], ids[j]] = [ids[j], ids[i]]; run(async () => { await api.post(`/api/lms/courses/${c.id}/modules/reorder`, { ids }); reload(); }); };
-  const groups = [{ id: null as string | null, title: d.modules.length ? 'Not in a module' : 'Lessons', summary: null as string | null }, ...d.modules.map((m: any) => ({ id: m.id as string, title: m.title as string, summary: m.summary as string | null }))];
-  const total = d.lessons.reduce((s: number, l: any) => s + (l.minutes ?? 0), 0);
+  const moveMod = (m: any, delta: number) => { const sibs = mods.filter((x) => (x.parent_id ?? null) === (m.parent_id ?? null)); const ids = sibs.map((x) => x.id); const i = ids.indexOf(m.id); const j = i + delta; if (j < 0 || j >= ids.length) return; [ids[i], ids[j]] = [ids[j], ids[i]]; run(async () => { await api.post(`/api/lms/courses/${c.id}/modules/reorder`, { ids, parent_id: m.parent_id ?? null }); reload(); }); };
+  const total = d.lessons.reduce((s: number, l: any) => s + (l.minutes ?? 0), 0); const chapters = mods.filter((m) => !m.parent_id); const lastChapter = chapters[chapters.length - 1]?.id ?? null;
+  const lessonRows = (ls: any[]) => ls.map((l: any) => (
+    <div key={l.id} className="m-card" style={{ alignItems: 'center' }}><span aria-hidden style={{ fontSize: 20 }}>{KIND_ICON[l.kind]}</span><div className="grow"><b>{l.title}</b><div className="muted small">{l.kind}{l.minutes ? ` · ${l.minutes} min` : ''}{l.required ? '' : ' · optional'}{l.kind === 'quiz' ? ` · ${l.questions?.length ?? 0} questions` : ''}{l.kind === 'file' ? ` · ${l.files?.length ?? 0} file(s)` : ''}</div></div>
+      {manage && <><button className="btn ghost sm" aria-label="Move up" disabled={busy} onClick={() => move(l.id, -1)}>↑</button><button className="btn ghost sm" aria-label="Move down" disabled={busy} onClick={() => move(l.id, 1)}>↓</button>
+        <button className="btn sm" onClick={() => setEd({ lesson: l })}>Edit</button><button className="btn sm" disabled={busy} onClick={() => confirm(`Remove “${l.title}”?`) && run(async () => { await api.del(`/api/lms/lessons/${l.id}`); reload(); }, 'Removed.')}>Remove</button></>}</div>));
+  const head = (m: any, section: boolean) => (
+    <div className="card-head" style={section ? { background: 'var(--bg-soft, #f4f7fb)' } : undefined}><div><h2 style={{ margin: 0, fontSize: section ? 15 : undefined }}>{section ? '↳ ' : ''}{m.title} <span className="muted small">{section ? 'section' : 'chapter'}</span></h2>{m.summary && <div className="muted small">{m.summary}</div>}</div>
+      {manage && <div className="row gap-s wrap"><button className="btn ghost sm" aria-label={`Move ${section ? 'section' : 'chapter'} up`} disabled={busy} onClick={() => moveMod(m, -1)}>↑</button><button className="btn ghost sm" aria-label={`Move ${section ? 'section' : 'chapter'} down`} disabled={busy} onClick={() => moveMod(m, 1)}>↓</button>
+        <button className="btn sm" onClick={() => setEd({ module: m.id })}>＋ Lesson</button>{!section && <button className="btn sm" onClick={() => setModForm({ parent_id: m.id })}>＋ Section</button>}<button className="btn sm" onClick={() => setModForm(m)}>Edit</button>
+        <button className="btn sm" disabled={busy} onClick={() => confirm(`Remove this ${section ? 'section' : 'chapter'}? Its lessons are kept, just ungrouped.`) && run(async () => { await api.del(`/api/lms/modules/${m.id}`); reload(); }, 'Removed.')}>Remove</button></div>}</div>);
+  const loose = d.lessons.filter((l: any) => !l.module_id);
   return (
     <div className="stack">
-      {manage && <div className="row wrap"><button className="btn primary" onClick={() => setEd({ module: d.modules.length ? d.modules[d.modules.length - 1].id : null })}>＋ Add a lesson</button><button className="btn" onClick={() => setModForm({})}>＋ Add a module</button><span className="muted small">{d.lessons.length} lessons{total ? ` · about ${total} min` : ''}. Modules group lessons into weeks or topics, like chapters.</span></div>}
-      {groups.map((g) => { const ls = d.lessons.filter((l: any) => (l.module_id ?? null) === g.id); if (!ls.length && g.id === null) return null; return (
-        <div key={g.id ?? 'none'} className="card">
-          <div className="card-head"><div><h2 style={{ margin: 0 }}>{g.title}</h2>{g.summary && <div className="muted small">{g.summary}</div>}</div>
-            {manage && g.id && <div className="row gap-s"><button className="btn ghost sm" aria-label="Move module up" disabled={busy} onClick={() => moveMod(g.id!, -1)}>↑</button><button className="btn ghost sm" aria-label="Move module down" disabled={busy} onClick={() => moveMod(g.id!, 1)}>↓</button><button className="btn sm" onClick={() => setEd({ module: g.id })}>＋ Lesson</button><button className="btn sm" onClick={() => setModForm(g)}>Rename</button>
-              <button className="btn sm" disabled={busy} onClick={() => confirm('Remove this module? Its lessons are kept, just ungrouped.') && run(async () => { await api.del(`/api/lms/modules/${g.id}`); reload(); }, 'Module removed.')}>Remove</button></div>}</div>
-          {!ls.length ? <Empty icon="📭" title="No lessons here yet" /> : ls.map((l: any) => (
-            <div key={l.id} className="m-card" style={{ alignItems: 'center' }}><span aria-hidden style={{ fontSize: 20 }}>{KIND_ICON[l.kind]}</span><div className="grow"><b>{l.title}</b><div className="muted small">{l.kind}{l.minutes ? ` · ${l.minutes} min` : ''}{l.required ? '' : ' · optional'}{l.kind === 'quiz' ? ` · ${l.questions?.length ?? 0} questions` : ''}{l.kind === 'file' ? ` · ${l.files?.length ?? 0} file(s)` : ''}</div></div>
-              {manage && <><button className="btn ghost sm" aria-label="Move up" disabled={busy} onClick={() => move(l.id, -1)}>↑</button><button className="btn ghost sm" aria-label="Move down" disabled={busy} onClick={() => move(l.id, 1)}>↓</button>
-                <button className="btn sm" onClick={() => setEd({ lesson: l })}>Edit</button><button className="btn sm" disabled={busy} onClick={() => confirm(`Remove “${l.title}”?`) && run(async () => { await api.del(`/api/lms/lessons/${l.id}`); reload(); }, 'Removed.')}>Remove</button></>}</div>))}
+      {manage && <div className="row wrap"><button className="btn primary" onClick={() => setEd({ module: lastChapter })}>＋ Add a lesson</button><button className="btn" onClick={() => setModForm({})}>＋ Add a chapter</button><span className="muted small">{d.lessons.length} lessons{total ? ` · about ${total} min` : ''}. Chapters group lessons; a chapter can have sections inside it.</span></div>}
+      {loose.length > 0 && <div className="card"><div className="card-head"><h2 style={{ margin: 0 }}>{chapters.length ? 'Not in a chapter' : 'Lessons'}</h2></div>{lessonRows(loose)}</div>}
+      {chapters.map((m) => { const secs = mods.filter((x) => x.parent_id === m.id); const own = d.lessons.filter((l: any) => l.module_id === m.id); return (
+        <div key={m.id} className="card">{head(m, false)}
+          {!own.length && !secs.length ? <Empty icon="📭" title="No lessons here yet" /> : lessonRows(own)}
+          {secs.map((x) => <div key={x.id} style={{ marginLeft: 18, borderLeft: '3px solid var(--line, #cbd5e1)' }}>{head(x, true)}{lessonRows(d.lessons.filter((l: any) => l.module_id === x.id))}</div>)}
         </div>); })}
-      {!d.lessons.length && !d.modules.length && <div className="card"><Empty icon="🧱" title="Build your course" action={manage ? <button className="btn primary" onClick={() => setEd({})}>Add the first lesson</button> : undefined}>Add reading, videos, downloads, quizzes and assignments. Group them into modules if the course is long.</Empty></div>}
-      {ed && <LessonEditor courseId={c.id} modules={d.modules} lesson={ed.lesson} defaultModule={ed.module} onClose={() => setEd(null)} onSaved={reload} />}
-      {modForm && <ModuleForm course={c.id} mod={modForm} onClose={() => setModForm(null)} onDone={reload} />}
+      {!d.lessons.length && !mods.length && <div className="card"><Empty icon="🧱" title="Build your course" action={manage ? <button className="btn primary" onClick={() => setEd({})}>Add the first lesson</button> : undefined}>Add reading, videos, downloads, quizzes and assignments. Group them into chapters (with sections inside) if the course is long.</Empty></div>}
+      {ed && <LessonEditor courseId={c.id} modules={moduleOptions(mods)} lesson={ed.lesson} defaultModule={ed.module} onClose={() => setEd(null)} onSaved={reload} />}
+      {modForm && <ModuleForm course={c.id} mod={modForm} chapters={chapters} hasKids={!!modForm.id && mods.some((x) => x.parent_id === modForm.id)} onClose={() => setModForm(null)} onDone={reload} />}
     </div>
   );
 }
-function ModuleForm({ course, mod, onClose, onDone }: { course: string; mod: any; onClose: () => void; onDone: () => void }) {
-  const { busy, run } = useAction(); const [t, setT] = useState(mod.title ?? ''); const [s, setS] = useState(mod.summary ?? '');
+function ModuleForm({ course, mod, chapters, hasKids, onClose, onDone }: { course: string; mod: any; chapters: any[]; hasKids: boolean; onClose: () => void; onDone: () => void }) {
+  const { busy, run } = useAction(); const [t, setT] = useState(mod.title ?? ''); const [s, setS] = useState(mod.summary ?? ''); const [parent, setParent] = useState<string>(mod.parent_id ?? '');
   return (
-    <Modal title={mod.id ? 'Rename module' : 'New module'} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || t.trim().length < 2} onClick={() => run(async () => { const body = { title: t, summary: s || null }; if (mod.id) await api.patch(`/api/lms/modules/${mod.id}`, body); else await api.post(`/api/lms/courses/${course}/modules`, body); onDone(); onClose(); }, 'Saved.')}>Save</button></>}>
-      <div className="stack"><Field label="Module name"><input className="input" value={t} onChange={(e) => setT(e.target.value)} placeholder="e.g. Week 1: Getting started" autoFocus /></Field><Field label="What is it about? (optional)"><input className="input" value={s} onChange={(e) => setS(e.target.value)} /></Field></div>
+    <Modal title={mod.id ? `Edit ${mod.parent_id ? 'section' : 'chapter'}` : parent ? 'New section' : 'New chapter'} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || t.trim().length < 2} onClick={() => run(async () => { const body = { title: t, summary: s || null, parent_id: parent || null }; if (mod.id) await api.patch(`/api/lms/modules/${mod.id}`, body); else await api.post(`/api/lms/courses/${course}/modules`, body); onDone(); onClose(); }, 'Saved.')}>Save</button></>}>
+      <div className="stack"><Field label="Name"><input className="input" value={t} onChange={(e) => setT(e.target.value)} placeholder={parent ? 'e.g. Reading sensors' : 'e.g. Week 1: Getting started'} autoFocus /></Field><Field label="What is it about? (optional)"><input className="input" value={s} onChange={(e) => setS(e.target.value)} /></Field>
+        <Field label="Where does it go?" hint={hasKids ? 'This chapter has sections, so it stays at the top level.' : undefined}><select className="select" value={parent} disabled={hasKids} onChange={(e) => setParent(e.target.value)}><option value="">A chapter of the course</option>{chapters.filter((x) => x.id !== mod.id).map((x) => <option key={x.id} value={x.id}>A section inside “{x.title}”</option>)}</select></Field></div>
     </Modal>
   );
 }
@@ -135,11 +145,31 @@ function Details({ d, manage, reload }: { d: any; manage: boolean; reload: () =>
 }
 
 // ------------------------------------------------------------------ learners
+function AutoRules({ d, manage }: { d: any; manage: boolean }) {
+  const q = useFetch(() => api.get(`/api/lms/courses/${d.course.id}/auto-rules`).then((r) => r.data as any[]), [d.course.id]); const { busy, run } = useAction(); const toast = useToast(); const [kind, setKind] = useState<'role' | 'batch'>(d.course.audience === 'learners' ? 'batch' : 'role'); const [ref, setRef] = useState(''); const [days, setDays] = useState('');
+  const batches = useFetch(() => api.get('/api/batches?page_size=100&status=active,upcoming').then((r) => r.data as any[]), []);
+  const ROLES: Record<string, string> = { teacher: 'Teachers', counsellor: 'Counsellors', accountant: 'Accountants', branch_admin: 'Branch admins', org_admin: 'Admins' };
+  return (
+    <div className="card card-pad stack"><div><h2 style={{ margin: 0 }}>Assign automatically</h2><p className="muted small" style={{ margin: '4px 0 0' }}>Set it once. Everyone who later gets the role (or joins the batch) is given this course by themselves, with an optional deadline.</p></div>
+      {(q.data ?? []).map((r) => <div key={r.id} className="m-card" style={{ alignItems: 'center' }}><span className="grow">{r.kind === 'role' ? `Everyone who becomes: ${ROLES[r.ref] ?? r.ref}` : `Everyone who joins: ${r.batch_name ?? 'a batch'}`}{r.due_days ? <span className="muted small"> · due {r.due_days} days after they start</span> : null}</span>{manage && <button className="btn ghost sm" disabled={busy} onClick={() => run(async () => { await api.del(`/api/lms/auto-rules/${r.id}`); q.reload(); }, 'Rule removed.')}>Remove</button>}</div>)}
+      {manage && <div className="row wrap gap-s">
+        <select className="select" aria-label="Rule type" value={kind} onChange={(e) => { setKind(e.target.value as any); setRef(''); }}>{d.course.audience !== 'learners' && <option value="role">When someone gets the role…</option>}{d.course.audience !== 'staff' && <option value="batch">When a learner joins the batch…</option>}</select>
+        {kind === 'role' ? <select className="select" aria-label="Role" value={ref} onChange={(e) => setRef(e.target.value)}><option value="">Choose a role</option>{Object.entries(ROLES).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
+          : <select className="select" aria-label="Batch" value={ref} onChange={(e) => setRef(e.target.value)}><option value="">Choose a batch</option>{(batches.data ?? []).map((b: any) => <option key={b.id} value={b.id}>{b.name}</option>)}</select>}
+        <input className="input" type="number" min={1} max={365} style={{ width: 150 }} placeholder="Days to finish" aria-label="Days to finish" value={days} onChange={(e) => setDays(e.target.value)} />
+        <button className="btn primary" disabled={busy || !ref} onClick={() => run(async () => { await api.post(`/api/lms/courses/${d.course.id}/auto-rules`, { kind, ref, due_days: days ? Number(days) : null }); setRef(''); setDays(''); q.reload(); }, 'Rule added.')}>Add rule</button>
+        {!!q.data?.length && d.course.status === 'published' && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${d.course.id}/auto-rules/apply`)).data; toast(r.users + r.learners ? `Added ${r.users + r.learners} people who were already there.` : 'Everyone who matches already has it.'); })}>Apply to people already there</button>}
+      </div>}
+    </div>
+  );
+}
+
 function Learners({ d, manage, onAssign }: { d: any; manage: boolean; onAssign: () => void }) {
   const q = useFetch(() => api.get(`/api/lms/courses/${d.course.id}/progress`).then((r) => r.data as any), [d.course.id]); const { busy, run } = useAction(); const toast = useToast();
   const nudge = (who: string) => run(async () => { const r = (await api.post(`/api/lms/courses/${d.course.id}/nudge`, { who })).data; toast(r.notified ? `Nudged ${r.notified} ${r.notified === 1 ? 'person' : 'people'}.` : 'Nobody needs a nudge right now (or they were nudged in the last day).'); });
   return (
     <div className="stack">
+      <AutoRules d={d} manage={manage} />
       <Async q={q}>{(p: any) => (<>
         <div className="grid cols-4"><Stat label="Enrolled" value={p.summary.enrolled} /><Stat label="Finished" value={p.summary.completed} /><Stat label="Not started" value={p.summary.not_started} /><Stat label="Overdue" value={p.summary.overdue} sub={`Average ${p.summary.average_percent}%`} /></div>
         <div className="row wrap gap-s">{manage && d.course.status === 'published' && <button className="btn primary" onClick={onAssign}>Assign to people</button>}

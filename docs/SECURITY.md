@@ -79,3 +79,7 @@ Security issues: email the platform owner directly; do not open a public issue w
 - Lesson files readable only by people enrolled in that course (and authors); submissions only by their author and reviewers. `lms:learn` is not granted to parents.
 - Open enrolment checks audience and published state on the server; reviews, discussions and announcements are scoped to the course audience; children appear by first name.
 - CSP now allows frames from YouTube (nocookie) and Vimeo only, for lesson videos.
+
+## Team training (Phase 19)
+- Choosing staff, auto-assign rules and the team matrix need `lms:manage`; staff are only ever resolved inside the caller's organization and only for the five staff roles.
+- Auto-assign hooks run inside the same transaction as the user or batch change; only published courses are applied.

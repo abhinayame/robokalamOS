@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from '../api';
+import { StaffPicker, hasStaff, noStaff, staffBody, type StaffPick } from '../components/StaffPicker';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
 import { Async, Badge, Empty, Field, Modal, Progress, useAction, useFetch, useToast } from '../components/ui';
 
@@ -47,14 +48,14 @@ function PathModal({ path, onClose, onDone }: { path: any; onClose: () => void; 
 }
 
 function AssignPath({ path, onClose, onDone }: { path: any; onClose: () => void; onDone: () => void }) {
-  const [batches, setBatches] = useState<string[]>([]); const [sum, setSum] = useState<AudienceSummary | null>(null); const [allStaff, setAllStaff] = useState(false); const [days, setDays] = useState(''); const [preview, setPreview] = useState<any>(null); const { busy, run } = useAction(); const toast = useToast();
-  const body = (x: object) => ({ selector: batches.length ? { batch_ids: batches } : undefined, all_staff: allStaff, due_days: days ? Number(days) : undefined, ...x }); const ready = (batches.length > 0 && !!sum?.unique_learners) || allStaff;
+  const [batches, setBatches] = useState<string[]>([]); const [sum, setSum] = useState<AudienceSummary | null>(null); const [staff, setStaff] = useState<StaffPick>(noStaff); const [days, setDays] = useState(''); const [preview, setPreview] = useState<any>(null); const { busy, run } = useAction(); const toast = useToast();
+  const body = (x: object) => ({ selector: batches.length ? { batch_ids: batches } : undefined, ...staffBody(staff), due_days: days ? Number(days) : undefined, ...x }); const ready = (batches.length > 0 && !!sum?.unique_learners) || hasStaff(staff);
   return (
     <Modal wide title={`Assign “${path.title}”`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button>
       {!preview ? <button className="btn primary" disabled={busy || !ready} onClick={() => run(async () => setPreview((await api.post(`/api/lms/paths/${path.id}/assign`, body({ dry_run: true }))).data))}>Preview</button>
         : <button className="btn primary" disabled={busy || !(preview.learners.to_assign + preview.staff.to_assign)} onClick={() => run(async () => { await api.post(`/api/lms/paths/${path.id}/assign`, body({ confirm: true })); toast('Path assigned. They start with the first course.'); onDone(); onClose(); })}>Confirm and assign</button>}</>}>
       <div className="stack">
-        <label className="row gap-s"><input type="checkbox" checked={allStaff} onChange={(e) => { setAllStaff(e.target.checked); setPreview(null); }} /> All active staff (only if every course on the path allows staff)</label>
+        <StaffPicker value={staff} onChange={(v) => { setStaff(v); setPreview(null); }} />
         <b>Learners, by batch</b><BatchSelector value={batches} onChange={(v) => { setBatches(v); setPreview(null); }} onSummary={setSum} />
         <Field label="Days to finish each course after it unlocks (optional)"><input className="input" type="number" min={1} max={365} style={{ width: 120 }} value={days} onChange={(e) => { setDays(e.target.value); setPreview(null); }} /></Field>
         {preview && <div className="card card-pad"><b>Ready to go</b><div className="small"><div>Learners: {preview.learners.to_assign} new{preview.learners.already ? `, ${preview.learners.already} already on it` : ''}</div><div>Staff: {preview.staff.to_assign} new{preview.staff.already ? `, ${preview.staff.already} already on it` : ''}</div></div></div>}
