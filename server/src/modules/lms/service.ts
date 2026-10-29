@@ -1,4 +1,4 @@
-import { exec, newId, query, queryOne, type Db } from '../../db/pool.js';
+import { Params, exec, newId, query, queryOne, type Db } from '../../db/pool.js';
 import { addXp } from '../gamification/xp.js';
 import { filesFor } from '../files/store.js';
 import { notifyAbout, notifyUsers } from '../../lib/notify.js';
@@ -13,8 +13,8 @@ export async function standing(enrollmentId: string, courseId: string, db?: Db) 
 }
 
 /** Lessons of a course in the order a learner meets them: by module, then position. Lessons outside any module come first. */
-export const LESSON_ORDER = `COALESCE(m.position, 0), l.position, l.id`;
-export const LESSON_JOIN = `LEFT JOIN lms_modules m ON m.id = l.module_id AND m.deleted_at IS NULL`;
+export const LESSON_ORDER = `COALESCE(pm.position, m.position, 0), IF(pm.id IS NULL, 0, m.position), l.position, l.id`;
+export const LESSON_JOIN = `LEFT JOIN lms_modules m ON m.id = l.module_id AND m.deleted_at IS NULL LEFT JOIN lms_modules pm ON pm.id = m.parent_id AND pm.deleted_at IS NULL`;
 
 /** Record a finished lesson (idempotent; keeps the best quiz score). */
 export async function markLessonDone(db: Db, enrollmentId: string, lessonId: string, score: number | null, passed = true) {
@@ -63,10 +63,10 @@ type Who = { userId: string | null; learnerId: string | null };
 const whoKey = (w: Who) => (w.userId ?? w.learnerId)!;
 
 /** Enrol one person in a course (a no-op when they already are). Returns true when a new enrollment was made. */
-export async function enrollInCourse(db: Db, o: { orgId: string; courseId: string; who: Who; assignedBy: string | null; dueAt: Date | null }) {
+export async function enrollInCourse(db: Db, o: { orgId: string; courseId: string; who: Who; assignedBy: string | null; dueAt: Date | null; source?: 'assigned' | 'self' | 'auto' }) {
   const have = await queryOne(`SELECT 1 FROM lms_enrollments WHERE course_id = $1 AND person_key = $2`, [o.courseId, whoKey(o.who)], db);
   if (have) return false;
-  await exec(`INSERT INTO lms_enrollments (id, org_id, course_id, user_id, learner_id, assigned_by, due_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [newId(), o.orgId, o.courseId, o.who.userId, o.who.learnerId, o.assignedBy, o.dueAt], db);
+  await exec(`INSERT INTO lms_enrollments (id, org_id, course_id, user_id, learner_id, assigned_by, due_at, source) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`, [newId(), o.orgId, o.courseId, o.who.userId, o.who.learnerId, o.assignedBy, o.dueAt, o.source ?? (o.assignedBy ? 'assigned' : 'self')], db);
   return true;
 }
 
@@ -84,7 +84,7 @@ export async function advancePaths(db: Db, enr: { org_id: string; course_id: str
     const next = rest.find((c) => !c.done && c.status === 'published' && (who.learnerId ? c.audience !== 'staff' : c.audience !== 'learners'));
     if (!next) { await exec(`UPDATE lms_path_members SET completed_at = NOW(3) WHERE id = $1`, [m.id], db); out.finished.push(m.path_title); continue; }
     const due = m.due_days ? new Date(Date.now() + m.due_days * 86400_000) : null;
-    if (await enrollInCourse(db, { orgId: enr.org_id, courseId: next.id, who, assignedBy: null, dueAt: due })) out.unlocked.push(next.title);
+    if (await enrollInCourse(db, { orgId: enr.org_id, courseId: next.id, who, assignedBy: null, dueAt: due, source: 'auto' })) out.unlocked.push(next.title);
   }
   return out;
 }
@@ -100,7 +100,7 @@ const lines = (v: unknown): string[] => { try { const a = typeof v === 'string' 
 export async function courseView(courseId: string, enr: EnrLike | null, db?: Db) {
   const c = await queryOne(`SELECT id, title, summary, color, icon, category, level, description, outcomes, requirements, instructor_name, language, sequential, min_grade, xp_reward, enrollment_mode, status,
       certificate_design_id IS NOT NULL AS gives_certificate FROM lms_courses WHERE id = $1`, [courseId], db);
-  const modules = await query(`SELECT id, position, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position, id`, [courseId], db);
+  const modules = await query(`SELECT id, position, parent_id, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position, id`, [courseId], db);
   const rows = await query(`SELECT l.id, l.position, l.module_id, l.title, l.kind, l.body, l.url, l.minutes, l.required, l.pass_percent, l.questions, l.max_attempts, l.shuffle, l.show_answers, l.auto_accept,
       p.completed_at, p.best_score, s.status AS sub_status, s.feedback AS sub_feedback, s.body AS sub_body, s.id AS sub_id,
       (SELECT COUNT(*) FROM lms_attempts a WHERE a.enrollment_id = $2 AND a.lesson_id = l.id) AS tries
@@ -120,4 +120,18 @@ export async function courseView(courseId: string, enr: EnrLike | null, db?: Db)
       questions: Array.isArray(l.questions) ? l.questions.map((q: any) => ({ q: q.q, options: q.options })) : null };
   });
   return { course: { ...c!, outcomes: lines(c!.outcomes), sequential: !!c!.sequential, gives_certificate: !!c!.gives_certificate && !!enr?.learner_id }, modules, lessons };
+}
+
+// ------------------------------------------------------------------ choosing staff
+export const STAFF_ROLES = ['org_admin', 'branch_admin', 'teacher', 'counsellor', 'accountant'] as const;
+/** Active staff of an organization, by role and/or by name: everyone, a role, or hand-picked people (all unioned). */
+export async function resolveStaff(db: Db, orgId: string, o: { all?: boolean; roles?: string[]; userIds?: string[] }): Promise<string[]> {
+  const roles = (o.roles ?? []).filter((r) => (STAFF_ROLES as readonly string[]).includes(r)); const ids = o.userIds ?? [];
+  if (!o.all && !roles.length && !ids.length) return [];
+  const p = new Params(); const conds: string[] = [];
+  if (o.all) conds.push(`r.code IN ${p.in([...STAFF_ROLES])}`);
+  else { if (roles.length) conds.push(`r.code IN ${p.in(roles)}`); if (ids.length) conds.push(`u.id IN ${p.in(ids)}`); }
+  const rows = await query(`SELECT DISTINCT u.id FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles r ON r.id = ur.role_id
+      WHERE u.org_id = ${p.add(orgId)} AND u.status = 'active' AND u.deleted_at IS NULL AND r.code IN ${p.in([...STAFF_ROLES])} AND (${conds.join(' OR ')})`, p.values, db);
+  return rows.map((r) => r.id as string);
 }

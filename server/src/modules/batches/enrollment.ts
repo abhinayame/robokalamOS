@@ -1,3 +1,4 @@
+import { autoEnrolLearners } from '../lms/auto.js';
 import type { Request } from 'express';
 import { Params, exec, newId, query, queryOne, type Db } from '../../db/pool.js';
 import { audit } from '../../lib/audit.js';
@@ -92,6 +93,7 @@ export async function enrollLearners(
     );
   }
 
+  if (toAdd.length) await autoEnrolLearners(c.db, c.orgId, batchId, toAdd);   // courses set to start automatically for this batch
   if (toAdd.length) {
     const title = opts.transferredFrom ? `Transferred into ${batch.name}` : `Joined ${batch.name}`;
     await timelineFor(c, toAdd, batchId, opts.transferredFrom ? 'batch.transferred_in' : 'batch.joined', title,

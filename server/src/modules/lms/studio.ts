@@ -69,7 +69,7 @@ router.patch('/courses/:id/details', manage, wrap(async (req, res) => {
 /** The whole course for the studio: details, modules, lessons (with answers and files), checklist and numbers. */
 router.get('/courses/:id/studio', wrap(async (req, res) => {
   const orgId = orgIdOf(req); const c = await loadCourse(orgId, parse(uuid, req.params.id));
-  const modules = await query(`SELECT id, position, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position, id`, [c.id]);
+  const modules = await query(`SELECT id, position, parent_id, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position, id`, [c.id]);
   const lessons = await query(`SELECT l.id, l.position, l.module_id, l.title, l.kind, l.body, l.url, l.minutes, l.required, l.pass_percent, l.questions, l.max_attempts, l.shuffle, l.show_answers, l.auto_accept FROM lms_lessons l ${LESSON_JOIN} WHERE l.course_id = $1 AND l.deleted_at IS NULL ORDER BY ${LESSON_ORDER}`, [c.id]);
   const files = await filesFor('lms_lesson', lessons.map((l) => l.id));
   const stats = await queryOne(`SELECT COUNT(*) AS enrolled, COALESCE(SUM(status = 'completed'), 0) AS completed FROM lms_enrollments WHERE course_id = $1 AND status <> 'removed'`, [c.id]);
@@ -85,27 +85,50 @@ router.get('/courses/:id/preview', wrap(async (req, res) => {
     lessons: v.lessons.map((l: any) => ({ ...l, locked: false })) }); // an author may look at every lesson, in order
 }));
 
-// ------------------------------------------------------------------ modules
-const moduleBody = z.object({ title: z.string().trim().min(2, 'Name the module.').max(160), summary: z.string().trim().max(500).nullish().transform((v) => v || null) });
+// ------------------------------------------------------------------ chapters (modules) and sections inside them
+const moduleBody = z.object({ title: z.string().trim().min(2, 'Name the chapter.').max(160), summary: z.string().trim().max(500).nullish().transform((v) => v || null), parent_id: uuid.nullish() });
+/** A section may only sit in a top-level chapter of the same course. */
+async function checkParent(orgId: string, courseId: string, parentId: string | null | undefined, selfId?: string) {
+  if (!parentId) return;
+  if (parentId === selfId) throw badRequest('A chapter cannot sit inside itself.');
+  const p = await queryOne(`SELECT parent_id FROM lms_modules WHERE id = $1 AND org_id = $2 AND course_id = $3 AND deleted_at IS NULL`, [parentId, orgId, courseId]);
+  if (!p) throw badRequest('That chapter is not part of this course.', [{ field: 'parent_id', message: 'Pick a chapter of this course.' }]);
+  if (p.parent_id) throw badRequest('Chapters go two levels deep: a chapter, and sections inside it.', [{ field: 'parent_id', message: 'Pick a top-level chapter.' }]);
+}
 router.post('/courses/:id/modules', manage, wrap(async (req, res) => {
   const orgId = orgIdOf(req); const c = await loadCourse(orgId, parse(uuid, req.params.id)); const b = parse(moduleBody, req.body); const id = newId();
-  const pos = Number((await queryOne(`SELECT COALESCE(MAX(position), 0) AS p FROM lms_modules WHERE course_id = $1`, [c.id]))!.p) + 1;
-  await exec(`INSERT INTO lms_modules (id, org_id, course_id, position, title, summary) VALUES ($1,$2,$3,$4,$5,$6)`, [id, orgId, c.id, pos, b.title, b.summary]); ok(res, { id, position: pos }, undefined, 201);
+  await checkParent(orgId, c.id, b.parent_id);
+  const pos = Number((await queryOne(`SELECT COALESCE(MAX(position), 0) AS p FROM lms_modules WHERE course_id = $1 AND parent_id <=> $2`, [c.id, b.parent_id ?? null]))!.p) + 1;
+  await exec(`INSERT INTO lms_modules (id, org_id, course_id, position, title, summary, parent_id) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [id, orgId, c.id, pos, b.title, b.summary, b.parent_id ?? null]); ok(res, { id, position: pos }, undefined, 201);
 }));
 router.patch('/modules/:id', manage, wrap(async (req, res) => {
-  const b = parse(moduleBody, req.body); const r = await exec(`UPDATE lms_modules SET title = $3, summary = $4 WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [parse(uuid, req.params.id), orgIdOf(req), b.title, b.summary]);
-  if (!r.affectedRows) throw notFound('Module'); ok(res, { updated: true });
+  const orgId = orgIdOf(req); const id = parse(uuid, req.params.id); const b = parse(moduleBody, req.body);
+  const m = await queryOne(`SELECT id, course_id, parent_id FROM lms_modules WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [id, orgId]); if (!m) throw notFound('Chapter');
+  let parent = m.parent_id as string | null;
+  if (b.parent_id !== undefined && (b.parent_id ?? null) !== parent) {
+    await checkParent(orgId, m.course_id, b.parent_id, id);
+    if (b.parent_id && (await queryOne(`SELECT 1 FROM lms_modules WHERE parent_id = $1 AND deleted_at IS NULL LIMIT 1`, [id]))) throw badRequest('This chapter has sections of its own, so it cannot go inside another chapter.');
+    parent = b.parent_id ?? null;
+  }
+  const pos = parent !== m.parent_id ? Number((await queryOne(`SELECT COALESCE(MAX(position), 0) AS p FROM lms_modules WHERE course_id = $1 AND parent_id <=> $2`, [m.course_id, parent]))!.p) + 1 : null;
+  await exec(`UPDATE lms_modules SET title = $2, summary = $3, parent_id = $4${pos ? ', position = $5' : ''} WHERE id = $1`, pos ? [id, b.title, b.summary, parent, pos] : [id, b.title, b.summary, parent]); ok(res, { updated: true });
 }));
-/** Removing a module keeps its lessons: they simply become ungrouped. */
+/** Removing a chapter keeps all its lessons (they become ungrouped); its sections go with it. */
 router.delete('/modules/:id', manage, wrap(async (req, res) => {
   const orgId = orgIdOf(req); const id = parse(uuid, req.params.id);
-  await tx(async (db) => { const r = await exec(`UPDATE lms_modules SET deleted_at = NOW(3) WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [id, orgId], db); if (!r.affectedRows) throw notFound('Module'); await exec(`UPDATE lms_lessons SET module_id = NULL WHERE module_id = $1`, [id], db); });
+  await tx(async (db) => {
+    const r = await exec(`UPDATE lms_modules SET deleted_at = NOW(3) WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [id, orgId], db); if (!r.affectedRows) throw notFound('Chapter');
+    const kids = (await query(`SELECT id FROM lms_modules WHERE parent_id = $1 AND deleted_at IS NULL`, [id], db)).map((k) => k.id as string);
+    if (kids.length) await exec(`UPDATE lms_modules SET deleted_at = NOW(3) WHERE parent_id = $1`, [id], db);
+    for (const mid of [id, ...kids]) await exec(`UPDATE lms_lessons SET module_id = NULL WHERE module_id = $1`, [mid], db);
+  });
   ok(res, { deleted: true });
 }));
+/** Put chapters (or the sections of one chapter, with parent_id) in a new order. */
 router.post('/courses/:id/modules/reorder', manage, wrap(async (req, res) => {
-  const orgId = orgIdOf(req); const c = await loadCourse(orgId, parse(uuid, req.params.id)); const b = parse(z.object({ ids: z.array(uuid).min(1).max(100) }), req.body);
+  const orgId = orgIdOf(req); const c = await loadCourse(orgId, parse(uuid, req.params.id)); const b = parse(z.object({ ids: z.array(uuid).min(1).max(100), parent_id: uuid.nullish() }), req.body);
   await tx(async (db) => {
-    const cur = (await query(`SELECT id FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL FOR UPDATE`, [c.id], db)).map((r) => r.id as string);
+    const cur = (await query(`SELECT id FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL AND parent_id <=> $2 FOR UPDATE`, [c.id, b.parent_id ?? null], db)).map((r) => r.id as string);
     if (cur.length !== b.ids.length || !b.ids.every((i) => cur.includes(i)) || new Set(b.ids).size !== b.ids.length) throw conflict('The list changed. Reload and try again.', 'STALE_ORDER');
     for (const [i, id] of b.ids.entries()) await exec(`UPDATE lms_modules SET position = $2 WHERE id = $1`, [id, i + 1], db);
   }); ok(res, { reordered: b.ids.length });
@@ -130,7 +153,8 @@ router.post('/courses/:id/duplicate', manage, limit('lms copy', 10), wrap(async 
     await exec(`INSERT INTO lms_courses (id, org_id, title, summary, audience, status, color, certificate_design_id, created_by, category, level, description, outcomes, requirements, instructor_name, language, icon, enrollment_mode, sequential, min_grade, xp_reward)
       SELECT $2, org_id, LEFT(CONCAT('Copy of ', title), 160), summary, audience, 'draft', color, certificate_design_id, $3, category, level, description, outcomes, requirements, instructor_name, language, icon, enrollment_mode, sequential, min_grade, xp_reward FROM lms_courses WHERE id = $1`, [src.id, nid, req.user!.id], db);
     const map = new Map<string, string>();
-    for (const m of await query(`SELECT id, position, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position`, [src.id], db)) { const id = newId(); map.set(m.id, id); await exec(`INSERT INTO lms_modules (id, org_id, course_id, position, title, summary) VALUES ($1,$2,$3,$4,$5,$6)`, [id, orgId, nid, m.position, m.title, m.summary], db); }
+    const mods = await query(`SELECT id, position, title, summary, parent_id FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY (parent_id IS NOT NULL), position`, [src.id], db);   // chapters first, then their sections
+    for (const m of mods) { const id = newId(); map.set(m.id, id); await exec(`INSERT INTO lms_modules (id, org_id, course_id, position, title, summary, parent_id) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [id, orgId, nid, m.position, m.title, m.summary, m.parent_id ? map.get(m.parent_id) ?? null : null], db); }
     for (const l of await query(`SELECT * FROM lms_lessons WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position`, [src.id], db)) {
       const id = newId();
       await exec(`INSERT INTO lms_lessons (id, org_id, course_id, position, title, kind, body, url, minutes, questions, pass_percent, required, module_id, max_attempts, shuffle, show_answers, auto_accept) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,

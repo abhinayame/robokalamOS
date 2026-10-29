@@ -39,16 +39,18 @@ export default function Player({ preview = false }: { preview?: boolean }) {
 }
 
 function Sidebar({ d, cur, onPick }: { d: any; cur: any; onPick: (l: any) => void }) {
-  const groups = [{ id: null as string | null, title: d.modules.length ? 'Start here' : 'Lessons' }, ...d.modules.map((m: any) => ({ id: m.id, title: m.title }))];
-  let n = 0;
+  const mods: any[] = d.modules; const chapters = mods.filter((m) => !m.parent_id);
+  const groups: { id: string | null; title: string; depth: number; lessons: any[] }[] = [{ id: null, title: mods.length ? 'Start here' : 'Lessons', depth: 0, lessons: d.lessons.filter((l: any) => !l.module_id) }];
+  for (const m of chapters) { groups.push({ id: m.id, title: m.title, depth: 0, lessons: d.lessons.filter((l: any) => l.module_id === m.id) }); for (const x of mods.filter((y) => y.parent_id === m.id)) groups.push({ id: x.id, title: x.title, depth: 1, lessons: d.lessons.filter((l: any) => l.module_id === x.id) }); }
+  const num = new Map<string, number>(); d.lessons.forEach((l: any, i: number) => num.set(l.id, i + 1));
   return (
     <nav aria-label="Course content" className="card" style={{ width: 290, flex: 'none', maxWidth: '100%' }}>
-      {groups.map((g) => { const ls = d.lessons.filter((l: any) => (l.module_id ?? null) === g.id); if (!ls.length) return null; const doneN = ls.filter((l: any) => l.done).length; return (
-        <div key={g.id ?? 'none'}><div className="card-pad" style={{ background: 'var(--bg-soft, #f4f7fb)', borderBottom: '1px solid var(--line, #e3e8ef)' }}><b>{g.title}</b><div className="muted small">{doneN}/{ls.length} done</div></div>
-          {ls.map((l: any) => { n++; return (
+      {groups.map((g) => { if (!g.lessons.length) return null; const doneN = g.lessons.filter((l: any) => l.done).length; return (
+        <div key={g.id ?? 'none'}><div className="card-pad" style={{ background: 'var(--bg-soft, #f4f7fb)', borderBottom: '1px solid var(--line, #e3e8ef)', paddingLeft: 16 + g.depth * 14 }}><b>{g.depth ? '↳ ' : ''}{g.title}</b><div className="muted small">{doneN}/{g.lessons.length} done</div></div>
+          {g.lessons.map((l: any) => (
             <button key={l.id} className="m-card" disabled={l.locked} aria-current={cur?.id === l.id ? 'true' : undefined} title={l.locked ? 'Finish the lessons before this one to unlock it' : undefined} onClick={() => onPick(l)}
-              style={{ width: '100%', textAlign: 'left', border: 0, cursor: l.locked ? 'not-allowed' : 'pointer', background: cur?.id === l.id ? 'var(--bg-soft, #eef3f9)' : 'none', opacity: l.locked ? 0.55 : 1 }}>
-              <span aria-hidden>{l.locked ? '🔒' : l.done ? '✅' : ICON[l.kind]}</span><span className="grow">{n}. {l.title}{!l.required && <span className="muted small"> (optional)</span>}{l.minutes ? <span className="muted small"> · {l.minutes} min</span> : null}</span></button>); })}</div>); })}
+              style={{ width: '100%', textAlign: 'left', border: 0, cursor: l.locked ? 'not-allowed' : 'pointer', background: cur?.id === l.id ? 'var(--bg-soft, #eef3f9)' : 'none', opacity: l.locked ? 0.55 : 1, paddingLeft: 16 + g.depth * 14 }}>
+              <span aria-hidden>{l.locked ? '🔒' : l.done ? '✅' : ICON[l.kind]}</span><span className="grow">{num.get(l.id)}. {l.title}{!l.required && <span className="muted small"> (optional)</span>}{l.minutes ? <span className="muted small"> · {l.minutes} min</span> : null}</span></button>))}</div>); })}
     </nav>
   );
 }

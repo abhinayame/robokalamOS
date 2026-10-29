@@ -25,6 +25,7 @@ LMS · virtual classroom · student information system · gamification · parent
 | **16 LMS, sharing & templates** | Courses for learners and staff onboarding with progress tracking, shareable branded achievement images, certificate templates with per-batch auto-issue, weekly timetable | ✅ [`PHASE-16`](docs/PHASE-16-LMS-SHARING-TEMPLATES.md) |
 | **17 Engagement** | Family chat, push notifications, learning paths and question bank, QR check-in, live polls, one-click provider tests | ✅ [`PHASE-17`](docs/PHASE-17-ENGAGEMENT.md) |
 | **18 LMS pro** | Course studio (modules, publish checklist, details), open catalog and course pages, richer player (video, files, notes, Q&A), assignments with review, reviews, analytics, announcements, nudges, learning record | ✅ [`PHASE-18`](docs/PHASE-18-LMS-PRO.md) |
+| **19 Team training** | Assign courses by role or person, take a course yourself, chapters with sections, automatic assignment for new hires and batches, team training matrix, due-date reminders | ✅ [`PHASE-19`](docs/PHASE-19-LMS-TEAM.md) |
 | **11 Live classes** | Zoom meetings from the schedule, automatic attendance from who joined, recordings | ✅ [`PHASE-11`](docs/PHASE-11-LIVE-CLASSES.md) |
 | **10 Fees, reminders, import** | Fee plans, installments, payments, receipts, Razorpay payment links, automatic WhatsApp reminders, CSV import | ✅ [`PHASE-10`](docs/PHASE-10-FEES-REMINDERS-IMPORT.md) |
 | **9 Production hardening** | Security audit, observability, system status, backups, performance, Postman, runbooks | ✅ [`PHASE-9`](docs/PHASE-9-HARDENING.md) |

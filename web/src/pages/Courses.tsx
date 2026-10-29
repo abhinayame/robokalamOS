@@ -5,6 +5,7 @@ import { useAuth } from '../auth';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
 import { Async, Badge, Empty, Field, Modal, PageHead, Progress, Stat, Tabs, useAction, useFetch, useToast } from '../components/ui';
 import Paths from './Paths';
+import { StaffPicker, hasStaff, noStaff, staffBody, type StaffPick } from '../components/StaffPicker';
 import { fmtDate, fmtDateTime } from '../format';
 
 const AUD: Record<string, string> = { learners: 'Learners', staff: 'Staff / onboarding', both: 'Everyone' };
@@ -14,7 +15,7 @@ export default function Courses() {
   const [tab, setTab] = useState<'courses' | 'paths'>('courses'); const [edit, setEdit] = useState<any>(null); const [assign, setAssign] = useState<any>(null); const [prog, setProg] = useState<any>(null); const [lessons, setLessons] = useState<any>(null);
   return (
     <>
-      <PageHead title="Courses" sub="Build a course once, share it with learners or with the staff you are onboarding, and watch who has finished." actions={manage && tab === 'courses' ? <button className="btn primary" onClick={() => setEdit({})}>＋ New course</button> : undefined} />
+      <PageHead title="Courses" sub="Build a course once, share it with learners or with the staff you are onboarding, and watch who has finished." actions={<>{manage && <button className="btn" onClick={() => nav('/courses/team')}>👥 Team training</button>}{manage && tab === 'courses' ? <button className="btn primary" onClick={() => setEdit({})}>＋ New course</button> : undefined}</>} />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'courses', label: 'Courses' }, { id: 'paths', label: 'Learning paths' }]} />
       {tab === 'paths' ? <Paths manage={manage} /> : <Async q={q}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="📚" title="No courses yet" action={manage ? <button className="btn primary" onClick={() => setEdit({})}>Create the first course</button> : undefined}>For example: “Welcome to the team” for new teachers.</Empty></div> : (
         <div className="grid cols-3">{list.map((c) => (
@@ -115,15 +116,15 @@ export function BankPicker({ onClose, onAdd }: { onClose: () => void; onAdd: (q:
 
 export function AssignModal({ course, onClose, onDone }: { course: any; onClose: () => void; onDone: () => void }) {
   const toStaff = course.audience !== 'learners'; const toLearners = course.audience !== 'staff'; const [batches, setBatches] = useState<string[]>([]); const [sum, setSum] = useState<AudienceSummary | null>(null);
-  const [allStaff, setAllStaff] = useState(false); const [due, setDue] = useState(''); const [preview, setPreview] = useState<any>(null); const { busy, run } = useAction(); const toast = useToast();
-  const body = (x: object) => ({ selector: batches.length ? { batch_ids: batches } : undefined, all_staff: allStaff, due_at: due ? new Date(`${due}T23:59:00`).toISOString() : undefined, ...x });
-  const ready = (batches.length > 0 && !!sum?.unique_learners) || allStaff;
+  const [staff, setStaff] = useState<StaffPick>(noStaff); const [due, setDue] = useState(''); const [preview, setPreview] = useState<any>(null); const { busy, run } = useAction(); const toast = useToast();
+  const body = (x: object) => ({ selector: batches.length ? { batch_ids: batches } : undefined, ...staffBody(staff), due_at: due ? new Date(`${due}T23:59:00`).toISOString() : undefined, ...x });
+  const ready = (batches.length > 0 && !!sum?.unique_learners) || hasStaff(staff);
   return (
     <Modal wide title={`Assign “${course.title}”`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button>
       {!preview ? <button className="btn primary" disabled={busy || !ready} onClick={() => run(async () => setPreview((await api.post(`/api/lms/courses/${course.id}/assign`, body({ dry_run: true }))).data))}>Preview</button>
         : <button className="btn primary" disabled={busy || !(preview.learners.to_assign + preview.staff.to_assign)} onClick={() => run(async () => { await api.post(`/api/lms/courses/${course.id}/assign`, body({ confirm: true })); toast('Course assigned. They have been told.'); onDone(); onClose(); })}>Confirm and assign</button>}</>}>
       <div className="stack">
-        {toStaff && <label className="row gap-s"><input type="checkbox" checked={allStaff} onChange={(e) => { setAllStaff(e.target.checked); setPreview(null); }} /> All active staff (teachers, counsellors, admins) — for onboarding</label>}
+        {toStaff && <StaffPicker value={staff} onChange={(v) => { setStaff(v); setPreview(null); }} />}
         {toLearners && <><b>Learners, by batch</b><BatchSelector value={batches} onChange={(v) => { setBatches(v); setPreview(null); }} onSummary={setSum} /></>}
         <Field label="Finish by (optional)"><input className="input" type="date" style={{ width: 170 }} value={due} onChange={(e) => { setDue(e.target.value); setPreview(null); }} /></Field>
         {preview && <div className="card card-pad"><b>Ready to go</b><div className="small">{toLearners && <div>Learners: {preview.learners.to_assign} new{preview.learners.already ? `, ${preview.learners.already} already enrolled` : ''}</div>}{toStaff && <div>Staff: {preview.staff.to_assign} new{preview.staff.already ? `, ${preview.staff.already} already enrolled` : ''}</div>}</div></div>}

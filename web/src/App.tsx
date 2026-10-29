@@ -21,6 +21,7 @@ import Classrooms from './pages/Classrooms';
 import Classroom from './pages/Classroom';
 import Assignment from './pages/Assignment';
 import { Learn, LearnCourse, PreviewCourse } from './pages/Learn';
+import TeamTraining from './pages/TeamTraining';
 import CourseStudio from './pages/CourseStudio';
 import CourseCatalog from './pages/Catalog';
 import CourseLanding from './pages/CourseLanding';
@@ -104,6 +105,7 @@ export default function App() {
         <Route path="learn/:id" element={<LearnCourse />} />
         <Route path="catalog" element={<Guard perm="lms:learn"><CourseCatalog /></Guard>} />
         <Route path="catalog/:id" element={<Guard perm="lms:learn"><CourseLanding /></Guard>} />
+        <Route path="courses/team" element={<Guard perm="lms:manage"><TeamTraining /></Guard>} />
         <Route path="courses/:id" element={<Guard perm="lms:read"><CourseStudio /></Guard>} />
         <Route path="courses" element={<Guard perm="lms:read"><Courses /></Guard>} />
         <Route path="messages/:id?" element={<Guard perm="chat:use"><Messages /></Guard>} />
