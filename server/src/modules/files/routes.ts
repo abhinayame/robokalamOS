@@ -19,7 +19,7 @@ router.use(requireOrg);
  */
 router.post('/',
   limit('upload', 40),
-  requireAnyPerm('classroom:manage', 'classroom:interact'),
+  requireAnyPerm('classroom:manage', 'classroom:interact', 'lms:learn'),
   express.raw({ type: () => true, limit: `${env.UPLOAD_MAX_MB}mb` }),
   wrap(async (req, res) => {
     const name = sanitizeName(String(req.query.name ?? ''));
@@ -34,7 +34,7 @@ router.post('/',
     ok(res, { id, name, size: buf.length, mime: info.mime, kind: info.kind }, undefined, 201);
   }));
 
-router.get('/allowed', requireAnyPerm('classroom:read', 'classroom:manage', 'classroom:interact'), (_req, res) => ok(res, { extensions: Object.keys(ALLOWED), max_mb: env.UPLOAD_MAX_MB }));
+router.get('/allowed', requireAnyPerm('classroom:read', 'classroom:manage', 'classroom:interact', 'lms:learn'), (_req, res) => ok(res, { extensions: Object.keys(ALLOWED), max_mb: env.UPLOAD_MAX_MB }));
 
 /** Can this caller read the file? Derived from the thing it is attached to, never from the file id alone. */
 async function canRead(req: Request, f: { uploader_user_id: string; owner_type: string | null; owner_id: string | null }): Promise<boolean> {
@@ -48,6 +48,17 @@ async function canRead(req: Request, f: { uploader_user_id: string; owner_type: 
     if (!(await queryOne(`SELECT 1 FROM learners l WHERE l.id = ${p.add(it.learner_id)} AND l.org_id = ${p.add(orgIdOf(req))} ${sc ? `AND ${sc}` : ''}`, p.values))) return false;
     return it.status === 'published' || req.user!.isSuperAdmin || req.user!.permissions.has('portfolio:review') || (req.user!.roles.includes('learner') && req.user!.access.ownLearnerIds.includes(it.learner_id));
   }
+  if (f.owner_type === 'lms_lesson' || f.owner_type === 'lms_submission') {
+    const u = req.user!; const orgId = orgIdOf(req);
+    const course = f.owner_type === 'lms_lesson'
+      ? await queryOne(`SELECT course_id FROM lms_lessons WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [f.owner_id, orgId])
+      : await queryOne(`SELECT l.course_id FROM lms_submissions s JOIN lms_lessons l ON l.id = s.lesson_id WHERE s.id = $1 AND s.org_id = $2`, [f.owner_id, orgId]);
+    if (!course) return false;
+    if (u.isSuperAdmin || u.permissions.has('lms:manage')) return true;                       // authors and reviewers see everything in their courses
+    if (f.owner_type === 'lms_submission') return false;                                       // a submission is for its author (the uploader, handled above) and reviewers
+    const own = u.roles.includes('learner') ? u.access.ownLearnerIds : [];
+    return !!(await queryOne(`SELECT 1 FROM lms_enrollments e WHERE e.course_id = $1 AND e.status <> 'removed' AND (e.user_id = $2 ${own.length ? `OR e.learner_id IN (${own.map((_, i) => `$${i + 3}`).join(',')})` : ''}) LIMIT 1`, [course.course_id, u.id, ...own]));
+  }
   let ctx: { batch_id: string; learner_id?: string } | null = null;
   if (f.owner_type === 'material') ctx = await queryOne(`SELECT batch_id FROM materials WHERE id = $1 AND deleted_at IS NULL`, [f.owner_id]);
   else if (f.owner_type === 'assignment') ctx = await queryOne(`SELECT batch_id FROM assignments WHERE id = $1 AND deleted_at IS NULL`, [f.owner_id]);
@@ -59,7 +70,7 @@ async function canRead(req: Request, f: { uploader_user_id: string; owner_type: 
   return true;
 }
 
-router.get('/:id', requireAnyPerm('classroom:read', 'classroom:manage', 'classroom:interact'), wrap(async (req, res) => {
+router.get('/:id', requireAnyPerm('classroom:read', 'classroom:manage', 'classroom:interact', 'lms:learn'), wrap(async (req, res) => {
   const id = parse(uuid, req.params.id);
   const f = await queryOne(
     `SELECT id, uploader_user_id, owner_type, owner_id, original_name, mime_type, size_bytes, data FROM files WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`,
@@ -77,7 +88,7 @@ router.get('/:id', requireAnyPerm('classroom:read', 'classroom:manage', 'classro
 }));
 
 /** Remove a file you uploaded that is not attached to anything yet. */
-router.delete('/:id', requireAnyPerm('classroom:manage', 'classroom:interact'), wrap(async (req, res) => {
+router.delete('/:id', requireAnyPerm('classroom:manage', 'classroom:interact', 'lms:learn'), wrap(async (req, res) => {
   const id = parse(uuid, req.params.id);
   const r = await exec(`UPDATE files SET deleted_at = NOW(3) WHERE id = $1 AND org_id = $2 AND uploader_user_id = $3 AND owner_type IS NULL AND deleted_at IS NULL`, [id, orgIdOf(req), req.user!.id]);
   if (!r.affectedRows) throw notFound('File');

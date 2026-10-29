@@ -22,17 +22,25 @@ const courseBody = z.object({
   title: z.string().trim().min(2, 'Name the course.').max(160), summary: z.string().trim().max(500).nullish().transform((v) => v || null),
   audience: z.enum(['learners', 'staff', 'both']).default('learners'), color: color.default('#12263f'), certificate_design_id: uuid.nullish(),
 });
-const questionSchema = z.object({ q: z.string().trim().min(2).max(300), options: z.array(z.string().trim().min(1).max(200)).min(2).max(6), answer: z.number().int().min(0) })
+const questionSchema = z.object({ q: z.string().trim().min(2).max(300), explanation: z.string().trim().max(500).nullish().transform((v) => v || null), options: z.array(z.string().trim().min(1).max(200)).min(2).max(6), answer: z.number().int().min(0) })
   .refine((x) => x.answer < x.options.length, { message: 'The correct answer must be one of the options.', path: ['answer'] });
 const lessonBody = z.object({
-  title: z.string().trim().min(2, 'Name the lesson.').max(160), kind: z.enum(['text', 'video', 'link', 'quiz']), body: z.string().trim().max(20000).nullish().transform((v) => v || null),
+  title: z.string().trim().min(2, 'Name the lesson.').max(160), kind: z.enum(['text', 'video', 'link', 'quiz', 'file', 'assignment']), body: z.string().trim().max(20000).nullish().transform((v) => v || null),
   url: httpsUrl.nullish().or(z.literal('').transform(() => null)), minutes: z.number().int().min(1).max(600).nullish(), required: z.boolean().default(true),
   pass_percent: z.number().int().min(1).max(100).default(70), questions: z.array(questionSchema).max(30).nullish(),
+  module_id: uuid.nullish(), max_attempts: z.number().int().min(1).max(20).nullish(), shuffle: z.boolean().default(false), show_answers: z.boolean().default(true), auto_accept: z.boolean().default(true),
 }).superRefine((b, ctx) => {
+  if (b.kind === 'assignment' && !b.body) ctx.addIssue({ code: 'custom', path: ['body'], message: 'Write the instructions for the assignment.' });
   if ((b.kind === 'video' || b.kind === 'link') && !b.url) ctx.addIssue({ code: 'custom', path: ['url'], message: 'Add the link.' });
   if (b.kind === 'text' && !b.body) ctx.addIssue({ code: 'custom', path: ['body'], message: 'Write the lesson text.' });
   if (b.kind === 'quiz' && !b.questions?.length) ctx.addIssue({ code: 'custom', path: ['questions'], message: 'Add at least one question.' });
 });
+
+/** A module must belong to the same course. */
+async function checkModule(orgId: string, courseId: string, moduleId?: string | null) {
+  if (!moduleId) return;
+  if (!(await queryOne(`SELECT 1 FROM lms_modules WHERE id = $1 AND org_id = $2 AND course_id = $3 AND deleted_at IS NULL`, [moduleId, orgId, courseId]))) throw badRequest('That module is not part of this course.', [{ field: 'module_id', message: 'Pick a module of this course.' }]);
+}
 
 async function loadCourse(orgId: string, id: string, db?: any) {
   const c = await queryOne(`SELECT * FROM lms_courses WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [id, orgId], db);
@@ -86,15 +94,18 @@ router.delete('/courses/:id', manage, wrap(async (req, res) => {
 router.post('/courses/:id/lessons', manage, wrap(async (req, res) => {
   const orgId = orgIdOf(req); const c = await loadCourse(orgId, parse(uuid, req.params.id)); const b = parse(lessonBody, req.body); const id = newId();
   const pos = Number((await queryOne(`SELECT COALESCE(MAX(position), 0) AS p FROM lms_lessons WHERE course_id = $1`, [c.id]))!.p) + 1;
-  await exec(`INSERT INTO lms_lessons (id, org_id, course_id, position, title, kind, body, url, minutes, questions, pass_percent, required) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-    [id, orgId, c.id, pos, b.title, b.kind, b.body, b.url ?? null, b.minutes ?? null, b.kind === 'quiz' ? JSON.stringify(b.questions) : null, b.pass_percent, b.required]);
+  await checkModule(orgId, c.id, b.module_id);
+  await exec(`INSERT INTO lms_lessons (id, org_id, course_id, position, title, kind, body, url, minutes, questions, pass_percent, required, module_id, max_attempts, shuffle, show_answers, auto_accept) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+    [id, orgId, c.id, pos, b.title, b.kind, b.body, b.url ?? null, b.minutes ?? null, b.kind === 'quiz' ? JSON.stringify(b.questions) : null, b.pass_percent, b.required, b.module_id ?? null, b.max_attempts ?? null, b.shuffle, b.show_answers, b.auto_accept]);
   await audit({ orgId, actor: req.user, action: 'lms.lesson_added', entityType: 'lms_course', entityId: c.id, next: { title: b.title, kind: b.kind }, req });
   ok(res, { id, position: pos }, undefined, 201);
 }));
 router.put('/lessons/:id', manage, wrap(async (req, res) => {
   const orgId = orgIdOf(req); const id = parse(uuid, req.params.id); const b = parse(lessonBody, req.body);
-  const r = await exec(`UPDATE lms_lessons SET title=$3, kind=$4, body=$5, url=$6, minutes=$7, questions=$8, pass_percent=$9, required=$10 WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`,
-    [id, orgId, b.title, b.kind, b.body, b.url ?? null, b.minutes ?? null, b.kind === 'quiz' ? JSON.stringify(b.questions) : null, b.pass_percent, b.required]);
+  const cur = await queryOne(`SELECT course_id FROM lms_lessons WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [id, orgId]); if (!cur) throw notFound('Lesson');
+  await checkModule(orgId, cur.course_id, b.module_id);
+  const r = await exec(`UPDATE lms_lessons SET title=$3, kind=$4, body=$5, url=$6, minutes=$7, questions=$8, pass_percent=$9, required=$10, module_id=$11, max_attempts=$12, shuffle=$13, show_answers=$14, auto_accept=$15 WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`,
+    [id, orgId, b.title, b.kind, b.body, b.url ?? null, b.minutes ?? null, b.kind === 'quiz' ? JSON.stringify(b.questions) : null, b.pass_percent, b.required, b.module_id ?? null, b.max_attempts ?? null, b.shuffle, b.show_answers, b.auto_accept]);
   if (!r.affectedRows) throw notFound('Lesson');
   await audit({ orgId, actor: req.user, action: 'lms.lesson_updated', entityType: 'lms_lesson', entityId: id, req });
   ok(res, { id });
