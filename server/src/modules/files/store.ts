@@ -48,7 +48,7 @@ export const sha256 = (b: Buffer) => createHash('sha256').update(b).digest('hex'
 export interface FileMeta { id: string; name: string; size: number; mime: string }
 
 /** Attachments of several owners at once: owner_id → files. */
-export async function filesFor(ownerType: 'material' | 'assignment' | 'submission' | 'portfolio', ownerIds: string[], db?: Db): Promise<Map<string, FileMeta[]>> {
+export async function filesFor(ownerType: 'material' | 'assignment' | 'submission' | 'portfolio' | 'lms_lesson' | 'lms_submission', ownerIds: string[], db?: Db): Promise<Map<string, FileMeta[]>> {
   const out = new Map<string, FileMeta[]>();
   if (!ownerIds.length) return out;
   const p = new Params();
@@ -63,7 +63,7 @@ export async function filesFor(ownerType: 'material' | 'assignment' | 'submissio
  * Attach uploaded files to an owner. Only the uploader's own, still-unattached (or already-attached-here)
  * files qualify. With `replace`, files previously attached here but not listed are removed.
  */
-export async function attachFiles(db: Db, a: { orgId: string; userId: string; ownerType: 'material' | 'assignment' | 'submission' | 'portfolio'; ownerId: string; fileIds: string[]; replace?: boolean; max?: number }) {
+export async function attachFiles(db: Db, a: { orgId: string; userId: string; ownerType: 'material' | 'assignment' | 'submission' | 'portfolio' | 'lms_lesson' | 'lms_submission'; ownerId: string; fileIds: string[]; replace?: boolean; max?: number }) {
   const ids = [...new Set(a.fileIds)];
   if (ids.length > (a.max ?? 10)) throw badRequest(`You can attach at most ${a.max ?? 10} files.`);
   if (ids.length) {

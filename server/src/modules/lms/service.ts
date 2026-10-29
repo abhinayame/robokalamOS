@@ -1,4 +1,6 @@
 import { exec, newId, query, queryOne, type Db } from '../../db/pool.js';
+import { addXp } from '../gamification/xp.js';
+import { filesFor } from '../files/store.js';
 import { notifyAbout, notifyUsers } from '../../lib/notify.js';
 import { issueCertificate } from '../certificates/service.js';
 
@@ -6,7 +8,18 @@ import { issueCertificate } from '../certificates/service.js';
 export async function standing(enrollmentId: string, courseId: string, db?: Db) {
   const total = Number((await queryOne(`SELECT COUNT(*) AS n FROM lms_lessons WHERE course_id = $1 AND required = TRUE AND deleted_at IS NULL`, [courseId], db))!.n);
   const done = Number((await queryOne(`SELECT COUNT(*) AS n FROM lms_progress p JOIN lms_lessons l ON l.id = p.lesson_id AND l.deleted_at IS NULL AND l.required = TRUE WHERE p.enrollment_id = $1 AND p.completed_at IS NOT NULL`, [enrollmentId], db))!.n);
-  return { total, done, percent: total ? Math.round((done / total) * 100) : 0 };
+  const g = await queryOne(`SELECT AVG(p.best_score) AS g, COUNT(*) AS n FROM lms_progress p JOIN lms_lessons l ON l.id = p.lesson_id AND l.deleted_at IS NULL AND l.required = TRUE AND l.kind = 'quiz' WHERE p.enrollment_id = $1 AND p.best_score IS NOT NULL`, [enrollmentId], db);
+  return { total, done, percent: total ? Math.round((done / total) * 100) : 0, grade: Number(g?.n) ? Math.round(Number(g!.g)) : null as number | null };
+}
+
+/** Lessons of a course in the order a learner meets them: by module, then position. Lessons outside any module come first. */
+export const LESSON_ORDER = `COALESCE(m.position, 0), l.position, l.id`;
+export const LESSON_JOIN = `LEFT JOIN lms_modules m ON m.id = l.module_id AND m.deleted_at IS NULL`;
+
+/** Record a finished lesson (idempotent; keeps the best quiz score). */
+export async function markLessonDone(db: Db, enrollmentId: string, lessonId: string, score: number | null, passed = true) {
+  await exec(`INSERT INTO lms_progress (id, enrollment_id, lesson_id, completed_at, best_score, attempts) VALUES ($1,$2,$3,$4,$5,1)
+    ON DUPLICATE KEY UPDATE attempts = attempts + 1, best_score = GREATEST(COALESCE(best_score, 0), COALESCE(VALUES(best_score), 0)), completed_at = COALESCE(completed_at, VALUES(completed_at))`, [newId(), enrollmentId, lessonId, passed ? new Date() : null, score], db);
 }
 
 /**
@@ -17,9 +30,12 @@ export async function afterProgress(db: Db, enr: { id: string; org_id: string; c
   const st = await standing(enr.id, enr.course_id, db);
   await exec(`UPDATE lms_enrollments SET last_activity_at = NOW(3), started_at = COALESCE(started_at, NOW(3)) WHERE id = $1`, [enr.id], db);
   let justCompleted = false; let certificateCode: string | null = null;
-  if (!enr.completed_at && st.total > 0 && st.done >= st.total) {
+  const meta = await queryOne(`SELECT min_grade, xp_reward, title FROM lms_courses WHERE id = $1`, [enr.course_id], db);
+  const gradeOk = !meta?.min_grade || st.grade === null || st.grade >= Number(meta.min_grade);
+  if (!enr.completed_at && st.total > 0 && st.done >= st.total && gradeOk) {
     const r = await exec(`UPDATE lms_enrollments SET status = 'completed', completed_at = NOW(3) WHERE id = $1 AND completed_at IS NULL`, [enr.id], db);
     justCompleted = r.affectedRows > 0;
+    if (justCompleted && enr.learner_id && Number(meta?.xp_reward) > 0) await addXp(db, { orgId: enr.org_id, learnerId: enr.learner_id, points: Number(meta!.xp_reward), reason: `Finished the course “${meta!.title}”`, sourceType: 'lms', sourceId: enr.course_id, dedupeKey: `lms:${enr.id}` });
     if (justCompleted && enr.learner_id) {
       const course = await queryOne(`SELECT id, title, certificate_design_id FROM lms_courses WHERE id = $1`, [enr.course_id], db);
       const design = course?.certificate_design_id ? await queryOne(`SELECT * FROM certificate_designs WHERE id = $1 AND org_id = $2 AND status = 'active'`, [course.certificate_design_id, enr.org_id], db) : null;
@@ -39,7 +55,7 @@ export async function afterProgress(db: Db, enr: { id: string; org_id: string; c
     if (msg && enr.learner_id) await notifyAbout(db, { orgId: enr.org_id, learnerIds: [enr.learner_id], kind: 'lms.path', ...msg });
     else if (msg && enr.user_id) await notifyUsers(db, { orgId: enr.org_id, userIds: [enr.user_id], kind: 'lms.path', ...msg });
   }
-  return { ...st, justCompleted, certificateCode, completed: !!enr.completed_at || justCompleted, path };
+  return { ...st, justCompleted, certificateCode, completed: !!enr.completed_at || justCompleted, path, needsGrade: !!meta?.min_grade && st.total > 0 && st.done >= st.total && !gradeOk, minGrade: meta?.min_grade ? Number(meta.min_grade) : null };
 }
 
 // ------------------------------------------------------------------ learning paths
@@ -71,4 +87,37 @@ export async function advancePaths(db: Db, enr: { org_id: string; course_id: str
     if (await enrollInCourse(db, { orgId: enr.org_id, courseId: next.id, who, assignedBy: null, dueAt: due })) out.unlocked.push(next.title);
   }
   return out;
+}
+
+// ------------------------------------------------------------------ the learner's view of a course (also used for the author's preview)
+export interface EnrLike { id: string; learner_id: string | null; user_id: string | null; status: string; due_at: any; completed_at: any }
+const lines = (v: unknown): string[] => { try { const a = typeof v === 'string' ? JSON.parse(v) : v; return Array.isArray(a) ? a.map(String) : []; } catch { return []; } };
+
+/**
+ * Everything the player needs: course details, modules, lessons in order with their state, and which are still locked. Quiz answers never leave
+ * the server; a locked lesson shows only its title and type (so a sequential course cannot be skipped by reading ahead).
+ */
+export async function courseView(courseId: string, enr: EnrLike | null, db?: Db) {
+  const c = await queryOne(`SELECT id, title, summary, color, icon, category, level, description, outcomes, requirements, instructor_name, language, sequential, min_grade, xp_reward, enrollment_mode, status,
+      certificate_design_id IS NOT NULL AS gives_certificate FROM lms_courses WHERE id = $1`, [courseId], db);
+  const modules = await query(`SELECT id, position, title, summary FROM lms_modules WHERE course_id = $1 AND deleted_at IS NULL ORDER BY position, id`, [courseId], db);
+  const rows = await query(`SELECT l.id, l.position, l.module_id, l.title, l.kind, l.body, l.url, l.minutes, l.required, l.pass_percent, l.questions, l.max_attempts, l.shuffle, l.show_answers, l.auto_accept,
+      p.completed_at, p.best_score, s.status AS sub_status, s.feedback AS sub_feedback, s.body AS sub_body, s.id AS sub_id,
+      (SELECT COUNT(*) FROM lms_attempts a WHERE a.enrollment_id = $2 AND a.lesson_id = l.id) AS tries
+    FROM lms_lessons l ${LESSON_JOIN} LEFT JOIN lms_progress p ON p.lesson_id = l.id AND p.enrollment_id = $2 LEFT JOIN lms_submissions s ON s.lesson_id = l.id AND s.enrollment_id = $2
+    WHERE l.course_id = $1 AND l.deleted_at IS NULL ORDER BY ${LESSON_ORDER}`, [courseId, enr?.id ?? ''], db);
+  const files = await filesFor('lms_lesson', rows.map((r) => r.id), db);
+  const subFiles = await filesFor('lms_submission', rows.map((r) => r.sub_id).filter(Boolean), db);
+  let blocked = false; let n = 0;
+  const lessons = rows.map((l) => {
+    n++; const done = !!l.completed_at; const locked = !!c!.sequential && blocked && !done;
+    if (l.required && !done) blocked = true;
+    const tries = Number(l.tries); const left = l.max_attempts ? Math.max(0, l.max_attempts - tries) : null;
+    const base = { id: l.id, position: n, module_id: l.module_id, title: l.title, kind: l.kind, minutes: l.minutes, required: !!l.required, done, locked, best_score: l.best_score, attempts: tries };
+    if (locked) return base;
+    return { ...base, body: l.body, url: l.url, pass_percent: l.pass_percent, max_attempts: l.max_attempts, attempts_left: left, shuffle: !!l.shuffle, show_answers: !!l.show_answers, auto_accept: !!l.auto_accept,
+      files: files.get(l.id) ?? [], submission: l.sub_id ? { status: l.sub_status, feedback: l.sub_feedback, body: l.sub_body, files: subFiles.get(l.sub_id) ?? [] } : null,
+      questions: Array.isArray(l.questions) ? l.questions.map((q: any) => ({ q: q.q, options: q.options })) : null };
+  });
+  return { course: { ...c!, outcomes: lines(c!.outcomes), sequential: !!c!.sequential, gives_certificate: !!c!.gives_certificate && !!enr?.learner_id }, modules, lessons };
 }

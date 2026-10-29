@@ -1,54 +1,29 @@
 import { useState } from 'react';
-import { api } from '../api';
-import { useAuth } from '../auth';
-import { Empty, ErrorState, Field, Modal, PageHead, SkeletonRows, StatusBadge, Tabs, fieldErrors, useAction, useFetch, useToast } from '../components/ui';
+import { Link } from 'react-router-dom';
+import { api, qs } from '../api';
+import { Async, Badge, Empty, PageHead, useDebounced, useFetch } from '../components/ui';
 
-type Kind = 'programs' | 'courses' | 'branches';
-const LABEL: Record<Kind, string> = { programs: 'Program', courses: 'Course', branches: 'Branch' };
+const LEVEL: Record<string, string> = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };
+export const Stars = ({ v }: { v: number }) => <span aria-label={`${v} out of 5`} style={{ color: '#f5a524' }}>{'★'.repeat(Math.round(v))}<span style={{ color: '#cbd5e1' }}>{'★'.repeat(5 - Math.round(v))}</span></span>;
+export const duration = (m: number) => (m >= 60 ? `${Math.floor(m / 60)}h ${m % 60 ? `${m % 60}m` : ''}`.trim() : `${m} min`);
 
+/** The course catalog: open courses anyone in the audience can join. */
 export default function Catalog() {
-  const { can } = useAuth();
-  const [tab, setTab] = useState<Kind>('programs');
-  const [edit, setEdit] = useState<any | 'new' | null>(null);
-  const [showAll, setShowAll] = useState(false);
-  const q = useFetch(() => api.get(`/api/${tab}${showAll ? '?include_archived=true' : ''}`).then((r) => r.data as any[]), [tab, showAll]);
-  const programs = useFetch(() => api.get('/api/programs').then((r) => r.data as any[]), []);
-  const manage = can(tab === 'branches' ? 'branch:manage' : 'catalog:manage');
+  const [text, setText] = useState(''); const term = useDebounced(text); const [cat, setCat] = useState('');
+  const q = useFetch(() => api.get(`/api/learn/catalog${qs({ q: term, category: cat })}`), [term, cat]);
   return (
     <>
-      <PageHead title="Programs, courses & branches" sub="The structure every batch hangs from: Organization → Branch → Program → Course → Batch." actions={manage && <button className="btn primary" onClick={() => setEdit('new')}>＋ New {LABEL[tab].toLowerCase()}</button>} />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'programs', label: 'Programs' }, { id: 'courses', label: 'Courses' }, { id: 'branches', label: 'Branches' }]} />
-      <div className="card">
-        <div className="row between" style={{ padding: 12 }}><span className="muted small">{q.data?.length ?? 0} {tab}</span><label className="row gap-s small"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show archived</label></div>
-        {q.error && !q.data ? <ErrorState error={q.error} onRetry={q.reload} /> : !q.data ? <SkeletonRows n={4} /> : !q.data.length ? <Empty icon="📚" title={`No ${tab} yet`} action={manage ? <button className="btn primary" onClick={() => setEdit('new')}>Create one</button> : undefined}>{tab === 'courses' ? 'Create a program first, then add courses to it.' : 'Add your first one to get started.'}</Empty> : (
-          <div className="table-wrap"><table className="t"><thead><tr><th>Name</th><th>Code</th>{tab === 'courses' && <th>Program</th>}{tab === 'branches' && <th>City</th>}{tab !== 'branches' && <th>Description</th>}<th>Status</th>{manage && <th />}</tr></thead><tbody>
-            {q.data.map((r) => <tr key={r.id}><td><b>{r.name}</b></td><td className="mono">{r.code}</td>{tab === 'courses' && <td>{r.program_name}</td>}{tab === 'branches' && <td>{r.city ?? '—'}</td>}{tab !== 'branches' && <td className="muted">{r.description ?? '—'}</td>}<td><StatusBadge s={r.status} /></td>{manage && <td className="right"><button className="btn sm" onClick={() => setEdit(r)}>Edit</button></td>}</tr>)}</tbody></table></div>)}
-      </div>
-      {edit && <Form kind={tab} row={edit === 'new' ? null : edit} programs={programs.data ?? []} onClose={() => setEdit(null)} onDone={() => { setEdit(null); q.reload(); programs.reload(); }} />}
+      <PageHead title="Course catalog" sub="Courses you can join right now. Pick one that interests you." actions={<Link className="btn" to="/learn">My courses</Link>} />
+      <div className="row wrap" style={{ marginBottom: 12 }}><input className="input" style={{ maxWidth: 320 }} placeholder="Search courses" aria-label="Search courses" value={text} onChange={(e) => setText(e.target.value)} />
+        <div className="chips">{['', ...((q.data as any)?.meta?.categories ?? [])].map((c: string) => <button key={c || 'all'} className={`btn sm ${cat === c ? 'primary' : ''}`} onClick={() => setCat(c)}>{c || 'All'}</button>)}</div></div>
+      <Async q={q as any}>{(r: any) => !r.data.length ? <div className="card"><Empty icon="🔎" title="No courses found">{term || cat ? 'Try a different search.' : 'There are no open courses yet. Your school can add some.'}</Empty></div> : (
+        <div className="grid cols-3">{r.data.map((c: any) => (
+          <Link key={c.id} to={`/catalog/${c.id}`} className="card stack" style={{ textDecoration: 'none', color: 'inherit', overflow: 'hidden' }}>
+            <div style={{ background: c.color, color: '#fff', padding: '18px 16px', display: 'flex', gap: 12, alignItems: 'center' }}><span style={{ fontSize: 38 }} aria-hidden>{c.icon ?? '📘'}</span><div><div style={{ fontWeight: 700, fontSize: 16 }}>{c.title}</div>{c.instructor_name && <div style={{ opacity: 0.85, fontSize: 12 }}>by {c.instructor_name}</div>}</div></div>
+            <div className="card-pad stack-s">{c.summary && <div className="small">{c.summary}</div>}
+              <div className="row gap-s wrap">{c.category && <Badge>{c.category}</Badge>}{c.level && <Badge>{LEVEL[c.level]}</Badge>}{c.gives_certificate && <Badge tone="ok">🎓 Certificate</Badge>}{c.enrolled && <Badge tone="info">Joined</Badge>}</div>
+              <div className="row between small muted"><span>{c.rating ? <><Stars v={c.rating} /> {c.rating} ({c.reviews})</> : 'New'}</span><span>{c.lessons} lessons{c.minutes ? ` · ${duration(c.minutes)}` : ''}</span></div></div>
+          </Link>))}</div>)}</Async>
     </>
   );
-}
-
-function Form({ kind, row, programs, onClose, onDone }: { kind: Kind; row: any | null; programs: any[]; onClose: () => void; onDone: () => void }) {
-  const [v, setV] = useState<any>({ name: row?.name ?? '', code: row?.code ?? '', description: row?.description ?? '', city: row?.city ?? '', address: row?.address ?? '', program_id: row?.program_id ?? '', status: row?.status ?? 'active' });
-  const [errs, setErrs] = useState<Record<string, string>>({});
-  const { busy, run } = useAction();
-  const toast = useToast();
-  const set = (k: string) => (e: any) => setV({ ...v, [k]: e.target.value });
-  async function submit(e: React.FormEvent) {
-    e.preventDefault(); setErrs({});
-    const base: any = { name: v.name };
-    if (kind === 'branches') Object.assign(base, { city: v.city || undefined, address: v.address || undefined }); else base.description = v.description || undefined;
-    if (!row) { base.code = v.code; if (kind === 'courses') base.program_id = v.program_id; } else base.status = v.status;
-    try { row ? await api.patch(`/api/${kind}/${row.id}`, base) : await api.post(`/api/${kind}`, base); toast(`${LABEL[kind]} saved`); onDone(); }
-    catch (err: any) { const fe = fieldErrors(err); setErrs(fe); if (!Object.keys(fe).length) run(() => Promise.reject(err)); }
-  }
-  return <Modal title={`${row ? 'Edit' : 'New'} ${LABEL[kind].toLowerCase()}`} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" form="cat-form" disabled={busy || v.name.length < 2 || (!row && !v.code) || (kind === 'courses' && !row && !v.program_id)}>Save</button></>}>
-    <form id="cat-form" onSubmit={submit} className="stack" noValidate>
-      {kind === 'courses' && !row && <Field label="Program" error={errs.program_id}><select className="select" value={v.program_id} onChange={set('program_id')}><option value="">Choose…</option>{programs.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></Field>}
-      <Field label="Name" error={errs.name}><input className="input" value={v.name} onChange={set('name')} autoFocus /></Field>
-      {!row && <Field label="Code" error={errs.code} hint="Short and unique, e.g. ROBO. Cannot be changed later."><input className="input" value={v.code} onChange={(e) => setV({ ...v, code: e.target.value.toUpperCase() })} maxLength={20} /></Field>}
-      {kind === 'branches' ? <><Field label="City"><input className="input" value={v.city} onChange={set('city')} /></Field><Field label="Address"><input className="input" value={v.address} onChange={set('address')} /></Field></> : <Field label="Description"><textarea className="textarea" value={v.description} onChange={set('description')} /></Field>}
-      {row && <Field label="Status"><select className="select" value={v.status} onChange={set('status')}><option value="active">Active</option><option value="inactive">Inactive</option><option value="archived">Archived</option></select></Field>}
-    </form></Modal>;
 }

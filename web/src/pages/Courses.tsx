@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
@@ -9,7 +10,7 @@ import { fmtDate, fmtDateTime } from '../format';
 const AUD: Record<string, string> = { learners: 'Learners', staff: 'Staff / onboarding', both: 'Everyone' };
 
 export default function Courses() {
-  const { can } = useAuth(); const manage = can('lms:manage'); const q = useFetch(() => api.get('/api/lms/courses').then((r) => r.data as any[]), []);
+  const nav = useNavigate(); const toast = useToast(); const { run } = useAction(); const { can } = useAuth(); const manage = can('lms:manage'); const q = useFetch(() => api.get('/api/lms/courses').then((r) => r.data as any[]), []);
   const [tab, setTab] = useState<'courses' | 'paths'>('courses'); const [edit, setEdit] = useState<any>(null); const [assign, setAssign] = useState<any>(null); const [prog, setProg] = useState<any>(null); const [lessons, setLessons] = useState<any>(null);
   return (
     <>
@@ -20,8 +21,9 @@ export default function Courses() {
           <div key={c.id} className="card card-pad stack" style={{ borderTop: `5px solid ${c.color}` }}>
             <div className="row between"><b style={{ fontSize: 16 }}>{c.title}</b><Badge tone={c.status === 'published' ? 'ok' : ''}>{c.status}</Badge></div>
             <div className="muted small">{AUD[c.audience]} · {c.lessons} lesson{c.lessons == 1 ? '' : 's'} · {c.enrolled} enrolled · {c.completed} finished</div>
-            <div className="row gap-s wrap"><button className="btn sm" onClick={() => setProg(c)}>Progress</button>
-              {manage && <><button className="btn sm" onClick={() => setLessons(c)}>Lessons</button><button className="btn sm" onClick={() => setEdit(c)}>Edit</button><button className="btn sm primary" disabled={c.status !== 'published'} onClick={() => setAssign(c)}>Assign</button></>}</div>
+            {manage && c.status !== 'published' && <div className="banner warn small" role="status">Draft: nobody can see it yet. <button className="btn sm primary" style={{ marginLeft: 6 }} onClick={() => run(async () => { try { await api.post(`/api/lms/courses/${c.id}/publish`); q.reload(); toast('Published. You can assign it now.'); } catch (e: any) { toast(e?.message ?? 'Could not publish.', 'err'); nav(`/courses/${c.id}`); } })}>Publish</button></div>}
+            <div className="row gap-s wrap"><button className="btn sm primary" onClick={() => nav(`/courses/${c.id}`)}>Open studio</button><button className="btn sm" onClick={() => setProg(c)}>Progress</button>
+              {manage && <><button className="btn sm" onClick={() => setLessons(c)}>Lessons</button><button className="btn sm" onClick={() => setEdit(c)}>Edit</button><button className="btn sm" disabled={c.status !== 'published'} title={c.status !== 'published' ? 'Publish the course first' : undefined} onClick={() => setAssign(c)}>Assign</button>{c.status === 'published' && <button className="btn sm" onClick={() => run(async () => { await api.post(`/api/lms/courses/${c.id}/unpublish`); q.reload(); }, 'Back to draft.')}>Unpublish</button>}</>}</div>
           </div>))}</div>)}</Async>}
       {edit && <CourseModal course={edit} onClose={() => setEdit(null)} onDone={q.reload} />}
       {assign && <AssignModal course={assign} onClose={() => setAssign(null)} onDone={q.reload} />}
@@ -31,7 +33,7 @@ export default function Courses() {
   );
 }
 
-function CourseModal({ course, onClose, onDone }: { course: any; onClose: () => void; onDone: () => void }) {
+export function CourseModal({ course, onClose, onDone }: { course: any; onClose: () => void; onDone: () => void }) {
   const isNew = !course.id; const { busy, run } = useAction(); const [err, setErr] = useState('');
   const designs = useFetch(() => api.get('/api/certificates/designs').then((r) => r.data as any[]).catch(() => []), []);
   const [f, setF] = useState({ title: course.title ?? '', summary: course.summary ?? '', audience: course.audience ?? 'learners', color: course.color ?? '#12263f', certificate_design_id: course.certificate_design_id ?? '', status: course.status ?? 'draft' });
@@ -98,7 +100,7 @@ function LessonsModal({ course, onClose }: { course: any; onClose: () => void })
   );
 }
 
-function BankPicker({ onClose, onAdd }: { onClose: () => void; onAdd: (q: any[]) => void }) {
+export function BankPicker({ onClose, onAdd }: { onClose: () => void; onAdd: (q: any[]) => void }) {
   const topics = useFetch(() => api.get('/api/bank/topics').then((r) => r.data as any[]), []); const [topic, setTopic] = useState(''); const [sel, setSel] = useState<Record<string, any>>({}); const [n, setN] = useState(5); const { busy, run } = useAction();
   const list = useFetch(() => api.get(`/api/bank?page_size=100${topic ? `&topic=${encodeURIComponent(topic)}` : ''}`).then((r) => r.data as any[]), [topic]); const picked = Object.values(sel);
   const strip = (x: any) => ({ q: x.q, options: x.options, answer: x.answer });
@@ -111,7 +113,7 @@ function BankPicker({ onClose, onAdd }: { onClose: () => void; onAdd: (q: any[])
   );
 }
 
-function AssignModal({ course, onClose, onDone }: { course: any; onClose: () => void; onDone: () => void }) {
+export function AssignModal({ course, onClose, onDone }: { course: any; onClose: () => void; onDone: () => void }) {
   const toStaff = course.audience !== 'learners'; const toLearners = course.audience !== 'staff'; const [batches, setBatches] = useState<string[]>([]); const [sum, setSum] = useState<AudienceSummary | null>(null);
   const [allStaff, setAllStaff] = useState(false); const [due, setDue] = useState(''); const [preview, setPreview] = useState<any>(null); const { busy, run } = useAction(); const toast = useToast();
   const body = (x: object) => ({ selector: batches.length ? { batch_ids: batches } : undefined, all_staff: allStaff, due_at: due ? new Date(`${due}T23:59:00`).toISOString() : undefined, ...x });
