@@ -39,6 +39,7 @@ export function errorHandler(err: any, req: Request, res: Response, _next: NextF
   }
   // 1264/1265/1292/1366/1406 out-of-range or malformed value
   if ([1264, 1265, 1292, 1366, 1406].includes(err?.errno)) {
+    if (process.env.DEBUG_SQL) console.error('SQL value error:', err.sqlMessage, err.sql);
     return res.status(400).json({ ok: false, error: { code: 'BAD_REQUEST', message: 'One of the values has an invalid format.' } });
   }
   logger.error({ err, id: req.id, path: req.path, method: req.method }, 'unhandled error');

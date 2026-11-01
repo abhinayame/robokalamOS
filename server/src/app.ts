@@ -55,6 +55,7 @@ import lmsLearn from './modules/lms/learn.js';
 import shareRoutes from './modules/share/routes.js';
 import chatRoutes from './modules/chat/routes.js';
 import lmsLearn2 from './modules/lms/learn2.js';
+import levelRoutes from './modules/levels/routes.js';
 import lmsTeam from './modules/lms/team.js';
 import lmsStudio from './modules/lms/studio.js';
 import lmsPaths from './modules/lms/paths.js';
@@ -81,7 +82,7 @@ export function createApp() {
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: true,
-      directives: { 'img-src': ["'self'", 'data:', 'blob:', 'https:'], 'frame-src': ["'self'", 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'], 'connect-src': ["'self'"] },
+      directives: { 'img-src': ["'self'", 'data:', 'blob:', 'https:'], 'frame-src': ["'self'", 'blob:', 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'], 'connect-src': ["'self'"] },
     },
     crossOriginEmbedderPolicy: false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },
@@ -159,6 +160,7 @@ export function createApp() {
   app.use('/api/payroll', payrollRoutes);
   app.use('/api/share', shareRoutes);
   app.use('/api/chat', chatRoutes);
+  app.use('/api/levels', levelRoutes);
   app.use('/api/push', pushRoutes);
   app.use('/api/checkin', checkinRoutes);
   app.use('/api/polls', pollRoutes);

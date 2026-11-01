@@ -4,10 +4,12 @@ import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
 import { RecordPaymentModal, todayStr } from '../components/Fees';
+import { EditPaymentModal, PayBadge, VoidPaymentModal } from '../components/FeeTools';
+import FeeSettings from './FeeSettings';
 import { Async, Badge, Empty, Field, Modal, PageHead, Pager, Stat, Tabs, useAction, useDebounced, useFetch, useToast } from '../components/ui';
 import { cap, fmtDate, fmtDateTime, fmtMobile, fmtMoney, fmtNum } from '../format';
 
-type Tab = 'dues' | 'payments' | 'plans';
+type Tab = 'dues' | 'payments' | 'plans' | 'settings';
 
 export default function Fees() {
   const { can } = useAuth();
@@ -24,10 +26,11 @@ export default function Fees() {
           <Stat label="Collection rate" value={s.collection_rate_pct == null ? '—' : `${s.collection_rate_pct}%`} sub="Collected ÷ billed" />
         </div>)}</Async>
       <ReceiptSwitch />
-      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'dues', label: 'Dues' }, { id: 'payments', label: 'Payments' }, ...(can('fee:read') ? [{ id: 'plans' as Tab, label: 'Plans' }] : [])]} />
+      <Tabs value={tab} onChange={setTab} tabs={[{ id: 'dues', label: 'Dues' }, { id: 'payments', label: 'Payments' }, ...(can('fee:read') ? [{ id: 'plans' as Tab, label: 'Plans' }, { id: 'settings' as Tab, label: 'Receipts & discounts' }] : [])]} />
       {tab === 'dues' && <Dues onChanged={summary.reload} />}
       {tab === 'payments' && <Payments />}
       {tab === 'plans' && <Plans onChanged={summary.reload} />}
+      {tab === 'settings' && <FeeSettings />}
     </>
   );
 }
@@ -75,7 +78,7 @@ function Payments() {
   const [page, setPage] = useState(1); const dq = useDebounced(f.search);
   useEffect(() => setPage(1), [dq, f.method, f.from, f.to]);
   const q = useFetch(() => api.get(`/api/fees/payments${qs({ search: dq, method: f.method, from: f.from, to: f.to, page, page_size: 25 })}`), [dq, f.method, f.from, f.to, page]);
-  const { run } = useAction();
+  const { run } = useAction(); const [edit, setEdit] = useState<any>(null); const [voidP, setVoidP] = useState<any>(null);
   return (
     <div className="card">
       <div className="row wrap" style={{ padding: 12 }}>
@@ -87,12 +90,16 @@ function Payments() {
       <Async q={q}>{(r: any) => !r.data.length ? <Empty icon="💳" title="No payments found" /> : (<>
         <div className="table-wrap"><table className="t"><thead><tr><th>Receipt</th><th>Date</th><th>Learner</th><th>Method</th><th className="right">Amount</th><th /></tr></thead><tbody>
           {r.data.map((p: any) => <tr key={p.id}><td className="mono">{p.receipt_no}</td><td className="nowrap">{fmtDateTime(p.paid_at)}</td><td><Link to={`/learners/${p.learner_id}`}>{p.full_name}</Link><br /><span className="muted small">{p.learner_code}</span></td>
-            <td>{cap(p.method)}{p.provider === 'razorpay' && <> <Badge tone="info">online</Badge></>}{p.reference && <div className="muted small">{p.reference}</div>}</td>
-            <td className="right"><b>{fmtMoney(p.amount)}</b>{Number(p.refunded_amount) > 0 && <div className="small err">−{fmtMoney(p.refunded_amount)}</div>}</td>
-            <td className="right"><button className="btn sm" onClick={() => run(() => api.getFile(`/api/fees/payments/${p.id}/receipt.pdf`, `${p.receipt_no}.pdf`, true))}>Receipt</button></td></tr>)}
+            <td>{cap(p.method)}{p.provider === 'razorpay' && <> <Badge tone="info">online</Badge></>} <PayBadge p={p} />{p.reference && <div className="muted small">{p.reference}</div>}</td>
+            <td className="right" style={p.status === 'voided' ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}><b>{fmtMoney(p.amount)}</b>{Number(p.refunded_amount) > 0 && p.status !== 'voided' && <div className="small err">−{fmtMoney(p.refunded_amount)}</div>}</td>
+            <td className="right nowrap"><button className="btn sm" onClick={() => run(() => api.getFile(`/api/fees/payments/${p.id}/receipt.pdf`, `${p.receipt_no}.pdf`, true))}>Receipt</button>
+              {can('payment:edit') && p.status !== 'voided' && <> <button className="btn sm" onClick={() => setEdit(p)}>Edit</button></>}
+              {can('payment:edit') && p.status !== 'voided' && p.provider !== 'razorpay' && Number(p.refunded_amount) === 0 && <> <button className="btn sm" onClick={() => setVoidP(p)}>Cancel</button></>}</td></tr>)}
         </tbody></table></div>
         <div className="card-pad small muted">{fmtNum(r.meta.total)} payment(s) · net {fmtMoney(r.meta.net_collected)}{!can('fee:manage') ? '' : ''}</div>
         <Pager meta={r.meta} onPage={setPage} /></>)}</Async>
+      {edit && <EditPaymentModal payment={edit} onClose={() => setEdit(null)} onDone={q.reload} />}
+      {voidP && <VoidPaymentModal payment={voidP} onClose={() => setVoidP(null)} onDone={q.reload} />}
     </div>
   );
 }
@@ -146,12 +153,13 @@ function PlanModal({ onClose, onDone }: { onClose: () => void; onDone: () => voi
 function AssignModal({ plan, onClose, onDone }: { plan: any; onClose: () => void; onDone: () => void }) {
   const [batches, setBatches] = useState<string[]>([]); const [sum, setSum] = useState<AudienceSummary | null>(null);
   const [start, setStart] = useState(todayStr());
-  const [disc, setDisc] = useState({ type: 'percent', value: '' });
+  const [disc, setDisc] = useState({ type: 'percent', value: '', reason: '', preset: '' }); const [level, setLevel] = useState('');
+  const presets = useFetch(() => api.get('/api/fees/discount-presets').then((r) => (r.data as any[]).filter((x) => x.active)).catch(() => [] as any[]), []);
   const [tie, setTie] = useState(false);
   const [preview, setPreview] = useState<any>(null);
   const { busy, run } = useAction(); const toast = useToast();
-  const body = (extra: object) => ({ plan_id: plan.id, selector: { batch_ids: batches }, start_date: start, batch_id: tie && batches.length === 1 ? batches[0] : undefined, discount: Number(disc.value) > 0 ? { type: disc.type, value: Number(disc.value) } : undefined, ...extra });
-  useEffect(() => setPreview(null), [batches, start, disc.type, disc.value, tie]);
+  const body = (extra: object) => ({ plan_id: plan.id, selector: { batch_ids: batches }, start_date: start, batch_id: tie && batches.length === 1 ? batches[0] : undefined, discount: Number(disc.value) > 0 ? { type: disc.type, value: Number(disc.value), reason: disc.reason || undefined, preset_id: disc.preset || undefined } : undefined, level_label: level.trim() || undefined, ...extra });
+  useEffect(() => setPreview(null), [batches, start, disc.type, disc.value, tie, level]);
   return (
     <Modal wide title={`Give “${plan.name}” to learners`} onClose={onClose} footer={<>
       <button className="btn" onClick={onClose}>Cancel</button>
@@ -162,6 +170,11 @@ function AssignModal({ plan, onClose, onDone }: { plan: any; onClose: () => void
         <div className="row wrap">
           <Field label="Start date" hint="Installments fall due this many days after it."><input className="input" type="date" value={start} onChange={(e) => setStart(e.target.value)} /></Field>
           <Field label="Discount (optional)"><span className="row gap-s"><select className="select" style={{ width: 110 }} value={disc.type} onChange={(e) => setDisc({ ...disc, type: e.target.value })}><option value="percent">Percent</option><option value="amount">₹ amount</option></select><input className="input" style={{ width: 100 }} inputMode="decimal" value={disc.value} onChange={(e) => setDisc({ ...disc, value: e.target.value.replace(/[^\d.]/g, '') })} /></span></Field>
+        </div>
+        <div className="row wrap">
+          {(presets.data ?? []).length > 0 && <Field label="Saved discount"><select className="select" value={disc.preset} onChange={(e) => { const p = (presets.data ?? []).find((x: any) => x.id === e.target.value); setDisc(p ? { type: p.kind, value: String(Number(p.value)), reason: disc.reason || p.name, preset: p.id } : { ...disc, preset: '' }); }}><option value="">None / custom</option>{(presets.data ?? []).map((p: any) => <option key={p.id} value={p.id}>{p.name} ({p.kind === 'percent' ? `${Number(p.value)}%` : fmtMoney(p.value)})</option>)}</select></Field>}
+          {Number(disc.value) > 0 && <Field label="Why the discount?"><input className="input" value={disc.reason} maxLength={200} onChange={(e) => setDisc({ ...disc, reason: e.target.value })} placeholder="Sibling, early bird…" /></Field>}
+          <Field label="Level (optional)" hint="Shown on the ledger and receipt, e.g. Level 2."><input className="input" value={level} maxLength={60} onChange={(e) => setLevel(e.target.value)} style={{ width: 150 }} /></Field>
         </div>
         {batches.length === 1 && <label className="row gap-s"><input type="checkbox" checked={tie} onChange={(e) => setTie(e.target.checked)} /> Tie this fee to the selected batch (lets a learner pay the same plan for another batch too)</label>}
         {preview && (

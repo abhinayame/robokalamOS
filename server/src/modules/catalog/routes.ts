@@ -81,10 +81,10 @@ crud('programs', 'program', {
   select: 't.id, t.name, t.code, t.description, t.status',
 });
 crud('courses', 'course', {
-  cols: ['program_id', 'name', 'code', 'description'],
-  create: z.object({ program_id: uuid, name: z.string().trim().min(2).max(120), code, description: z.string().trim().max(1000).optional() }),
-  update: z.object({ name: z.string().trim().min(2).max(120).optional(), description: z.string().trim().max(1000).optional(), status: status.optional() }),
-  select: 't.id, t.name, t.code, t.description, t.status, t.program_id, p.name AS program_name',
+  cols: ['program_id', 'name', 'code', 'description', 'level_no'],
+  create: z.object({ program_id: uuid, name: z.string().trim().min(2).max(120), code, description: z.string().trim().max(1000).optional(), level_no: z.number().int().min(1).max(50).nullish() }),
+  update: z.object({ name: z.string().trim().min(2).max(120).optional(), description: z.string().trim().max(1000).optional(), status: status.optional(), level_no: z.number().int().min(1).max(50).nullish() }),
+  select: 't.id, t.name, t.code, t.description, t.status, t.program_id, t.level_no, p.name AS program_name',
   joins: 'JOIN programs p ON p.id = t.program_id',
 });
 

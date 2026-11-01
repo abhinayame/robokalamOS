@@ -79,7 +79,7 @@ export async function applyPayment(db: Db, orgId: string, p: PaymentInput) {
 
 export async function loadPayment(orgId: string, id: string, db?: Db) {
   const pay = await queryOne(
-    `SELECT p.id, p.learner_id, p.amount, p.unallocated_amount, p.method, p.provider, p.receipt_no, p.status, p.refunded_amount, p.paid_at, p.reference, p.note, p.created_at,
+    `SELECT p.id, p.learner_id, p.amount, p.unallocated_amount, p.method, p.provider, p.receipt_no, p.status, p.refunded_amount, p.paid_at, p.reference, p.note, p.created_at, p.revision, p.edited_at, p.voided_at, p.void_reason,
             l.full_name AS learner_name, l.learner_code, u.full_name AS recorded_by_name
        FROM payments p JOIN learners l ON l.id = p.learner_id LEFT JOIN users u ON u.id = p.recorded_by WHERE p.id = $1 AND p.org_id = $2`, [id, orgId], db);
   if (!pay) throw notFound('Payment');
@@ -87,7 +87,8 @@ export async function loadPayment(orgId: string, id: string, db?: Db) {
     `SELECT a.installment_id, a.amount, i.label, i.due_date, f.title AS fee_title FROM payment_allocations a JOIN fee_installments i ON i.id = a.installment_id JOIN learner_fees f ON f.id = i.learner_fee_id
       WHERE a.payment_id = $1 ORDER BY i.due_date, i.id`, [id], db);
   const refunds = await query(`SELECT r.id, r.amount, r.reason, r.created_at, u.full_name AS refunded_by_name FROM fee_refunds r LEFT JOIN users u ON u.id = r.refunded_by WHERE r.payment_id = $1 ORDER BY r.created_at`, [id], db);
-  return { payment: pay, allocations, refunds };
+  const revisions = await query(`SELECT r.revision, r.kind, r.reason, r.before_json, r.after_json, r.created_at, u.full_name AS changed_by_name FROM payment_revisions r LEFT JOIN users u ON u.id = r.changed_by WHERE r.payment_id = $1 ORDER BY r.revision`, [id], db);
+  return { payment: pay, allocations, refunds, revisions };
 }
 
 /** Refund part or all of a payment: money taken back from the latest-due installments first, so older dues stay covered. */
@@ -123,7 +124,7 @@ export async function refundPayment(db: Db, orgId: string, paymentId: string, am
 }
 
 // ---------------------------------------------------------------------------------------------- assigning fees
-export interface AssignInput { planId: string; learnerIds: string[]; batchId: string | null; startDate: string; discountPaise: number }
+export interface AssignInput { planId: string; learnerIds: string[]; batchId: string | null; startDate: string; discountPaise: number; discountType?: 'percent' | 'amount' | null; discountValue?: number | null; discountReason?: string | null; levelLabel?: string | null }
 
 /** Give a plan to many learners at once (one fee per learner per plan per batch; already-assigned learners are skipped). */
 export async function assignPlan(db: Db, c: { orgId: string; user: AuthUser; req?: Request }, a: AssignInput, dryRun: boolean) {
@@ -134,6 +135,8 @@ export async function assignPlan(db: Db, c: { orgId: string; user: AuthUser; req
   if (!items.length) throw badRequest('This fee plan has no installments.');
   if (a.batchId && !(await queryOne(`SELECT 1 FROM batches WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [a.batchId, c.orgId], db))) throw notFound('Batch');
 
+  let levelLabel = a.levelLabel ?? null;
+  if (!levelLabel && a.batchId) { const lv = await queryOne(`SELECT c.level_no FROM batches b JOIN courses c ON c.id = b.course_id WHERE b.id = $1`, [a.batchId], db); if (lv?.level_no) levelLabel = `Level ${lv.level_no}`; }
   const gross = items.reduce((s, i) => s + toPaise(i.amount), 0);
   let parts: number[];
   try { parts = discountedParts(items.map((i) => toPaise(i.amount)), a.discountPaise); } catch { throw badRequest('The discount must be smaller than the fee.', [{ field: 'discount', message: 'Lower the discount.' }]); }
@@ -160,11 +163,11 @@ export async function assignPlan(db: Db, c: { orgId: string; user: AuthUser; req
     const feeRows: string[] = []; const instRows: string[] = [];
     for (const lid of part) {
       const fid = newId();
-      feeRows.push(`(${fp.add(fid)},${fp.add(c.orgId)},${fp.add(lid)},${fp.add(a.batchId)},${fp.add(a.planId)},${fp.add(plan.name)},${fp.add(fromPaise(gross))},${fp.add(fromPaise(a.discountPaise))},${fp.add(fromPaise(net))},${fp.add(a.startDate)},${fp.add(c.user.id)})`);
-      items.forEach((it, k) => instRows.push(`(${ip.add(newId())},${ip.add(c.orgId)},${ip.add(fid)},${ip.add(lid)},${ip.add(it.label)},${ip.add(fromPaise(parts[k]!))},${ip.add(addDays(a.startDate, Number(it.due_days)))})`));
+      feeRows.push(`(${fp.add(fid)},${fp.add(c.orgId)},${fp.add(lid)},${fp.add(a.batchId)},${fp.add(a.planId)},${fp.add(plan.name)},${fp.add(fromPaise(gross))},${fp.add(fromPaise(a.discountPaise))},${fp.add(fromPaise(net))},${fp.add(a.startDate)},${fp.add(c.user.id)},${fp.add(a.discountPaise > 0 ? a.discountType ?? null : null)},${fp.add(a.discountPaise > 0 ? a.discountValue ?? null : null)},${fp.add(a.discountPaise > 0 ? a.discountReason ?? null : null)},${fp.add(levelLabel)})`);
+      items.forEach((it, k) => instRows.push(`(${ip.add(newId())},${ip.add(c.orgId)},${ip.add(fid)},${ip.add(lid)},${ip.add(it.label)},${ip.add(fromPaise(parts[k]!))},${ip.add(addDays(a.startDate, Number(it.due_days)))},${ip.add(it.amount)})`));
     }
-    await exec(`INSERT INTO learner_fees (id, org_id, learner_id, batch_id, plan_id, title, gross_amount, discount_amount, net_amount, start_date, created_by) VALUES ${feeRows.join(',')}`, fp.values, db);
-    await exec(`INSERT INTO fee_installments (id, org_id, learner_fee_id, learner_id, label, amount, due_date) VALUES ${instRows.join(',')}`, ip.values, db);
+    await exec(`INSERT INTO learner_fees (id, org_id, learner_id, batch_id, plan_id, title, gross_amount, discount_amount, net_amount, start_date, created_by, discount_type, discount_value, discount_reason, level_label) VALUES ${feeRows.join(',')}`, fp.values, db);
+    await exec(`INSERT INTO fee_installments (id, org_id, learner_fee_id, learner_id, label, amount, due_date, base_amount) VALUES ${instRows.join(',')}`, ip.values, db);
     const tp = new Params();
     await exec(`INSERT INTO learner_activity (org_id, learner_id, batch_id, type, title, description, meta, actor_user_id)
       SELECT ${tp.add(c.orgId)}, l.id, ${tp.add(a.batchId)}, 'fee.assigned', ${tp.add(`Fee assigned: ${plan.name}`)}, ${tp.add(`${rupees(net)} in ${items.length} installment(s)`)}, ${tp.add(JSON.stringify({ plan_id: a.planId }))}, ${tp.add(c.user.id)}
@@ -185,7 +188,7 @@ export interface Ledger {
 export async function learnerLedger(orgId: string, learnerId: string, tz: string): Promise<Ledger> {
   const learner = await queryOne(`SELECT id, learner_code, full_name FROM learners WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [learnerId, orgId]);
   if (!learner) throw notFound('Learner');
-  const fees = await query(`SELECT f.id, f.title, f.gross_amount, f.discount_amount, f.net_amount, f.start_date, f.status, f.note, f.cancel_reason, f.created_at, f.batch_id, b.name AS batch_name
+  const fees = await query(`SELECT f.id, f.title, f.gross_amount, f.discount_amount, f.net_amount, f.discount_type, f.discount_value, f.discount_reason, f.level_label, f.start_date, f.status, f.note, f.cancel_reason, f.created_at, f.batch_id, b.name AS batch_name
       FROM learner_fees f LEFT JOIN batches b ON b.id = f.batch_id WHERE f.learner_id = $1 AND f.org_id = $2 ORDER BY f.created_at DESC`, [learnerId, orgId]);
   const insts = await query(`SELECT id, learner_fee_id, label, amount, paid_amount, due_date, status FROM fee_installments WHERE learner_id = $1 AND org_id = $2 ORDER BY due_date, id`, [learnerId, orgId]);
   const today = todayIn(tz);
@@ -198,7 +201,7 @@ export async function learnerLedger(orgId: string, learnerId: string, tz: string
     if (f.status === 'active' && i.status !== 'cancelled') { billed += toPaise(i.amount); paid += toPaise(i.paid_amount); if (od) overdue += bal; }
     (byFee.get(i.learner_fee_id) ?? byFee.set(i.learner_fee_id, []).get(i.learner_fee_id)!).push({ ...i, balance: fromPaise(bal), overdue: od });
   }
-  const payments = await query(`SELECT p.id, p.amount, p.unallocated_amount, p.refunded_amount, p.method, p.provider, p.receipt_no, p.status, p.paid_at, p.reference, p.note FROM payments p WHERE p.learner_id = $1 AND p.org_id = $2 ORDER BY p.paid_at DESC, p.id DESC LIMIT 200`, [learnerId, orgId]);
+  const payments = await query(`SELECT p.id, p.amount, p.unallocated_amount, p.refunded_amount, p.method, p.provider, p.receipt_no, p.status, p.paid_at, p.reference, p.note, p.revision, p.void_reason FROM payments p WHERE p.learner_id = $1 AND p.org_id = $2 ORDER BY p.paid_at DESC, p.id DESC LIMIT 200`, [learnerId, orgId]);
   const credit = payments.reduce((s, p) => s + toPaise(p.unallocated_amount), 0);
   const open_links = await query(`SELECT id, amount, short_url, expires_at, created_at FROM payment_links WHERE learner_id = $1 AND org_id = $2 AND status = 'created' AND expires_at > NOW(3) ORDER BY created_at DESC LIMIT 5`, [learnerId, orgId]);
   return {

@@ -8,15 +8,16 @@ const pal = (key: string) => { let h = 0; for (const ch of key) h = (h * 31 + ch
 const starPts = (cx: number, cy: number, r: number) => Array.from({ length: 10 }, (_, i) => { const a = -Math.PI / 2 + (i * Math.PI) / 5; const rr = i % 2 ? r * 0.42 : r; return `${(cx + rr * Math.cos(a)).toFixed(1)},${(cy + rr * Math.sin(a)).toFixed(1)}`; }).join(' ');
 
 /** A medal with a metallic rim, a lit face, a highlight and a soft shadow, drawn as SVG so it stays sharp at any size. The color follows the badge name. */
-export function Badge3D({ name, size = 72, glyph = 'star', label }: { name: string; size?: number; glyph?: 'star' | 'bolt' | 'check' | 'trophy'; label?: string }) {
+export function Badge3D({ name, size = 72, glyph = 'star', label, animated = false }: { name: string; size?: number; glyph?: 'star' | 'bolt' | 'check' | 'trophy'; label?: string; animated?: boolean }) {
   const id = useId().replace(/:/g, ''); const [light, mid, dark, rim1, rim2] = pal(name); const s = 100; const c = 50; const r = 34;
   return (
-    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label={`${name} badge`} style={{ flex: 'none', overflow: 'visible' }}>
+    <svg width={size} height={size} viewBox="0 0 100 100" role="img" aria-label={`${name} badge`} className={animated ? 'badge3d-live' : undefined} style={{ flex: 'none', overflow: 'visible' }}>
       <defs>
         <linearGradient id={`rim${id}`} x1="0.1" y1="0" x2="0.9" y2="1"><stop offset="0" stopColor={rim1} /><stop offset=".5" stopColor={mid} /><stop offset="1" stopColor={rim2} /></linearGradient>
         <radialGradient id={`face${id}`} cx="0.35" cy="0.3" r="0.9"><stop offset="0" stopColor={light} /><stop offset=".55" stopColor={mid} /><stop offset="1" stopColor={dark} /></radialGradient>
         <linearGradient id={`rib${id}`} x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor={mid} /><stop offset="1" stopColor={dark} /></linearGradient>
         <linearGradient id={`shine${id}`} x1="0" y1="0" x2="0.6" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".85" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
+        <clipPath id={`clip${id}`}><circle cx={c} cy={c} r={r * 0.84} /></clipPath>
         <filter id={`blur${id}`}><feGaussianBlur stdDeviation="2" /></filter>
         <filter id={`drop${id}`} x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="0" dy="1.6" stdDeviation="1.1" floodColor="#000" floodOpacity=".4" /></filter>
       </defs>
@@ -36,6 +37,7 @@ export function Badge3D({ name, size = 72, glyph = 'star', label }: { name: stri
       </g>
       <ellipse cx={c - r * 0.42} cy={c - r * 0.55} rx={r * 0.1} ry={r * 0.06} fill="#fff" opacity=".9" transform={`rotate(-35 ${c - r * 0.42} ${c - r * 0.55})`} />
       {label && <text x={c} y={c + r * 0.58} textAnchor="middle" fontSize={r * 0.3} fontWeight="700" fill="#fff" stroke="rgba(0,0,0,.35)" strokeWidth=".6">{label}</text>}
+      {animated && <g className="badge3d-sheen" style={{ pointerEvents: 'none' }}><rect x={c - 8} y={c - r} width="14" height={r * 2} fill="#fff" opacity=".55" transform={`rotate(24 ${c} ${c})`} clipPath={`url(#clip${id})`} /></g>}
       <rect width={s} height={s} fill="none" />
     </svg>
   );

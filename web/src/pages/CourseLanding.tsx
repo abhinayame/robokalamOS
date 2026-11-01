@@ -3,7 +3,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { Async, Badge, Empty, PageHead, useAction, useFetch } from '../components/ui';
 import { fmtDate } from '../format';
-import { Stars, duration } from './Catalog';
+import { Stars, duration } from './CourseCatalog';
 
 const KIND: Record<string, string> = { text: '📄', video: '▶️', link: '🔗', quiz: '❓', file: '📎', assignment: '✍️' };
 const LEVEL: Record<string, string> = { beginner: 'Beginner', intermediate: 'Intermediate', advanced: 'Advanced' };

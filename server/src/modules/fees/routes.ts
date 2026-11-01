@@ -1,5 +1,4 @@
 import { Router, type Request } from 'express';
-import PDFDocument from 'pdfkit';
 import { z } from 'zod';
 import { env } from '../../config/env.js';
 import { Params, exec, newId, query, queryOne, tx } from '../../db/pool.js';
@@ -13,6 +12,8 @@ import { resolveLearnerIds, selectorSchema } from '../selection/resolver.js';
 import { fromPaise, rupees, toPaise, todayIn } from './money.js';
 import { getPaymentProvider, isConfigured, isWebhookConfigured } from './razorpay.js';
 import { createPayLink } from './paylinks.js';
+import { editPayment, setFeeDiscount, voidPayment, checkDiscountAllowed } from './adjust.js';
+import { RECEIPT_TEMPLATES, drawReceipt, loadReceiptData, newReceiptDoc, receiptFileName, sampleReceipt } from './receipt.js';
 import { METHODS, applyPayment, assignPlan, learnerLedger, loadPayment, orgInfo, refundPayment } from './service.js';
 
 const router = Router();
@@ -101,7 +102,7 @@ const MAX_ASSIGN = 20_000;
 router.post('/assign', limit('bulk', 30), manage, wrap(async (req, res) => {
   const b = parse(z.object({
     plan_id: uuid, selector: selectorSchema, batch_id: uuid.nullish(), start_date: date,
-    discount: z.object({ type: z.enum(['amount', 'percent']), value: z.number().min(0) }).optional(), dry_run: z.boolean().default(false),
+    discount: z.object({ type: z.enum(['amount', 'percent']), value: z.number().min(0), reason: z.string().trim().max(200).nullish(), preset_id: uuid.nullish() }).optional(), level_label: z.string().trim().max(60).nullish(), dry_run: z.boolean().default(false),
     confirm: z.boolean().optional(),
   }), req.body);
   if (!b.dry_run && b.confirm !== true) throw new AppError(400, 'CONFIRMATION_REQUIRED', 'Review the numbers and confirm to assign this fee.');
@@ -110,13 +111,14 @@ router.post('/assign', limit('bulk', 30), manage, wrap(async (req, res) => {
   if (!plan) throw notFound('Fee plan');
   const grossP = toPaise(plan.total_amount);
   const discountP = !b.discount ? 0 : b.discount.type === 'amount' ? toPaise(b.discount.value) : Math.round((grossP * Math.min(b.discount.value, 100)) / 100);
+  if (discountP > 0) { if (discountP > grossP) throw badRequest('The discount cannot be more than the fee.', [{ field: 'discount', message: 'Lower the discount.' }]); await checkDiscountAllowed(undefined, orgId, req.user!, (discountP / grossP) * 100); }
   const out = await tx(async (db) => {
     const ids = await resolveLearnerIds(req.user!, orgId, b.selector, db, MAX_ASSIGN + 1);
     if (ids.length > MAX_ASSIGN) throw badRequest(`A fee can be assigned to at most ${MAX_ASSIGN.toLocaleString('en-IN')} learners at once. Narrow the selection.`);
     if (!ids.length) throw badRequest('No learners match this selection.');
     // The fee is tied to a batch only when the sender says so: assigning one plan twice by different selections cannot double-bill a learner.
     const batchId = b.batch_id ?? null;
-    return assignPlan(db, { orgId, user: req.user!, req }, { planId: b.plan_id, learnerIds: ids, batchId, startDate: b.start_date, discountPaise: discountP }, b.dry_run);
+    return assignPlan(db, { orgId, user: req.user!, req }, { planId: b.plan_id, learnerIds: ids, batchId, startDate: b.start_date, discountPaise: discountP, discountType: b.discount?.type ?? null, discountValue: b.discount?.value ?? null, discountReason: b.discount?.reason ?? null, levelLabel: b.level_label ?? null }, b.dry_run);
   });
   ok(res, out, undefined, out.dry_run ? 200 : 201);
 }));
@@ -129,7 +131,7 @@ router.post('/learners/:id/fees', manage, wrap(async (req, res) => {
   await tx(async (db) => {
     if (b.batch_id && !(await queryOne(`SELECT 1 FROM batches WHERE id = $1 AND org_id = $2 AND deleted_at IS NULL`, [b.batch_id, orgId], db))) throw notFound('Batch');
     await exec(`INSERT INTO learner_fees (id, org_id, learner_id, batch_id, title, gross_amount, discount_amount, net_amount, start_date, note, created_by) VALUES ($1,$2,$3,$4,$5,$6,0,$6,$7,$8,$9)`, [fid, orgId, l.id, b.batch_id ?? null, b.title, b.amount.toFixed(2), b.due_date, b.note ?? null, req.user!.id], db);
-    await exec(`INSERT INTO fee_installments (id, org_id, learner_fee_id, learner_id, label, amount, due_date) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [newId(), orgId, fid, l.id, b.title, b.amount.toFixed(2), b.due_date], db);
+    await exec(`INSERT INTO fee_installments (id, org_id, learner_fee_id, learner_id, label, amount, due_date, base_amount) VALUES ($1,$2,$3,$4,$5,$6,$7,$6)`, [newId(), orgId, fid, l.id, b.title, b.amount.toFixed(2), b.due_date], db);
     await audit({ orgId, actor: req.user, action: 'fee.charge_added', entityType: 'learner_fee', entityId: fid, next: { learner_id: l.id, title: b.title, amount: b.amount }, req }, db);
   });
   ok(res, { id: fid }, undefined, 201);
@@ -163,7 +165,7 @@ router.patch('/installments/:id', manage, wrap(async (req, res) => {
     const paidP = toPaise(i.paid_amount);
     const newAmount = b.amount !== undefined ? toPaise(b.amount) : toPaise(i.amount);
     if (newAmount < paidP) throw badRequest(`${rupees(paidP)} is already paid on this installment, so it cannot go below that.`, [{ field: 'amount', message: `At least ${rupees(paidP)}.` }]);
-    await exec(`UPDATE fee_installments SET amount = $2, due_date = COALESCE($3, due_date), status = $4 WHERE id = $1`, [id, fromPaise(newAmount), b.due_date ?? null, newAmount <= paidP ? 'paid' : paidP > 0 ? 'partial' : 'pending'], db);
+    await exec(`UPDATE fee_installments SET amount = $2, base_amount = GREATEST(COALESCE(base_amount, 0), $2), due_date = COALESCE($3, due_date), status = $4 WHERE id = $1`, [id, fromPaise(newAmount), b.due_date ?? null, newAmount <= paidP ? 'paid' : paidP > 0 ? 'partial' : 'pending'], db);
     const tot = await queryOne(`SELECT COALESCE(SUM(amount), 0) AS s FROM fee_installments WHERE learner_fee_id = $1 AND status <> 'cancelled'`, [i.learner_fee_id], db);
     const net = toPaise(tot!.s); const f = await queryOne(`SELECT gross_amount FROM learner_fees WHERE id = $1`, [i.learner_fee_id], db);
     const gross = Math.max(toPaise(f!.gross_amount), net);
@@ -258,7 +260,7 @@ router.get('/payments', staffRead, wrap(async (req, res) => {
   if (q.search) { const s = `%${q.search.replace(/[%_\\]/g, '\\$&')}%`; w.push(`(l.full_name LIKE ${p.add(s)} OR l.learner_code LIKE ${p.add(s)} OR p.receipt_no LIKE ${p.add(s)} OR p.reference LIKE ${p.add(s)})`); }
   const base = `FROM payments p JOIN learners l ON l.id = p.learner_id WHERE ${w.join(' AND ')}`;
   const agg = await queryOne(`SELECT COUNT(*) AS n, COALESCE(SUM(p.amount - p.refunded_amount), 0) AS net ${base}`, p.values);
-  const rows = await query(`SELECT p.id, p.receipt_no, p.amount, p.refunded_amount, p.method, p.provider, p.status, p.paid_at, p.reference, l.id AS learner_id, l.full_name, l.learner_code ${base} ORDER BY p.paid_at DESC, p.id DESC LIMIT ${q.page_size} OFFSET ${(q.page - 1) * q.page_size}`, p.values);
+  const rows = await query(`SELECT p.id, p.receipt_no, p.amount, p.refunded_amount, p.method, p.provider, p.status, p.paid_at, p.reference, p.note, p.revision, p.void_reason, l.id AS learner_id, l.full_name, l.learner_code ${base} ORDER BY p.paid_at DESC, p.id DESC LIMIT ${q.page_size} OFFSET ${(q.page - 1) * q.page_size}`, p.values);
   ok(res, rows, { page: q.page, page_size: q.page_size, total: Number(agg!.n), total_pages: Math.ceil(Number(agg!.n) / q.page_size), net_collected: fromPaise(toPaise(agg!.net)) });
 }));
 
@@ -275,25 +277,102 @@ router.post('/payments/:id/refund', requirePerm('payment:refund'), wrap(async (r
   ok(res, await tx((db) => refundPayment(db, orgIdOf(req), id, toPaise(b.amount), b.reason, req.user!, req)), undefined, 201);
 }));
 
-/** Printable receipt. Learners and parents can download their own. */
+/** Printable receipt in the school's chosen design. Learners and parents can download their own; staff can try another design with ?template=. */
 router.get('/payments/:id/receipt.pdf', selfOrStaff, wrap(async (req, res) => {
-  const { payment: p, allocations } = await visiblePayment(req, parse(uuid, req.params.id));
-  const org = await orgInfo(orgIdOf(req));
-  const doc = new PDFDocument({ size: 'A5', margin: 40, info: { Title: `Receipt ${p.receipt_no}`, Author: org.name } });
-  res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="${String(p.receipt_no).replace(/[^A-Za-z0-9._-]/g, '_')}.pdf"`);
-  doc.pipe(res);
-  doc.fontSize(18).text(org.name, { align: 'center' }); doc.moveDown(0.3).fontSize(12).fillColor('#555').text('Fee receipt', { align: 'center' }).fillColor('#000');
-  doc.moveDown(1).fontSize(11);
-  const row = (k: string, v: string) => { doc.font('Helvetica-Bold').text(k, { continued: true }).font('Helvetica').text(`  ${v}`); };
-  row('Receipt no:', p.receipt_no); row('Date:', new Date(p.paid_at).toISOString().slice(0, 10)); row('Learner:', `${p.learner_name} (${p.learner_code})`); row('Method:', String(p.method).replace('_', ' '));
-  if (p.reference) row('Reference:', p.reference);
-  doc.moveDown(0.8).font('Helvetica-Bold').text('Paid towards');
-  doc.font('Helvetica'); for (const a of allocations) doc.text(`${a.fee_title} - ${a.label}   ${rupees(toPaise(a.amount))}`);
-  if (toPaise(p.unallocated_amount) > 0) doc.text(`Advance / credit   ${rupees(toPaise(p.unallocated_amount))}`);
-  doc.moveDown(0.8).fontSize(14).font('Helvetica-Bold').text(`Amount received: ${rupees(toPaise(p.amount))}`);
-  if (toPaise(p.refunded_amount) > 0) doc.fontSize(11).font('Helvetica').fillColor('#a00').text(`Refunded: ${rupees(toPaise(p.refunded_amount))}`).fillColor('#000');
-  doc.moveDown(2).fontSize(9).fillColor('#666').text('This is a computer generated receipt.', { align: 'center' });
-  doc.end();
+  const id = parse(uuid, req.params.id); await visiblePayment(req, id);
+  const q = parse(z.object({ template: z.enum(RECEIPT_TEMPLATES).optional() }), req.query);
+  const d = await loadReceiptData(orgIdOf(req), id);
+  if (q.template && req.user!.permissions.has('fee:read')) d.org.template = q.template;
+  const doc = newReceiptDoc(d, `Receipt ${d.pay.receiptNo}`);
+  res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `inline; filename="${receiptFileName(d.pay.receiptNo)}"`); res.setHeader('Cache-Control', 'private, no-store');
+  doc.pipe(res); drawReceipt(doc, d); doc.end();
+}));
+
+// ------------------------------------------------------------------ receipt design (settings)
+const hex = z.string().trim().regex(/^#[0-9a-fA-F]{6}$/, 'Use a colour like #12263f.');
+const settingsBody = z.object({
+  template: z.enum(RECEIPT_TEMPLATES), address: z.string().trim().max(300).nullish().transform((v) => v || null), tax_id: z.string().trim().max(40).nullish().transform((v) => v || null),
+  header: z.string().trim().max(160).nullish().transform((v) => v || null), footer: z.string().trim().max(500).nullish().transform((v) => v || null),
+  signatory: z.string().trim().max(80).nullish().transform((v) => v || null), signatory_title: z.string().trim().max(80).nullish().transform((v) => v || null),
+  accent: hex.nullish().transform((v) => v || null), show_logo: z.boolean().default(true),
+});
+const readSettings = async (orgId: string) => {
+  const o = await queryOne(`SELECT receipt_template, receipt_address, receipt_tax_id, receipt_header, receipt_footer, receipt_signatory, receipt_signatory_title, receipt_accent, receipt_show_logo, receipt_email, discount_limit_percent, brand_color FROM organizations WHERE id = $1`, [orgId]);
+  return { template: o!.receipt_template, address: o!.receipt_address, tax_id: o!.receipt_tax_id, header: o!.receipt_header, footer: o!.receipt_footer, signatory: o!.receipt_signatory, signatory_title: o!.receipt_signatory_title, accent: o!.receipt_accent, show_logo: !!o!.receipt_show_logo, brand_color: o!.brand_color ?? '#12263f', receipt_email: !!o!.receipt_email, discount_limit_percent: o!.discount_limit_percent == null ? null : Number(o!.discount_limit_percent) };
+};
+router.get('/receipt-settings', staffRead, wrap(async (req, res) => ok(res, { ...(await readSettings(orgIdOf(req))), templates: RECEIPT_TEMPLATES })));
+router.put('/receipt-settings', manage, wrap(async (req, res) => {
+  const b = parse(settingsBody, req.body); const orgId = orgIdOf(req);
+  await exec(`UPDATE organizations SET receipt_template = $2, receipt_address = $3, receipt_tax_id = $4, receipt_header = $5, receipt_footer = $6, receipt_signatory = $7, receipt_signatory_title = $8, receipt_accent = $9, receipt_show_logo = $10 WHERE id = $1`,
+    [orgId, b.template, b.address, b.tax_id, b.header, b.footer, b.signatory, b.signatory_title, b.accent, b.show_logo]);
+  await audit({ orgId, actor: req.user, action: 'fees.receipt_design_updated', entityType: 'organization', entityId: orgId, next: { template: b.template }, req });
+  ok(res, await readSettings(orgId));
+}));
+/** A sample receipt in a design (saved or being tried) so a school can see it before any real payment. */
+router.get('/receipt-preview.pdf', staffRead, wrap(async (req, res) => {
+  const q = parse(z.object({ template: z.enum(RECEIPT_TEMPLATES).optional(), accent: hex.optional(), revised: z.coerce.boolean().optional(), void: z.coerce.boolean().optional() }), req.query); const orgId = orgIdOf(req);
+  const base = await loadReceiptData(orgId, (await queryOne(`SELECT id FROM payments WHERE org_id = $1 ORDER BY created_at DESC LIMIT 1`, [orgId]))?.id ?? '00000000-0000-4000-8000-000000000000').catch(async () => null);
+  const org = base?.org ?? (await loadSettingsOnlyOrg(orgId)); org.template = q.template ?? org.template; if (q.accent) org.accent = q.accent;
+  const d = sampleReceipt({ org }); if (q.revised) d.pay.revision = 2; if (q.void) { d.pay.status = 'voided'; d.pay.voidReason = 'Recorded twice by mistake'; }
+  const doc = newReceiptDoc(d, 'Receipt preview'); res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', 'inline; filename="receipt-preview.pdf"'); res.setHeader('Cache-Control', 'private, no-store');
+  doc.pipe(res); drawReceipt(doc, d); doc.end();
+}));
+async function loadSettingsOnlyOrg(orgId: string) {
+  const s = await readSettings(orgId); const o = await queryOne(`SELECT name, brand_app_name FROM organizations WHERE id = $1`, [orgId]);
+  return { name: o?.brand_app_name || o?.name || 'School', address: s.address, taxId: s.tax_id, header: s.header, footer: s.footer, signatory: s.signatory, signatoryTitle: s.signatory_title, accent: s.accent ?? s.brand_color, logo: null as Buffer | null, template: s.template as any };
+}
+/** The most the accounts team may discount without an owner (empty = no limit). Owners only. */
+router.put('/discount-limit', requirePerm('fee:discount_unlimited'), wrap(async (req, res) => {
+  const b = parse(z.object({ percent: z.number().int().min(0).max(100).nullable() }), req.body); const orgId = orgIdOf(req);
+  await exec(`UPDATE organizations SET discount_limit_percent = $2 WHERE id = $1`, [orgId, b.percent]);
+  await audit({ orgId, actor: req.user, action: 'fees.discount_limit_set', entityType: 'organization', entityId: orgId, next: b, req }); ok(res, b);
+}));
+
+// ------------------------------------------------------------------ discounts
+router.get('/discount-presets', requireAnyPerm('fee:read', 'fee:discount'), wrap(async (req, res) => ok(res, await query(`SELECT id, name, kind, value, active FROM fee_discount_presets WHERE org_id = $1 ORDER BY active DESC, name`, [orgIdOf(req)]))));
+const presetBody = z.object({ name: z.string().trim().min(2, 'Name the discount.').max(80), kind: z.enum(['percent', 'amount']), value: z.number().positive('Enter a value above 0.').max(10_000_000), active: z.boolean().default(true) })
+  .refine((x) => x.kind === 'amount' || x.value <= 100, { message: 'A percentage cannot be above 100.', path: ['value'] });
+router.post('/discount-presets', manage, wrap(async (req, res) => {
+  const b = parse(presetBody, req.body); const id = newId();
+  try { await exec(`INSERT INTO fee_discount_presets (id, org_id, name, kind, value, active, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7)`, [id, orgIdOf(req), b.name, b.kind, b.value, b.active, req.user!.id]); } catch (e) { dupName(e); }
+  ok(res, { id }, undefined, 201);
+}));
+router.put('/discount-presets/:id', manage, wrap(async (req, res) => {
+  const b = parse(presetBody, req.body);
+  try { const r = await exec(`UPDATE fee_discount_presets SET name = $3, kind = $4, value = $5, active = $6 WHERE id = $1 AND org_id = $2`, [parse(uuid, req.params.id), orgIdOf(req), b.name, b.kind, b.value, b.active]); if (!r.affectedRows) throw notFound('Discount'); } catch (e) { dupName(e); }
+  ok(res, { updated: true });
+}));
+router.delete('/discount-presets/:id', manage, wrap(async (req, res) => { const r = await exec(`DELETE FROM fee_discount_presets WHERE id = $1 AND org_id = $2`, [parse(uuid, req.params.id), orgIdOf(req)]); if (!r.affectedRows) throw notFound('Discount'); ok(res, { deleted: true }); }));
+
+/** Give, change or remove the discount on one learner's fee (percent or rupees). The unpaid instalments are re-split; what was paid stays. */
+router.post('/fees/:id/discount', requirePerm('fee:discount'), wrap(async (req, res) => {
+  const b = parse(z.object({ type: z.enum(['percent', 'amount', 'none']), value: z.number().min(0).max(10_000_000).default(0), reason: z.string().trim().min(2, 'Say why.').max(200), preset_id: uuid.nullish() }), req.body);
+  if (b.type === 'percent' && b.value > 100) throw badRequest('A percentage cannot be above 100.', [{ field: 'value', message: 'At most 100.' }]);
+  const orgId = orgIdOf(req); const id = parse(uuid, req.params.id);
+  const out = await tx(async (db) => { const f = await queryOne(`SELECT learner_id FROM learner_fees WHERE id = $1 AND org_id = $2`, [id, orgId], db); if (!f) throw notFound('Fee'); await visibleLearner(req, f.learner_id);
+    if (b.preset_id && !(await queryOne(`SELECT 1 FROM fee_discount_presets WHERE id = $1 AND org_id = $2`, [b.preset_id, orgId], db))) throw notFound('Discount');
+    return setFeeDiscount(db, { orgId, user: req.user!, req }, { feeId: id, type: b.type, value: b.value, reason: b.reason, presetId: b.preset_id }); });
+  ok(res, out);
+}));
+router.get('/fees/:id/history', selfOrStaff, wrap(async (req, res) => {
+  const orgId = orgIdOf(req); const f = await queryOne(`SELECT learner_id FROM learner_fees WHERE id = $1 AND org_id = $2`, [parse(uuid, req.params.id), orgId]); if (!f) throw notFound('Fee'); await visibleLearner(req, f.learner_id);
+  ok(res, await query(`SELECT a.created_at, a.before_discount, a.after_discount, a.before_net, a.after_net, a.discount_type, a.discount_value, a.reason, u.full_name AS by_name FROM fee_adjustments a LEFT JOIN users u ON u.id = a.adjusted_by WHERE a.learner_fee_id = $1 ORDER BY a.created_at DESC, a.id DESC`, [req.params.id]));
+}));
+
+// ------------------------------------------------------------------ correcting payments
+/** Fix a payment recorded wrongly (wrong date, method, reference, even amount). The old values are kept in its history and the receipt shows it was corrected. */
+router.patch('/payments/:id', requirePerm('payment:edit'), wrap(async (req, res) => {
+  const b = parse(z.object({ paid_at: z.string().datetime({ offset: true }).optional(), method: z.enum(METHODS).optional(), reference: z.string().trim().max(100).nullish(), note: z.string().trim().max(300).nullish(), amount: money.optional(),
+    reason: z.string().trim().min(2, 'Say what was wrong.').max(200), send_receipt: z.boolean().default(false) }), req.body);
+  if (b.method === 'online') throw badRequest('Choose how the money was received.', [{ field: 'method', message: 'Choose cash, UPI, card, bank transfer, cheque or other.' }]);
+  const id = parse(uuid, req.params.id); await visiblePayment(req, id);
+  const paidAt = b.paid_at ? new Date(b.paid_at) : undefined; if (paidAt && paidAt.getTime() > Date.now() + 5 * 60_000) throw badRequest('The payment date cannot be in the future.', [{ field: 'paid_at', message: 'Pick today or an earlier date.' }]);
+  const out = await tx((db) => editPayment(db, { orgId: orgIdOf(req), user: req.user!, req }, id, { paidAt, method: b.method, reference: b.reference, note: b.note, amountPaise: b.amount === undefined ? undefined : toPaise(b.amount) }, b.reason, b.send_receipt));
+  ok(res, { ...out, ...(await visiblePayment(req, id)) });
+}));
+router.post('/payments/:id/void', requirePerm('payment:edit'), wrap(async (req, res) => {
+  const b = parse(z.object({ reason: z.string().trim().min(2, 'Say why.').max(200) }), req.body); const id = parse(uuid, req.params.id); await visiblePayment(req, id);
+  ok(res, await tx((db) => voidPayment(db, { orgId: orgIdOf(req), user: req.user!, req }, id, b.reason)));
 }));
 
 // ------------------------------------------------------------------ online payment links
