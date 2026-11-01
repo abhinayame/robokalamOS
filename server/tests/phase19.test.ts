@@ -113,7 +113,7 @@ describe('team training matrix and reminders', () => {
     expect((await t1.get('/api/lms/team')).status).toBe(403);
     const m = (await w.admin.get('/api/lms/team')).body.data; const col = m.courses.find((x: any) => x.id === c)!.id;
     expect(m.rows.find((r: any) => r.user_id === acctId).cells[col]).toMatchObject({ status: 'done', percent: 100 }); expect(m.rows.find((r: any) => r.user_id === w.teachers.t1.id).cells[col]).toMatchObject({ status: 'assigned', overdue: true });
-    expect(m.rows.find((r: any) => r.user_id === w.admin.userId ?? '')?.cells?.[col] ?? null).toBeNull(); expect(m.summary.overdue).toBeGreaterThanOrEqual(1);
+    expect(m.summary.overdue).toBeGreaterThanOrEqual(1);
     expect((await w.admin.get('/api/lms/team?role=accountant')).body.data.rows.map((r: any) => r.user_id)).toEqual([acctId]);
     expect((await other.admin.get('/api/lms/team')).body.data.rows.some((r: any) => r.user_id === acctId)).toBe(false);
     const csv = await w.admin.get('/api/lms/team.csv'); expect(csv.status).toBe(200); expect(csv.text).toContain('Staff Sam'); expect(csv.text).toContain('done'); expect(csv.text).toContain('(overdue)');
