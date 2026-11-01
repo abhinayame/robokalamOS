@@ -23,7 +23,7 @@ import Assignment from './pages/Assignment';
 import { Learn, LearnCourse, PreviewCourse } from './pages/Learn';
 import TeamTraining from './pages/TeamTraining';
 import CourseStudio from './pages/CourseStudio';
-import CourseCatalog from './pages/Catalog';
+import CourseCatalog from './pages/CourseCatalog';
 import CourseLanding from './pages/CourseLanding';
 import LearningRecord from './pages/LearningRecord';
 import Courses from './pages/Courses';

@@ -16,8 +16,23 @@ export default function Branding() {
   return (
     <>
       <PageHead title="Branding" sub="Make the app look like your school: your logo, name and colors appear on the sign-in page, in the menu and on learners’ phones when they install the app." />
+      <SchoolDetails onSaved={refresh} />
       <Async q={q}>{(s: any) => <Form s={s} onSaved={() => { q.reload(); refresh(); }} />}</Async>
     </>
+  );
+}
+
+const ZONES = ['Asia/Kolkata', 'Asia/Dubai', 'Asia/Singapore', 'Asia/Dhaka', 'Asia/Kathmandu', 'Asia/Colombo', 'Europe/London', 'America/New_York', 'Australia/Sydney'];
+/** The school's own name and time zone (class times, certificates and reminders use the time zone). */
+function SchoolDetails({ onSaved }: { onSaved: () => void }) {
+  const q = useFetch(() => api.get('/api/organizations/current').then((r) => r.data as any), []); const { busy, run } = useAction(); const [name, setName] = useState<string | null>(null); const [tz, setTz] = useState<string | null>(null); const org = q.data;
+  const n = name ?? org?.name ?? ''; const z = tz ?? org?.timezone ?? 'Asia/Kolkata'; const dirty = !!org && (n !== org.name || z !== org.timezone);
+  return (
+    <div className="card card-pad stack" style={{ marginBottom: 14 }}><h2>School details</h2>
+      <div className="row wrap"><label className="field grow" style={{ minWidth: 220 }}><span>School name</span><input className="input" value={n} onChange={(e) => setName(e.target.value)} /></label>
+        <label className="field" style={{ minWidth: 220 }}><span>Time zone</span><input className="input" list="zones" value={z} onChange={(e) => setTz(e.target.value)} /><datalist id="zones">{ZONES.map((x) => <option key={x} value={x} />)}</datalist></label>
+        <button className="btn primary" style={{ alignSelf: 'flex-end' }} disabled={busy || !dirty || n.trim().length < 2} onClick={() => run(async () => { await api.patch('/api/organizations/current', { name: n.trim(), timezone: z }); setName(null); setTz(null); q.reload(); onSaved(); }, 'Saved.')}>Save</button></div>
+      <p className="muted small" style={{ margin: 0 }}>Class times, certificate dates and reminders follow this time zone. Use a name like Asia/Kolkata.</p></div>
   );
 }
 

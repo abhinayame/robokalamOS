@@ -98,7 +98,7 @@ export default function Layout(): ReactNode {
           {inst.canInstall && !inst.standalone && <button className="btn sm" onClick={inst.install} title="Install this app on your device">⬇ Install app</button>}
           <button className="btn sm" onClick={() => logout().then(() => nav('/login'))}>Sign out</button>
         </header>
-        <main className="content" id="main"><Outlet /></main>
+        <main className="content" id="main"><div className="page" key={loc.pathname}><Outlet /></div></main>
       </div>
       <nav className="bottom-nav" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }} aria-label="Quick navigation">
         {bottom.map((b) => <NavLink key={b.to} to={b.to} end={b.end} className={({ isActive }) => (isActive ? 'active' : '')}><span className="ico" aria-hidden>{b.icon}</span>{b.label}</NavLink>)}

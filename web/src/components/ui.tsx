@@ -57,8 +57,19 @@ export const Avatar = ({ name, url, lg }: { name: string; url?: string | null; l
 export const Progress = ({ value, tone = '' }: { value: number; tone?: string }) => (
   <div className={`progress ${tone}`} role="progressbar" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.min(100, Math.max(0, value))}%` }} /></div>
 );
+/** A number that counts up to its value when it appears (plain text for anything that is not a simple number). */
+export function CountUp({ value }: { value: ReactNode }) {
+  const target = typeof value === 'number' ? value : typeof value === 'string' && /^\d{1,9}$/.test(value) ? Number(value) : null; const [n, setN] = useState(target === null ? 0 : 0);
+  useEffect(() => {
+    if (target === null) return; if (typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) { setN(target); return; }
+    let raf = 0; const t0 = performance.now(); const dur = Math.min(900, 250 + target * 2);
+    const tick = (t: number) => { const p = Math.min(1, (t - t0) / dur); setN(Math.round(target * (1 - Math.pow(1 - p, 3)))); if (p < 1) raf = requestAnimationFrame(tick); };
+    raf = requestAnimationFrame(tick); return () => cancelAnimationFrame(raf);
+  }, [target]);
+  return <>{target === null ? value : n.toLocaleString('en-IN')}</>;
+}
 export const Stat = ({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) => (
-  <div className="card stat"><div className="v">{value}</div><div className="l">{label}</div>{sub && <div className="s">{sub}</div>}</div>
+  <div className="card stat"><div className="v"><CountUp value={value} /></div><div className="l">{label}</div>{sub && <div className="s">{sub}</div>}</div>
 );
 export const PageHead = ({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) => (
   <div className="page-head"><div><h1>{title}</h1>{sub && <p>{sub}</p>}</div><div className="row wrap">{actions}</div></div>

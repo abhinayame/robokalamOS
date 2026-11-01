@@ -18,6 +18,7 @@ export default function SystemStatus() {
         return (
           <>
             <LiveTests />
+            <EmailLog />
             <div className="grid cols-4">
               <Stat label="Database" value={<Badge tone="ok">Reachable</Badge>} sub={`${s.database.latency_ms} ms · pool ${s.database.pool_connections ?? '?'} · waiting ${s.database.pool_waiting ?? 0}`} />
               <Stat label="Migrations" value={s.migrations.pending.length ? <Badge tone="bad">{s.migrations.pending.length} pending</Badge> : <Badge tone="ok">Up to date</Badge>} sub={`${s.migrations.applied}/${s.migrations.available} · ${s.migrations.latest ?? '—'}`} />
@@ -102,5 +103,14 @@ function LiveTests() {
       {row('whatsapp', 'WhatsApp', 'Sends ONE approved template message to the number below. Templates can cost money, so this is never automatic.',
         <div className="row wrap gap-s" style={{ marginTop: 6 }}><input className="input" style={{ maxWidth: 170 }} placeholder="Your mobile" aria-label="Test mobile number" value={wa.phone} onChange={(e) => setWa({ ...wa, phone: e.target.value })} /><input className="input" style={{ maxWidth: 240 }} placeholder="Approved campaign/template name" aria-label="Template name" value={wa.campaign_name} onChange={(e) => setWa({ ...wa, campaign_name: e.target.value })} /></div>)}
     </div>
+  );
+}
+
+function EmailLog() {
+  const { can } = useAuth(); const q = useFetch(() => (can('comms:read') ? api.get('/api/email/outbox?page_size=15').then((r) => r.data as any[]) : Promise.resolve(null)), []);
+  if (!q.data) return null;
+  return (
+    <div className="card" style={{ marginBottom: 14 }}><div className="card-head"><h2>Recent e-mails</h2><button className="btn sm" onClick={q.reload}>Refresh</button></div>
+      {!q.data.length ? <div className="card-pad muted small">Nothing has been sent yet. Receipts, resets and reminders show up here.</div> : <div className="table-wrap"><table className="t"><thead><tr><th>To</th><th>Subject</th><th>Status</th><th>When</th></tr></thead><tbody>{q.data.map((m: any) => <tr key={m.id}><td>{m.to_email}</td><td>{m.subject}</td><td><Badge tone={m.status === 'sent' ? 'ok' : m.status === 'failed' ? 'bad' : 'warn'}>{m.status}</Badge>{m.last_error && <div className="muted small">{String(m.last_error).slice(0, 80)}</div>}</td><td className="nowrap">{fmtDateTime(m.sent_at ?? m.created_at)}</td></tr>)}</tbody></table></div>}</div>
   );
 }
