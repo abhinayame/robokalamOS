@@ -260,7 +260,7 @@ router.get('/payments', staffRead, wrap(async (req, res) => {
   if (q.search) { const s = `%${q.search.replace(/[%_\\]/g, '\\$&')}%`; w.push(`(l.full_name LIKE ${p.add(s)} OR l.learner_code LIKE ${p.add(s)} OR p.receipt_no LIKE ${p.add(s)} OR p.reference LIKE ${p.add(s)})`); }
   const base = `FROM payments p JOIN learners l ON l.id = p.learner_id WHERE ${w.join(' AND ')}`;
   const agg = await queryOne(`SELECT COUNT(*) AS n, COALESCE(SUM(p.amount - p.refunded_amount), 0) AS net ${base}`, p.values);
-  const rows = await query(`SELECT p.id, p.receipt_no, p.amount, p.refunded_amount, p.method, p.provider, p.status, p.paid_at, p.reference, l.id AS learner_id, l.full_name, l.learner_code ${base} ORDER BY p.paid_at DESC, p.id DESC LIMIT ${q.page_size} OFFSET ${(q.page - 1) * q.page_size}`, p.values);
+  const rows = await query(`SELECT p.id, p.receipt_no, p.amount, p.refunded_amount, p.method, p.provider, p.status, p.paid_at, p.reference, p.note, p.revision, p.void_reason, l.id AS learner_id, l.full_name, l.learner_code ${base} ORDER BY p.paid_at DESC, p.id DESC LIMIT ${q.page_size} OFFSET ${(q.page - 1) * q.page_size}`, p.values);
   ok(res, rows, { page: q.page, page_size: q.page_size, total: Number(agg!.n), total_pages: Math.ceil(Number(agg!.n) / q.page_size), net_collected: fromPaise(toPaise(agg!.net)) });
 }));
 

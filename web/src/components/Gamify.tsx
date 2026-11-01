@@ -37,7 +37,7 @@ export function BadgeWall({ learnerId, onRevoked }: { learnerId?: string; onRevo
     <Async q={q} rows={2}>{(rows: any[]) => rows.length ? (
       <div className="grid cols-3">{rows.map((b) => (
         <div key={b.id} className="card card-pad stack" style={{ gap: 6 }}>
-          <div className="row"><Badge3D name={b.name} size={56} /><div className="grow"><b>{b.name}</b>{b.category && <div className="muted small">{b.category}</div>}</div>{b.xp_awarded > 0 && <Badge tone="ok">+{b.xp_awarded} XP</Badge>}</div>
+          <div className="row"><Badge3D name={b.name} size={56} animated={Date.now() - new Date(b.awarded_at).getTime() < 7 * 86400_000} /><div className="grow"><b>{b.name}</b>{Date.now() - new Date(b.awarded_at).getTime() < 7 * 86400_000 && <> <span className="pill-new">NEW</span></>}{b.category && <div className="muted small">{b.category}</div>}</div>{b.xp_awarded > 0 && <Badge tone="ok">+{b.xp_awarded} XP</Badge>}</div>
           {b.description && <div className="small">{b.description}</div>}
           {b.reason && <div className="small">“{b.reason}”</div>}
           <div className="muted small">{fmtDate(b.awarded_at)} · by {b.awarded_by}{b.batch_name ? ` · ${b.batch_name}` : ''}</div>

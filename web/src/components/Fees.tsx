@@ -3,6 +3,7 @@ import { api } from '../api';
 import { cap, fmtDate, fmtDateTime, fmtMoney } from '../format';
 import { Badge, Empty, Field, Modal, Stat, fieldErrors, useAction, useFetch, useToast } from './ui';
 import { ApiError } from '../api';
+import { DiscountHistory, DiscountModal, EditPaymentModal, PayBadge, PaymentHistory, VoidPaymentModal } from './FeeTools';
 
 const METHODS = [['cash', 'Cash'], ['upi', 'UPI'], ['card', 'Card'], ['bank_transfer', 'Bank transfer'], ['cheque', 'Cheque'], ['other', 'Other']] as const;
 /** Today as the person sees it (their own timezone), not the UTC date. */
@@ -56,11 +57,11 @@ function SimpleForm({ title, onClose, onSubmit, cta, children, valid = true }: {
 }
 
 /** Everything one learner owes and has paid. Staff get actions; the learner/parent gets Pay now and receipts. */
-export function FeeLedger({ learnerId, learnerName, staff }: { learnerId: string; learnerName: string; staff: { record: boolean; manage: boolean; refund: boolean } | null }) {
+export function FeeLedger({ learnerId, learnerName, staff }: { learnerId: string; learnerName: string; staff: { record: boolean; manage: boolean; refund: boolean; discount?: boolean; edit?: boolean } | null }) {
   const toast = useToast();
   const q = useFetch(() => api.get(`/api/fees/learners/${learnerId}`).then((r) => r.data), [learnerId]);
   const { busy, run } = useAction();
-  const [modal, setModal] = useState<null | { kind: 'pay' } | { kind: 'charge' } | { kind: 'refund'; p: any } | { kind: 'adjust'; i: any } | { kind: 'cancel'; f: any }>(null);
+  const [modal, setModal] = useState<null | { kind: 'pay' } | { kind: 'charge' } | { kind: 'refund'; p: any } | { kind: 'adjust'; i: any } | { kind: 'cancel'; f: any } | { kind: 'discount'; f: any } | { kind: 'dhist'; f: any } | { kind: 'edit'; p: any } | { kind: 'void'; p: any } | { kind: 'phist'; p: any }>(null);
   const [f, setF] = useState<any>({});
   const done = () => q.reload();
   const payNow = (ids?: string[]) => run(async () => {
@@ -88,7 +89,10 @@ export function FeeLedger({ learnerId, learnerName, staff }: { learnerId: string
       {!d.fees.length ? <div className="card"><Empty icon="🧾" title="No fees yet">{staff?.manage ? 'Assign a fee plan from Fees → Plans, or add a one-off charge.' : 'Nothing has been billed yet.'}</Empty></div> : d.fees.map((fe: any) => (
         <div className="card" key={fe.id}>
           <div className="card-head"><h2>{fe.title}</h2><span className="row gap-s">{fe.batch_name && <span className="muted small">{fe.batch_name}</span>}{fe.status === 'cancelled' ? <Badge tone="bad">Cancelled</Badge> : <span className="muted small">{fmtMoney(fe.net_amount)}{Number(fe.discount_amount) > 0 ? ` after ${fmtMoney(fe.discount_amount)} discount` : ''}</span>}
+            {staff?.discount && fe.status === 'active' && <button className="btn sm" onClick={() => setModal({ kind: 'discount', f: fe })}>{Number(fe.discount_amount) > 0 ? '% Change discount' : '% Give discount'}</button>}
+            {Number(fe.discount_amount) > 0 && staff && <button className="btn ghost sm" onClick={() => setModal({ kind: 'dhist', f: fe })}>History</button>}
             {staff?.manage && fe.status === 'active' && <button className="btn sm" onClick={() => { setF({ reason: '' }); setModal({ kind: 'cancel', f: fe }); }}>Cancel fee</button>}</span></div>
+          {(fe.level_label || Number(fe.discount_amount) > 0) && <div className="card-pad row wrap gap-s" style={{ paddingBottom: 0 }}>{fe.level_label && <Badge tone="info">{fe.level_label}</Badge>}{Number(fe.discount_amount) > 0 && <Badge tone="ok">Discount {fmtMoney(fe.discount_amount)}{fe.discount_type === 'percent' ? ` (${Number(fe.discount_value)}%)` : ''}{fe.discount_reason ? ` · ${fe.discount_reason}` : ''}</Badge>}</div>}
           <div className="table-wrap"><table className="t"><thead><tr><th>Installment</th><th>Due</th><th className="right">Amount</th><th className="right">Paid</th><th>Status</th><th /></tr></thead><tbody>
             {fe.installments.map((i: any) => <tr key={i.id}><td>{i.label}</td><td className="nowrap">{fmtDate(i.due_date)}</td><td className="right">{fmtMoney(i.amount)}</td><td className="right">{fmtMoney(i.paid_amount)}</td>
               <td>{i.status === 'paid' ? <Badge tone="ok">Paid</Badge> : i.status === 'cancelled' ? <Badge tone="bad">Cancelled</Badge> : i.overdue ? <Badge tone="bad">Overdue</Badge> : i.status === 'partial' ? <Badge tone="warn">Part paid</Badge> : <Badge>Due</Badge>}</td>
@@ -99,13 +103,21 @@ export function FeeLedger({ learnerId, learnerName, staff }: { learnerId: string
       <div className="card">
         <div className="card-head"><h2>Payments & receipts</h2></div>
         {!d.payments.length ? <Empty icon="💳" title="No payments yet" /> : <div className="table-wrap"><table className="t"><thead><tr><th>Receipt</th><th>Date</th><th>Method</th><th className="right">Amount</th><th /></tr></thead><tbody>
-          {d.payments.map((p: any) => <tr key={p.id}><td className="mono">{p.receipt_no}</td><td className="nowrap">{fmtDateTime(p.paid_at)}</td><td>{cap(p.method)}{p.provider === 'razorpay' && <> <Badge tone="info">online</Badge></>}</td>
-            <td className="right">{fmtMoney(p.amount)}{Number(p.refunded_amount) > 0 && <div className="small err">−{fmtMoney(p.refunded_amount)} refunded</div>}</td>
+          {d.payments.map((p: any) => <tr key={p.id}><td className="mono">{p.receipt_no}</td><td className="nowrap">{fmtDateTime(p.paid_at)}</td><td>{cap(p.method)}{p.provider === 'razorpay' && <> <Badge tone="info">online</Badge></>} <PayBadge p={p} />{p.status === 'voided' && p.void_reason && <div className="small muted">{p.void_reason}</div>}</td>
+            <td className="right" style={p.status === 'voided' ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>{fmtMoney(p.amount)}{Number(p.refunded_amount) > 0 && p.status !== 'voided' && <div className="small err">−{fmtMoney(p.refunded_amount)} refunded</div>}</td>
             <td className="right nowrap"><button className="btn sm" onClick={() => run(() => api.getFile(`/api/fees/payments/${p.id}/receipt.pdf`, `${p.receipt_no}.pdf`, true))}>Receipt</button>
-              {staff?.refund && p.status !== 'refunded' && <> <button className="btn sm" onClick={() => { setF({ amount: String(Number(p.amount) - Number(p.refunded_amount)), reason: '' }); setModal({ kind: 'refund', p }); }}>Refund</button></>}</td></tr>)}
+              {staff?.edit && p.status !== 'voided' && <> <button className="btn sm" onClick={() => setModal({ kind: 'edit', p })}>Edit</button></>}
+              {staff?.refund && p.status !== 'refunded' && p.status !== 'voided' && <> <button className="btn sm" onClick={() => { setF({ amount: String(Number(p.amount) - Number(p.refunded_amount)), reason: '' }); setModal({ kind: 'refund', p }); }}>Refund</button></>}
+              {staff?.edit && p.status !== 'voided' && p.provider !== 'razorpay' && Number(p.refunded_amount) === 0 && <> <button className="btn sm" onClick={() => setModal({ kind: 'void', p })}>Cancel</button></>}
+              {staff && p.revision > 0 && <> <button className="btn ghost sm" onClick={() => setModal({ kind: 'phist', p })}>History</button></>}</td></tr>)}
         </tbody></table></div>}
       </div>
 
+      {modal?.kind === 'discount' && <DiscountModal fee={modal.f} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.kind === 'dhist' && <DiscountHistory fee={modal.f} onClose={() => setModal(null)} />}
+      {modal?.kind === 'edit' && <EditPaymentModal payment={modal.p} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.kind === 'void' && <VoidPaymentModal payment={modal.p} onClose={() => setModal(null)} onDone={done} />}
+      {modal?.kind === 'phist' && <PaymentHistory payment={modal.p} onClose={() => setModal(null)} />}
       {modal?.kind === 'pay' && <RecordPaymentModal learnerId={learnerId} learnerName={learnerName} open={open} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'charge' && <SimpleForm title="Add a one-off charge" cta="Add charge" valid={f.title?.trim().length >= 2 && Number(f.amount) > 0} onClose={() => setModal(null)} onSubmit={async () => { await api.post(`/api/fees/learners/${learnerId}/fees`, { title: f.title, amount: Number(f.amount), due_date: f.due }); toast('Charge added.'); done(); }}>
         <Field label="What is it for?"><input className="input" value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Exam fee, robotics kit…" autoFocus /></Field>

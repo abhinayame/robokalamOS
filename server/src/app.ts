@@ -82,7 +82,7 @@ export function createApp() {
   app.use(helmet({
     contentSecurityPolicy: {
       useDefaults: true,
-      directives: { 'img-src': ["'self'", 'data:', 'blob:', 'https:'], 'frame-src': ["'self'", 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'], 'connect-src': ["'self'"] },
+      directives: { 'img-src': ["'self'", 'data:', 'blob:', 'https:'], 'frame-src': ["'self'", 'blob:', 'https://www.youtube-nocookie.com', 'https://player.vimeo.com'], 'connect-src': ["'self'"] },
     },
     crossOriginEmbedderPolicy: false,
     referrerPolicy: { policy: 'strict-origin-when-cross-origin' },

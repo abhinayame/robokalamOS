@@ -83,3 +83,7 @@ Security issues: email the platform owner directly; do not open a public issue w
 ## Team training (Phase 19)
 - Choosing staff, auto-assign rules and the team matrix need `lms:manage`; staff are only ever resolved inside the caller's organization and only for the five staff roles.
 - Auto-assign hooks run inside the same transaction as the user or batch change; only published courses are applied.
+
+## Fees pro (Phase 21)
+- Discounts need `fee:discount`; an owner can cap what the accounts team may give. Payment corrections and cancellations need `payment:edit`, keep the old values in a history, and are audited. A cancelled payment is never deleted.
+- Receipts are rendered on demand from live data in the school's chosen design; a receipt that was corrected or cancelled says so. Receipt previews are staff-only.

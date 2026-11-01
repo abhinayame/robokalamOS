@@ -139,3 +139,16 @@ html { scroll-behavior: smooth; }
 /* gradient headings must not turn badges and emoji inside them invisible */
 .page-head h1 .badge, .stat .v .badge, .stat .v .btn { -webkit-text-fill-color: currentColor; }
 .page-head h1 > span, .page-head h1 > b { -webkit-text-fill-color: currentColor; }
+
+/* ---------- celebrations: confetti and a live badge ---------- */
+.celebrate { position: relative; overflow: hidden; padding: 6px 0 2px; }
+.confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.confetti i { position: absolute; top: -12px; opacity: 0; animation: confetti-fall 2.4s cubic-bezier(.25,.6,.3,1) forwards; }
+@keyframes confetti-fall { 0% { opacity: 1; transform: translate3d(0, 0, 0) rotate(0); } 100% { opacity: 0; transform: translate3d(var(--drift), 420px, 0) rotate(var(--spin)); } }
+.pop-in { animation: badge-pop .9s var(--spring) backwards; }
+@keyframes badge-pop { 0% { opacity: 0; transform: scale(.2) rotate(-25deg); } 60% { opacity: 1; transform: scale(1.12) rotate(4deg); } 100% { transform: none; } }
+.badge3d-live { animation: badge-float 3.6s ease-in-out infinite; filter: drop-shadow(0 12px 18px rgba(18,38,63,.28)); }
+.badge3d-sheen { animation: badge-sheen 3.4s ease-in-out 1s infinite; transform-box: fill-box; }
+@keyframes badge-float { 0%, 100% { transform: translateY(0) rotate(-1.5deg); } 50% { transform: translateY(-6px) rotate(1.5deg); } }
+@keyframes badge-sheen { 0% { transform: translateX(-60px); opacity: 0; } 20% { opacity: 1; } 55%, 100% { transform: translateX(60px); opacity: 0; } }
+.pill-new { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11px; font-weight: 800; letter-spacing: .06em; color: #2b1d00; background: linear-gradient(110deg, #ffc247 30%, #fff1c9 50%, #ffc247 70%); background-size: 220% 100%; animation: shimmer 2.2s linear infinite; }
