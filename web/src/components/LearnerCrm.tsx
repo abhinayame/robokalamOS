@@ -1,12 +1,12 @@
 import { useState } from 'react';
-import { Icon } from './Icon';
+import { Icon, IconTile, type Hue } from './Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { fmtDateTime } from '../format';
 import { ACTIVITY_TYPES, LEAD_STATUSES, TEMPERATURE, statusLabel, statusTone } from './Crm';
 import { Async, Badge, Empty, Field, Modal, fieldErrors, useAction, useFetch } from './ui';
 
-const ICON: Record<string, string> = { called_parent: '📞', called_learner: '📞', whatsapp_sent: '💬', email_sent: '✉️', demo_scheduled: '🗓️', demo_attended: '✅', follow_up: '🔁', fee_discussion: '💰', admission_confirmed: '🎓', batch_assigned: '🗂️', counsellor_assigned: '🧑‍💼', status_changed: '🔀', note: '📝', other: '•' };
+const ICON: Record<string, [string, Hue]> = { called_parent: ['phone', 'mint'], called_learner: ['phone', 'mint'], whatsapp_sent: ['chat', 'sky'], email_sent: ['mail', 'sky'], demo_scheduled: ['calendar', 'violet'], demo_attended: ['check', 'mint'], follow_up: ['repeat', 'butter'], fee_discussion: ['wallet', 'mint'], admission_confirmed: ['cap', 'violet'], batch_assigned: ['layers', 'violet'], counsellor_assigned: ['briefcase', 'slate'], status_changed: ['refresh', 'peach'], note: ['edit', 'peach'], other: ['dot', 'slate'] };
 
 /** Learner 360 → CRM tab: pipeline details, follow-ups and the activity timeline. */
 export default function LearnerCrm({ learnerId }: { learnerId: string }) {
@@ -46,7 +46,7 @@ export default function LearnerCrm({ learnerId }: { learnerId: string }) {
             </div>)) : <Empty icon="🔁" title="No follow-ups">Schedule one so nobody falls through the cracks.</Empty>}</div>
         <div className="card"><div className="card-head"><h2>Activity</h2></div>
           {d.activities.length ? d.activities.map((a: any) => (
-            <div key={a.id} className="m-card"><span aria-hidden style={{ fontSize: 20 }}>{ICON[a.type] ?? '•'}</span>
+            <div key={a.id} className="m-card"><IconTile name={(ICON[a.type] ?? ICON.other)[0]} hue={(ICON[a.type] ?? ICON.other)[1]} size="sm" />
               <div className="grow"><b>{statusLabel(a.type)}</b>{a.description && <div style={{ whiteSpace: 'pre-wrap' }}>{a.description}</div>}<div className="muted small">{fmtDateTime(a.occurred_at)}{a.staff_name ? ` · ${a.staff_name}` : ''}{a.next_follow_up_at ? ` · next ${fmtDateTime(a.next_follow_up_at)}` : ''}</div></div></div>)) : <Empty icon="📝" title="No activity yet">Calls, messages and notes will show here.</Empty>}</div>
         {modal === 'lead' && <LeadModal learnerId={learnerId} onClose={() => setModal(null)} onDone={done} />}
         {modal === 'edit' && <LeadModal learnerId={learnerId} lead={d.lead} onClose={() => setModal(null)} onDone={done} />}

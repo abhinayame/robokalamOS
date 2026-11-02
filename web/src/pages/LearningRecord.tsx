@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { Async, Badge, Empty, PageHead, Stat, useFetch } from '../components/ui';
@@ -8,7 +9,7 @@ export default function LearningRecord() {
   const q = useFetch(() => api.get('/api/learn/record').then((r) => r.data as any), []);
   return (
     <>
-      <PageHead title="My learning record" sub="Every course you have finished." actions={<button className="btn" onClick={() => window.print()}>🖨 Print or save as PDF</button>} />
+      <PageHead title="My learning record" sub="Every course you have finished." actions={<button className="btn" onClick={() => window.print()}><Icon name="download" size={15} /> Print or save as PDF</button>} />
       <Async q={q}>{(d: any) => (
         <div className="stack">
           <div className="grid cols-3"><Stat label="Courses finished" value={d.courses.length} /><Stat label="Time spent learning" value={d.minutes_learned >= 60 ? `${Math.floor(d.minutes_learned / 60)}h ${d.minutes_learned % 60}m` : `${d.minutes_learned} min`} sub="from lesson lengths" /><Stat label="Certificates" value={d.courses.filter((c: any) => c.certificate_code).length} /></div>

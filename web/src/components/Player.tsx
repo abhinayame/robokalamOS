@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Icon } from './Icon';
+import { Icon, LessonIcon } from './Icon';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { Async, Badge, Empty, Field, Modal, Progress, Tabs, useAction, useFetch, useToast } from './ui';
@@ -8,7 +8,6 @@ import { Markdown, VideoEmbed } from './Markdown';
 import { fmtDate, fmtDateTime } from '../format';
 import { Thread } from '../pages/CourseStudio';
 
-const ICON: Record<string, string> = { text: '📄', video: '▶️', link: '🔗', quiz: '❓', file: '📎', assignment: '✍️' };
 const shuffled = <T,>(a: T[], seed: number) => { const r = [...a]; let s = seed || 1; for (let i = r.length - 1; i > 0; i--) { s = (s * 1664525 + 1013904223) % 4294967296; const j = s % (i + 1); [r[i], r[j]] = [r[j]!, r[i]!]; } return r; };
 
 /** The course player: modules and lessons on the left, the lesson in the middle, notes and Q&A below. Used for learners and for an author's preview. */
@@ -23,7 +22,7 @@ export default function Player({ preview = false }: { preview?: boolean }) {
       const go = (l: any) => { setOpen(l.id); window.scrollTo({ top: 0, behavior: 'smooth' }); };
       return (
         <>
-          {preview && <div className="banner warn" role="status" style={{ marginBottom: 10 }}>👁 <b>Preview.</b> This is how learners see the course. Nothing you do here is saved. <Link to={`/courses/${c.id}`}>Back to the studio</Link></div>}
+          {preview && <div className="banner warn" role="status" style={{ marginBottom: 10 }}><Icon name="eye" size={15} /> <b>Preview.</b> This is how learners see the course. Nothing you do here is saved. <Link to={`/courses/${c.id}`}>Back to the studio</Link></div>}
           <div className="card card-pad" style={{ borderTop: `5px solid ${c.color}`, marginBottom: 12 }}>
             <div className="row between wrap"><div><button className="btn ghost sm" onClick={() => nav(preview ? `/courses/${c.id}` : '/learn')}>← {preview ? 'Studio' : 'My courses'}</button><h1 style={{ margin: '4px 0' }}>{c.icon ? `${c.icon} ` : ''}{c.title}</h1>{c.summary && <div className="muted">{c.summary}</div>}</div>
               <div style={{ minWidth: 220 }}><Progress value={d.percent} tone={d.enrollment.status === 'completed' ? 'ok' : ''} /><div className="muted small" style={{ marginTop: 4 }}>{d.done}/{d.total} required lessons{d.grade != null ? ` · quiz grade ${d.grade}%` : ''}{c.min_grade ? ` (need ${c.min_grade}%)` : ''}{d.enrollment.due_at && d.enrollment.status !== 'completed' ? ` · due ${fmtDate(d.enrollment.due_at)}` : ''}</div>
@@ -51,7 +50,7 @@ function Sidebar({ d, cur, onPick }: { d: any; cur: any; onPick: (l: any) => voi
           {g.lessons.map((l: any) => (
             <button key={l.id} className="m-card" disabled={l.locked} aria-current={cur?.id === l.id ? 'true' : undefined} title={l.locked ? 'Finish the lessons before this one to unlock it' : undefined} onClick={() => onPick(l)}
               style={{ width: '100%', textAlign: 'left', border: 0, cursor: l.locked ? 'not-allowed' : 'pointer', background: cur?.id === l.id ? 'var(--bg-soft, #eef3f9)' : 'none', opacity: l.locked ? 0.55 : 1, paddingLeft: 16 + g.depth * 14 }}>
-              <span aria-hidden>{l.locked ? '🔒' : l.done ? '✅' : ICON[l.kind]}</span><span className="grow">{num.get(l.id)}. {l.title}{!l.required && <span className="muted small"> (optional)</span>}{l.minutes ? <span className="muted small"> · {l.minutes} min</span> : null}</span></button>))}</div>); })}
+              <LessonIcon kind={l.kind} done={l.done} locked={l.locked} /><span className="grow">{num.get(l.id)}. {l.title}{!l.required && <span className="muted small"> (optional)</span>}{l.minutes ? <span className="muted small"> · {l.minutes} min</span> : null}</span></button>))}</div>); })}
     </nav>
   );
 }
@@ -59,7 +58,7 @@ function Sidebar({ d, cur, onPick }: { d: any; cur: any; onPick: (l: any) => voi
 function Announcements({ courseId }: { courseId: string }) {
   const q = useFetch(() => api.get(`/api/learn/courses/${courseId}/announcements`).then((r) => r.data as any[]).catch(() => []), [courseId]); const a = q.data?.[0];
   if (!a || Date.now() - new Date(a.created_at).getTime() > 14 * 86400_000) return null;
-  return <div className="banner" role="status" style={{ marginTop: 10 }}>📣 <b>{a.title}</b> {a.body} <span className="muted small">· {a.author}, {fmtDateTime(a.created_at)}</span></div>;
+  return <div className="banner" role="status" style={{ marginTop: 10 }}><Icon name="megaphone" size={15} /> <b>{a.title}</b> {a.body} <span className="muted small">· {a.author}, {fmtDateTime(a.created_at)}</span></div>;
 }
 
 function LessonView({ d, lesson: l, preview, next, prev, onGo, onChange, onDone }: { d: any; lesson: any; preview: boolean; next: any; prev: any; onGo: (l: any) => void; onChange: () => void; onDone: (r: any) => void }) {
@@ -72,7 +71,7 @@ function LessonView({ d, lesson: l, preview, next, prev, onGo, onChange, onDone 
   return (
     <div className="stack">
       <div className="card card-pad stack">
-        <div className="row between wrap"><h2 style={{ margin: 0 }}>{ICON[l.kind]} {l.title}</h2><div className="row gap-s">{l.minutes ? <span className="muted small">{l.minutes} min</span> : null}{l.done && <Badge tone="ok">Done ✓</Badge>}{!l.required && <Badge>Optional</Badge>}</div></div>
+        <div className="row between wrap"><h2 className="row gap-s" style={{ margin: 0 }}><LessonIcon kind={l.kind} /> {l.title}</h2><div className="row gap-s">{l.minutes ? <span className="muted small">{l.minutes} min</span> : null}{l.done && <Badge tone="ok">Done ✓</Badge>}{!l.required && <Badge>Optional</Badge>}</div></div>
         {l.kind === 'text' && l.body && <Markdown text={l.body} />}
         {l.kind === 'video' && <>{l.url && <VideoEmbed url={l.url} title={l.title} />}{l.body && <Markdown text={l.body} />}</>}
         {l.kind === 'link' && <>{l.body && <Markdown text={l.body} />}{l.url && <div><a className="btn" href={l.url} target="_blank" rel="noreferrer noopener"><Icon name="link" size={15} /> Open the link</a></div>}</>}
@@ -84,7 +83,7 @@ function LessonView({ d, lesson: l, preview, next, prev, onGo, onChange, onDone 
           <div className="row gap-s">{!['quiz', 'assignment'].includes(l.kind) && <button className="btn primary" disabled={busy || l.done} onClick={markDone}>{l.done ? 'Done ✓' : next ? 'Mark complete and continue' : 'Mark complete'}</button>}
             {next && (l.done || ['quiz', 'assignment'].includes(l.kind)) && <button className="btn" onClick={() => onGo(next)}>Next →</button>}</div></div>
       </div>
-      {!preview && <div className="card"><Tabs value={tab} onChange={setTab} tabs={[{ id: 'notes', label: '📝 My notes' }, { id: 'qa', label: '💬 Questions' }]} />{tab === 'notes' ? <Notes courseId={courseId} lessonId={l.id} /> : <QA courseId={courseId} lessonId={l.id} />}</div>}
+      {!preview && <div className="card"><Tabs value={tab} onChange={setTab} tabs={[{ id: 'notes', label: 'My notes' }, { id: 'qa', label: 'Questions' }]} />{tab === 'notes' ? <Notes courseId={courseId} lessonId={l.id} /> : <QA courseId={courseId} lessonId={l.id} />}</div>}
     </div>
   );
 }

@@ -1,10 +1,11 @@
+import { IconTile, type Hue } from '../components/Icon';
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, qs } from '../api';
 import { fmtDateTime } from '../format';
 import { Async, Badge, Empty, PageHead, useAction, useFetch } from '../components/ui';
 
-const ICON: Record<string, string> = { 'attendance.absent': '🚫', 'class.cancelled': '❌', 'assignment.posted': '📝', 'assignment.evaluated': '✅', 'assignment.returned': '↩️', 'score.received': '📊', 'badge.awarded': '🏅' };
+const ICON: Record<string, [string, Hue]> = { 'attendance.absent': ['ban', 'rose'], 'class.cancelled': ['x', 'rose'], 'assignment.posted': ['clipboard', 'peach'], 'assignment.evaluated': ['check', 'mint'], 'assignment.returned': ['repeat', 'butter'], 'score.received': ['bars', 'sky'], 'badge.awarded': ['medal', 'butter'] };
 
 export default function Notifications() {
   const nav = useNavigate();
@@ -22,7 +23,7 @@ export default function Notifications() {
       <Async q={q as any}>{(d: any) => d.data.length ? (
         <div className="card">{d.data.map((n: any) => (
           <button key={n.id} className="m-card" style={{ width: '100%', textAlign: 'left', background: n.read_at ? undefined : 'var(--info-soft)', border: 0, borderBottom: '1px solid var(--line)', cursor: 'pointer', alignItems: 'center' }} onClick={() => open(n)}>
-            <span aria-hidden style={{ fontSize: 22 }}>{ICON[n.kind] ?? '🔔'}</span>
+            <IconTile name={(ICON[n.kind] ?? ['bell'])[0]} hue={(ICON[n.kind] ?? ['bell', 'violet'])[1]} size="md" />
             <div className="grow"><b>{n.title}</b>{n.learner_name && <> <Badge>{n.learner_name}</Badge></>}{n.body && <div className="small">{n.body}</div>}<div className="muted small">{fmtDateTime(n.created_at)}</div></div>
             {!n.read_at && <Badge tone="info">New</Badge>}
           </button>))}

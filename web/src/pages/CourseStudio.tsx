@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Icon } from '../components/Icon';
+import { Icon, IconTile, LessonIcon } from '../components/Icon';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -10,7 +10,6 @@ import { AssignModal } from './Courses';
 import { FileLinks } from '../components/Files';
 
 type Tab = 'content' | 'details' | 'learners' | 'work' | 'discussion' | 'reviews' | 'analytics' | 'news';
-const KIND_ICON: Record<string, string> = { text: '📄', video: '▶️', link: '🔗', quiz: '❓', file: '📎', assignment: '✍️' };
 const ICONS = ['📘', '🤖', '🧪', '💻', '🎨', '🔬', '🧠', '📐', '🚀', '🎵', '🌱', '🛡️'];
 
 /** One page to build, publish and run a course: content, details, learners, work to review, Q&A, reviews, numbers and announcements. */
@@ -23,7 +22,7 @@ export default function CourseStudio() {
         <PageHead title={<>{c.icon ? `${c.icon} ` : ''}{c.title} <Badge tone={live ? 'ok' : ''}>{c.status}</Badge></> as any} sub={`${d.lessons.length} lesson${d.lessons.length === 1 ? '' : 's'} · ${d.stats.enrolled} enrolled · ${d.stats.completed} finished${d.stats.rating_avg ? ` · ★ ${d.stats.rating_avg} (${d.stats.rating_count})` : ''}`}
           actions={<>
             <Link className="btn" to="/courses">← All courses</Link>
-            <button className="btn" onClick={() => nav(`/learn/preview/${c.id}`)}>👁 Preview</button>
+            <button className="btn" onClick={() => nav(`/learn/preview/${c.id}`)}><Icon name="eye" size={16} /> Preview</button>
             {manage && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${c.id}/duplicate`)).data; nav(`/courses/${r.id}`); }, 'Copied as a draft.')}>⧉ Copy</button>}
             {manage && live && c.audience !== 'learners' && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${c.id}/enrol-me`)).data; if (r.already) toast('You are already on this course.'); else toast('Added to your courses.'); }, undefined)}><Icon name="plus" size={15} /> Take it myself</button>}
             {manage && live && <button className="btn primary" onClick={() => setAssign(true)}>Assign</button>}
@@ -51,7 +50,7 @@ function PublishModal({ d, onClose, onDone }: { d: any; onClose: () => void; onD
   return (
     <Modal title="Ready to publish?" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Not yet</button><button className="btn primary" disabled={busy || !d.checklist.ready} onClick={() => run(async () => { setErr(''); try { await api.post(`/api/lms/courses/${d.course.id}/publish`); onDone(); } catch (e: any) { setErr(e?.message ?? 'Could not publish.'); throw e; } })}>Publish now</button></>}>
       <div className="stack"><p className="muted small" style={{ margin: 0 }}>Publishing makes the course available. {d.course.enrollment_mode === 'open' ? 'It is OPEN, so people in its audience can find it in the catalog and join themselves.' : 'It is assigned only: nobody sees it until you assign it.'}</p>
-        {d.checklist.items.map((i: any) => <div key={i.id} className="m-card" style={{ alignItems: 'flex-start' }}><span aria-hidden>{i.ok ? '✅' : i.blocking ? '⛔' : '💡'}</span><div className="grow"><b>{i.label}</b>{!i.ok && <div className="muted small">{i.hint}{!i.blocking && ' (optional)'}</div>}</div></div>)}
+        {d.checklist.items.map((i: any) => <div key={i.id} className="m-card" style={{ alignItems: 'flex-start' }}><IconTile name={i.ok ? 'check' : i.blocking ? 'ban' : 'info'} hue={i.ok ? 'mint' : i.blocking ? 'rose' : 'butter'} size="sm" /><div className="grow"><b>{i.label}</b>{!i.ok && <div className="muted small">{i.hint}{!i.blocking && ' (optional)'}</div>}</div></div>)}
         {err && <p className="err" role="alert">{err}</p>}</div>
     </Modal>
   );
@@ -68,7 +67,7 @@ function Content({ d, manage, reload }: { d: any; manage: boolean; reload: () =>
   const moveMod = (m: any, delta: number) => { const sibs = mods.filter((x) => (x.parent_id ?? null) === (m.parent_id ?? null)); const ids = sibs.map((x) => x.id); const i = ids.indexOf(m.id); const j = i + delta; if (j < 0 || j >= ids.length) return; [ids[i], ids[j]] = [ids[j], ids[i]]; run(async () => { await api.post(`/api/lms/courses/${c.id}/modules/reorder`, { ids, parent_id: m.parent_id ?? null }); reload(); }); };
   const total = d.lessons.reduce((s: number, l: any) => s + (l.minutes ?? 0), 0); const chapters = mods.filter((m) => !m.parent_id); const lastChapter = chapters[chapters.length - 1]?.id ?? null;
   const lessonRows = (ls: any[]) => ls.map((l: any) => (
-    <div key={l.id} className="m-card" style={{ alignItems: 'center' }}><span aria-hidden style={{ fontSize: 20 }}>{KIND_ICON[l.kind]}</span><div className="grow"><b>{l.title}</b><div className="muted small">{l.kind}{l.minutes ? ` · ${l.minutes} min` : ''}{l.required ? '' : ' · optional'}{l.kind === 'quiz' ? ` · ${l.questions?.length ?? 0} questions` : ''}{l.kind === 'file' ? ` · ${l.files?.length ?? 0} file(s)` : ''}</div></div>
+    <div key={l.id} className="m-card" style={{ alignItems: 'center' }}><LessonIcon kind={l.kind} /><div className="grow"><b>{l.title}</b><div className="muted small">{l.kind}{l.minutes ? ` · ${l.minutes} min` : ''}{l.required ? '' : ' · optional'}{l.kind === 'quiz' ? ` · ${l.questions?.length ?? 0} questions` : ''}{l.kind === 'file' ? ` · ${l.files?.length ?? 0} file(s)` : ''}</div></div>
       {manage && <><button className="btn ghost sm" aria-label="Move up" disabled={busy} onClick={() => move(l.id, -1)}>↑</button><button className="btn ghost sm" aria-label="Move down" disabled={busy} onClick={() => move(l.id, 1)}>↓</button>
         <button className="btn sm" onClick={() => setEd({ lesson: l })}>Edit</button><button className="btn sm" disabled={busy} onClick={() => confirm(`Remove “${l.title}”?`) && run(async () => { await api.del(`/api/lms/lessons/${l.id}`); reload(); }, 'Removed.')}>Remove</button></>}</div>));
   const head = (m: any, section: boolean) => (
@@ -248,7 +247,7 @@ function Numbers({ d }: { d: any }) {
         <div className="grid cols-4"><Stat label="Enrolled" value={a.enrolled} /><Stat label="Started" value={a.started} sub={a.enrolled ? `${Math.round((a.started / a.enrolled) * 100)}% of enrolled` : undefined} /><Stat label="Finished" value={a.completed} sub={`${a.completion_percent}% completion`} /><Stat label="Rating" value={a.rating ? `★ ${a.rating.avg}` : '—'} sub={a.rating ? `${a.rating.count} review${a.rating.count === 1 ? '' : 's'}` : 'No reviews yet'} /></div>
         <div className="card"><div className="card-head"><h2>Where people are</h2><span className="muted small">Share of enrolled people who finished each lesson</span></div>
           {a.lessons.map((l: any) => (
-            <div key={l.id} className="card-pad" style={{ borderBottom: '1px solid var(--line, #e3e8ef)' }}><div className="row between"><b>{KIND_ICON[l.kind]} {l.title}</b><span className="muted small">{l.completed} done · {l.percent}%{l.avg_score != null ? ` · avg score ${l.avg_score}%` : ''}{l.tries ? ` · ${l.tries} tries` : ''}</span></div><Progress value={l.percent} />
+            <div key={l.id} className="card-pad" style={{ borderBottom: '1px solid var(--line, #e3e8ef)' }}><div className="row between"><b className="row gap-s"><LessonIcon kind={l.kind} /> {l.title}</b><span className="muted small">{l.completed} done · {l.percent}%{l.avg_score != null ? ` · avg score ${l.avg_score}%` : ''}{l.tries ? ` · ${l.tries} tries` : ''}</span></div><Progress value={l.percent} />
               {l.questions && <div className="stack-s" style={{ marginTop: 8 }}>{l.questions.map((x: any, i: number) => <div key={i} className="row between small"><span>{i + 1}. {x.q}</span><span style={{ color: x.percent_correct < 50 ? 'var(--bad, #c0392b)' : 'inherit' }}>{x.answered ? `${x.percent_correct}% got it right` : 'not answered yet'}</span></div>)}</div>}</div>))}
           {!a.lessons.length && <Empty icon="📊" title="No lessons yet" />}</div>
       </div>)}</Async>

@@ -1,10 +1,11 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Icon, IconTile, type Hue } from './Icon';
 
 /** Gradient welcome banner: greeting, one line of context, and quick-action chips. Uses the school's colours. */
-export function HeroBanner({ title, sub, kicker, actions, art = 'sparkle', children }: { title: ReactNode; sub?: ReactNode; kicker?: ReactNode; actions?: ReactNode; art?: string; children?: ReactNode }) {
+export function HeroBanner({ title, sub, kicker, actions, art = 'sparkle', children, className = '' }: { title: ReactNode; sub?: ReactNode; kicker?: ReactNode; actions?: ReactNode; art?: string; children?: ReactNode; className?: string }) {
   return (
-    <section className="hero" aria-label="Welcome">
+    <section className={`hero ${children ? 'has-extra' : ''} ${className}`} aria-label="Welcome">
       <div className="hero-copy">{kicker && <span className="hero-kicker">{kicker}</span>}<h1>{title}</h1>{sub && <p>{sub}</p>}{actions && <div className="hero-actions">{actions}</div>}</div>
       <div className="hero-art" aria-hidden><i className="blob b1" /><i className="blob b2" /><span className="hero-orb"><Icon name={art} size={54} /></span></div>
       {children}
@@ -47,7 +48,29 @@ export function Sparkline({ points, width = 84, height = 28 }: { points: number[
 
 /** Big tappable category tile (icon on a pastel square + name), used for quick entry points. */
 export function CategoryTile({ icon, hue = 'violet', label, to }: { icon: string; hue?: Hue; label: string; to: string }) {
-  return <a className="cat-tile" href={to}><IconTile name={icon} hue={hue} size="lg" /><span>{label}</span></a>;
+  return <Link className="cat-tile" to={to}><IconTile name={icon} hue={hue} size="lg" /><span>{label}</span></Link>;
+}
+
+/** A glass KPI inside a hero banner: big numeral, calm label, optional trend line. */
+export function HeroKpi({ label, value, sub, trend, to }: { label: string; value: ReactNode; sub?: ReactNode; trend?: number[]; to?: string }) {
+  const body = <><span className="hk-l">{label}</span><b className="hk-v">{value}</b>{sub && <span className="hk-s">{sub}</span>}{trend && trend.length > 1 && <Sparkline points={trend} width={96} height={26} />}</>;
+  return to ? <Link className="hero-kpi" to={to}>{body}</Link> : <div className="hero-kpi">{body}</div>;
+}
+
+/** One idea per card: a coloured action card with a count, a sentence and a single call to action. */
+export function AttentionCard({ icon, hue = 'violet', count, title, sub, cta, to }: { icon: string; hue?: Hue; count: ReactNode; title: string; sub?: ReactNode; cta: string; to: string }) {
+  return (
+    <Link className={`attn-card at-${hue}`} to={to}>
+      <div className="attn-top"><IconTile name={icon} hue={hue} size="md" /><b className="attn-n">{count}</b></div>
+      <div className="attn-t">{title}</div>{sub && <div className="attn-s">{sub}</div>}
+      <span className="attn-cta">{cta} <Icon name="arrow-right" size={14} /></span>
+    </Link>
+  );
+}
+
+/** A titled group of tiles or cards (horizontal scroller on phones when `scroll`). */
+export function Section({ title, action, children, scroll }: { title: ReactNode; action?: ReactNode; children: ReactNode; scroll?: boolean }) {
+  return <section className="dash-sec"><div className="dash-sec-head"><h2>{title}</h2>{action}</div><div className={scroll ? 'h-scroll' : undefined}>{children}</div></section>;
 }
 
 export { Icon, IconTile };

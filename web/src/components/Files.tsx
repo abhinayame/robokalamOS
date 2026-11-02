@@ -36,7 +36,7 @@ export function FilePicker({ value, onChange, max = 5 }: { value: FileRef[]; onC
   return (
     <div>
       <input ref={ref} type="file" hidden multiple={max > 1} onChange={(e) => pick(e.target.files)} />
-      <button type="button" className="btn sm" disabled={busy || value.length >= max} onClick={() => ref.current?.click()}>{busy ? 'Uploading…' : '📎 Attach file'}</button>
+      <button type="button" className="btn sm" disabled={busy || value.length >= max} onClick={() => ref.current?.click()}>{busy ? 'Uploading…' : <><Icon name="paperclip" size={15} /> Attach file</>}</button>
       {err && <div className="err" role="alert" style={{ marginTop: 6 }}>{err}</div>}
       {value.map((f) => (
         <div key={f.id} className="row small" style={{ marginTop: 6 }}>

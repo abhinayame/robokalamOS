@@ -1,3 +1,4 @@
+import { Icon } from '../components/Icon';
 import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -91,7 +92,7 @@ function LiveTests() {
   const run = async (id: string, body?: object) => { setBusy(id); try { setRes((r) => ({ ...r, [id]: (null as any) })); const d = (await api.post(`/api/system/selftest/${id}`, body ?? {})).data; setRes((r) => ({ ...r, [id]: d })); } catch (e: any) { setRes((r) => ({ ...r, [id]: { ok: false, step: 'error', detail: e?.message ?? 'Failed' } })); } finally { setBusy(''); } };
   const row = (id: string, label: string, note: string, extra?: React.ReactNode) => (
     <div className="m-card" style={{ alignItems: 'flex-start' }}><div className="grow"><b>{label}</b><div className="muted small">{note}</div>{extra}
-      {res[id] && <div className={res[id].ok ? 'small' : 'err small'} role="status" style={{ marginTop: 6 }}>{res[id].ok ? '✅' : '❌'} {res[id].detail}</div>}</div>
+      {res[id] && <div className={res[id].ok ? 'small' : 'err small'} role="status" style={{ marginTop: 6 }}><Icon name={res[id].ok ? 'check' : 'x'} size={15} /> {res[id].detail}</div>}</div>
       <button className="btn sm" disabled={!!busy || (id === 'whatsapp' && (wa.phone.length < 8 || wa.campaign_name.length < 2))} onClick={() => run(id, id === 'whatsapp' ? wa : undefined)}>{busy === id ? 'Testing…' : 'Run test'}</button></div>);
   return (
     <div className="card" style={{ marginBottom: 14 }}><div className="card-head"><h2>Live provider tests</h2></div>
