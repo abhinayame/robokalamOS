@@ -3,6 +3,10 @@ import { api, ApiError } from '../api';
 import { useBrand } from '../brand';
 import { Async, Field, PageHead, useAction, useFetch, useToast } from '../components/ui';
 
+const THEMES = [
+  { name: 'Violet Pop', color: '#4B1D8F', accent: '#FF3D7F' }, { name: 'Ocean', color: '#0B4F8A', accent: '#00B8D9' }, { name: 'Forest', color: '#0B6E4F', accent: '#FFB020' },
+  { name: 'Sunset', color: '#B3321F', accent: '#FF9A3D' }, { name: 'Slate', color: '#26324A', accent: '#7C8CFF' }, { name: 'Classic Navy', color: '#14284a', accent: '#f5a524' },
+];
 const PRESETS = ['#12263f', '#7a1f3d', '#0b6e4f', '#1d4f9c', '#5b2ea6', '#9c2a2a', '#0f6560', '#37474f'];
 const ACCENTS = ['#f5a524', '#ffc107', '#26c6da', '#66bb6a', '#ef5350', '#ab47bc', '#ff7043', '#90a4ae'];
 const lum = (hex: string) => { const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4)); return 0.2126 * c[0]! + 0.7152 * c[1]! + 0.0722 * c[2]!; };
@@ -59,6 +63,7 @@ function Form({ s, onSaved }: { s: any; onSaved: () => void }) {
       <div className="card card-pad stack">
         <Field label="App name" hint={`Shown in the menu and on the phone's home screen. Leave empty to use “${s.name}”.`} error={err.app_name}><input className="input" value={f.app_name} maxLength={40} onChange={(e) => setF({ ...f, app_name: e.target.value })} placeholder={s.name} /></Field>
         <Field label="Tagline" error={err.tagline}><input className="input" value={f.tagline} maxLength={160} onChange={(e) => setF({ ...f, tagline: e.target.value })} placeholder="Learn. Build. Grow." /></Field>
+        <Field label="Theme" hint="One tap sets both colors. You can still fine-tune below."><div className="row wrap gap-s">{THEMES.map((t) => <button key={t.name} type="button" className={`theme-chip${f.color.toLowerCase() === t.color.toLowerCase() && f.accent.toLowerCase() === t.accent.toLowerCase() ? ' on' : ''}`} onClick={() => setF({ ...f, color: t.color, accent: t.accent })}><span className="tc-dots"><i style={{ background: t.color }} /><i style={{ background: t.accent }} /></span>{t.name}</button>)}</div></Field>
         <Field label="Main color" hint="Menu and buttons. White text sits on it, so it must be dark enough to read." error={err.color || (!colorOk && HEX.test(f.color) ? 'Too light: white text would be hard to read.' : undefined)}>
           <div className="row wrap gap-s">{PRESETS.map((c) => <button key={c} type="button" className="swatch" style={{ background: c }} aria-label={`Use ${c}`} aria-pressed={f.color === c} onClick={() => setF({ ...f, color: c })} />)}
             <input className="input" style={{ width: 110 }} value={f.color} onChange={(e) => setF({ ...f, color: e.target.value })} aria-label="Main color code" /><input type="color" value={HEX.test(f.color) ? f.color : '#12263f'} onChange={(e) => setF({ ...f, color: e.target.value })} aria-label="Pick main color" /></div></Field>
