@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -84,7 +85,7 @@ export default function Learners() {
         actions={<>
           <button className="btn" onClick={() => setDialog('byBatch')}>Select by batches</button>
           {can('learner:create') && <Link className="btn" to="/learners/import">Import CSV</Link>}
-          {can('learner:create') && <button className="btn primary" onClick={() => setDialog('add')}>＋ Add learner</button>}
+          {can('learner:create') && <button className="btn primary" onClick={() => setDialog('add')}><Icon name="plus" size={15} /> Add learner</button>}
         </>} />
       <div className="card">
         <div className="row wrap" style={{ padding: 12 }}>

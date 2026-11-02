@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { Async, Empty, PageHead, Stat, useDebounced, useFetch } from '../components/ui';
@@ -13,7 +14,7 @@ export default function TeamTraining() {
   const q = useFetch(() => api.get(`/api/lms/team${qs({ role, q: term })}`).then((r) => r.data as any), [role, term]);
   return (
     <>
-      <PageHead title="Team training" sub="Who has done which course. Overdue people are marked in red." actions={<><Link className="btn" to="/courses">← Courses</Link><button className="btn" onClick={() => api.getFile(`/api/lms/team.csv${qs({ role, q: term })}`, 'team-training.csv')}>⬇ CSV</button></>} />
+      <PageHead title="Team training" sub="Who has done which course. Overdue people are marked in red." actions={<><Link className="btn" to="/courses">← Courses</Link><button className="btn" onClick={() => api.getFile(`/api/lms/team.csv${qs({ role, q: term })}`, 'team-training.csv')}><Icon name="download" size={15} /> CSV</button></>} />
       <div className="row wrap" style={{ marginBottom: 12 }}><select className="select" style={{ width: 190 }} aria-label="Role" value={role} onChange={(e) => setRole(e.target.value)}><option value="">Everyone</option>{Object.entries(ROLE).map(([k, v]) => <option key={k} value={k}>{v}s</option>)}</select>
         <input className="input" style={{ maxWidth: 260 }} placeholder="Search by name or e-mail" aria-label="Search people" value={text} onChange={(e) => setText(e.target.value)} /></div>
       <Async q={q}>{(m: any) => (

@@ -1,0 +1,44 @@
+/* Polish: controls, tables, tabs, badges, modals (bottom sheet on phones), skeletons. Visual only. */
+.btn { border-radius: var(--r-md); border-color: var(--line); font-weight: 700; transition: transform var(--t-fast) var(--ease), box-shadow var(--t-base), background var(--t-fast), filter var(--t-fast); }
+.btn:hover:not(:disabled) { background: color-mix(in srgb, var(--brand) 6%, #fff); transform: translateY(-1px); box-shadow: var(--sh-1); text-decoration: none; }
+.btn:active:not(:disabled) { transform: scale(.97); }
+.btn.primary { background: var(--hero); border-color: transparent; box-shadow: 0 8px 18px -8px color-mix(in srgb, var(--brand) 70%, transparent); } .btn.primary:hover:not(:disabled) { background: var(--hero); filter: brightness(1.08); box-shadow: 0 12px 24px -8px color-mix(in srgb, var(--brand) 70%, transparent); }
+.btn.accent { background: var(--gold); border-color: var(--gold); color: var(--ink); }
+.btn.sm { border-radius: 10px; } .btn .ic { margin-left: -1px; }
+.input, .select, .textarea { border: 1.5px solid var(--line); border-radius: var(--r-md); background: var(--surface); transition: border-color var(--t-fast), box-shadow var(--t-base); }
+.input:hover, .select:hover, .textarea:hover { border-color: color-mix(in srgb, var(--brand) 30%, var(--line)); }
+.input:focus, .select:focus, .textarea:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 4px color-mix(in srgb, var(--brand) 14%, transparent); }
+.field label { font-weight: 700; font-size: 12.5px; color: var(--ink-2); }
+
+.card { border-radius: var(--r-lg); border-color: var(--line); }
+.card-head { border-bottom-color: var(--line); } .card-head h2 { font-weight: 800; letter-spacing: -.01em; }
+.page-head h1 { font-weight: 800; letter-spacing: -.025em; }
+
+.tabs { border-bottom: none; gap: 6px; padding: 4px; background: color-mix(in srgb, var(--brand) 6%, #fff); border-radius: var(--r-pill); width: max-content; max-width: 100%; }
+.tab { border: none; border-radius: var(--r-pill); padding: 7px 16px; color: var(--ink-2); transition: background var(--t-fast), color var(--t-fast), box-shadow var(--t-base); }
+.tab:hover { color: var(--ink); } .tab.active, .tab[aria-selected="true"] { background: var(--surface); color: var(--brand); box-shadow: var(--sh-2); border: none; }
+
+.badge { padding: 3px 10px; font-weight: 700; background: var(--p-slate); color: var(--p-slate-ink); }
+.badge.ok { background: var(--p-mint); color: var(--p-mint-ink); } .badge.warn { background: var(--p-butter); color: var(--p-butter-ink); } .badge.bad { background: var(--p-rose); color: var(--p-rose-ink); } .badge.info { background: var(--p-sky); color: var(--p-sky-ink); }
+
+.t th { background: color-mix(in srgb, var(--brand) 4%, #fff); font-weight: 700; text-transform: uppercase; font-size: 11px; letter-spacing: .06em; color: var(--muted); border-bottom: 1px solid var(--line); }
+.t td { border-bottom-color: color-mix(in srgb, var(--line) 60%, transparent); }
+.t tbody tr { transition: background var(--t-fast); } .t tbody tr:hover { background: color-mix(in srgb, var(--brand) 4%, #fff); }
+.progress { height: 8px; border-radius: var(--r-pill); background: color-mix(in srgb, var(--brand) 10%, #fff); } .progress > i { background: linear-gradient(90deg, var(--brand), var(--accent)); border-radius: var(--r-pill); transition: width var(--t-hero) var(--ease); }
+.skeleton { background: linear-gradient(90deg, color-mix(in srgb, var(--brand) 7%, #fff) 25%, color-mix(in srgb, var(--brand) 3%, #fff) 37%, color-mix(in srgb, var(--brand) 7%, #fff) 63%); background-size: 400% 100%; border-radius: var(--r-sm); }
+
+.overlay { background: rgba(27,21,48,.5); backdrop-filter: blur(3px); animation: fade var(--t-base) ease backwards; }
+.modal { border-radius: var(--r-xl); box-shadow: 0 30px 80px -20px rgba(27,21,48,.5); animation: pop var(--t-slow) var(--spring) backwards; }
+.modal-head h2 { font-weight: 800; }
+.toast { border-radius: var(--r-md); }
+
+@media (max-width: 860px) {
+  .overlay { align-items: end; padding: 0; }
+  .modal, .modal.wide { width: 100%; max-height: 92vh; border-radius: var(--r-xl) var(--r-xl) 0 0; animation: sheet var(--t-slow) var(--ease) backwards; }
+  .modal-head::before { content: ""; position: absolute; left: 50%; top: 8px; width: 38px; height: 4px; margin-left: -19px; border-radius: 4px; background: var(--line); } .modal-head { position: relative; padding-top: 20px; }
+  .tabs { width: 100%; }
+  .table-wrap { -webkit-overflow-scrolling: touch; border-radius: var(--r-md); }
+  .card-pad { padding: 14px; }
+}
+@keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
+.tab::after, .tab.active::after { display: none; } .tab:hover { background: transparent; } .tab.active:hover, .tab[aria-selected="true"]:hover { background: var(--surface); }

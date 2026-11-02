@@ -72,7 +72,7 @@ function AdminView({ d }: { d: any }) {
         </div>
         <div className="row wrap"><Link className="btn sm" to="/analytics">Compare batches</Link><Link className="btn sm" to="/reports">Reports</Link></div>
       </>}
-      {d.learners.without_batch > 0 && <div className="banner" style={{ borderRadius: 10, border: '1px solid var(--line)' }}>⚠️ {fmtNum(d.learners.without_batch)} active learners are not in any batch. <Link to="/learners?no_batch=true">Review them</Link></div>}
+      {d.learners.without_batch > 0 && <div className="banner" style={{ borderRadius: 10, border: '1px solid var(--line)' }}><Icon name="alert" size={15} /> {fmtNum(d.learners.without_batch)} active learners are not in any batch. <Link to="/learners?no_batch=true">Review them</Link></div>}
       <div className="grid cols-2">
         <div className="card"><div className="card-head"><h2>Fullest batches</h2><Link to="/batches" className="small">All batches</Link></div>
           {!d.top_batches.length ? <Empty title="No batches yet">Create a batch to start enrolling learners.</Empty> : d.top_batches.map((b: any) => (
@@ -112,7 +112,7 @@ function TeacherView({ d }: { d: any }) {
       </div>
       <div className="card card-pad"><b>Quick actions</b><div className="row wrap" style={{ marginTop: 8 }}>
         {d.my_batches.length > 0 && <>
-          <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>＋ Assignment or material</Link><Link className="btn sm" to="/communication">Post announcement</Link>
+          <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}><Icon name="plus" size={15} /> Assignment or material</Link><Link className="btn sm" to="/communication">Post announcement</Link>
           <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Mark attendance</Link><Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Give score</Link><Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Award badge</Link></>}
         {!d.my_batches.length && <span className="muted small">Quick actions appear once you are assigned to a batch.</span>}</div></div>
       <div className="grid cols-2">
@@ -181,7 +181,7 @@ function ChildrenView({ d, parent }: { d: any; parent: boolean }) {
         <div className="card"><div className="card-head"><h2>Upcoming classes</h2></div>
           {kid.progress.upcoming_classes.length ? kid.progress.upcoming_classes.map((c: any) => <div key={c.id} className="m-card"><div className="grow"><b>{c.batch_name}</b><div className="muted small">{c.title ?? 'Class'} · {fmtDateTime(c.starts_at)}</div></div>{c.has_meeting && <Badge>Join link</Badge>}</div>) : <Empty icon="🗓️" title="No classes scheduled" />}</div>
         <div className="card"><div className="card-head"><h2>Teacher feedback</h2></div>
-          {kid.progress.feedback.length ? kid.progress.feedback.map((f: any, i: number) => <div key={i} className="m-card"><div className="grow"><b>{f.title}</b><div>💬 {f.feedback}</div><div className="muted small">{f.by_teacher} · {fmtDate(f.at)}</div></div></div>) : <Empty icon="💬" title="No feedback yet" />}</div>
+          {kid.progress.feedback.length ? kid.progress.feedback.map((f: any, i: number) => <div key={i} className="m-card"><div className="grow"><b>{f.title}</b><div><Icon name="chat" size={15} /> {f.feedback}</div><div className="muted small">{f.by_teacher} · {fmtDate(f.at)}</div></div></div>) : <Empty icon="💬" title="No feedback yet" />}</div>
       </div>}
       <div className="grid cols-2">
         <Classes items={kid.today_classes.length ? kid.today_classes : kid.upcoming_classes} title={kid.today_classes.length ? 'Today’s classes' : 'Upcoming classes'} />

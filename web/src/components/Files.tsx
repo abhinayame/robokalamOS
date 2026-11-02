@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { api, friendly } from '../api';
 import { useToast } from './ui';
 
@@ -12,7 +13,7 @@ export function FileLinks({ files }: { files: FileRef[] }) {
   if (!files?.length) return null;
   const open = (f: FileRef) => api.openFile(f.id, f.name, INLINE.test(f.name)).catch((e) => toast(friendly(e), 'err'));
   return <div className="chips" style={{ gap: 8 }}>{files.map((f) => (
-    <button key={f.id} type="button" className="btn sm" onClick={() => open(f)} title="Open file">📎 {f.name} <span className="muted small">{kb(f.size)}</span></button>
+    <button key={f.id} type="button" className="btn sm" onClick={() => open(f)} title="Open file"><Icon name="paperclip" size={15} /> {f.name} <span className="muted small">{kb(f.size)}</span></button>
   ))}</div>;
 }
 

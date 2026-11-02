@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -20,7 +21,7 @@ export default function Reminders() {
   return (
     <>
       <PageHead title="Automatic reminders" sub="Tell parents about fees and classes without anyone remembering to. Each reminder is sent once, only in your sending hours, through the same WhatsApp pipeline as campaigns."
-        actions={manage ? <button className="btn primary" onClick={() => setEdit({})}>＋ New reminder</button> : undefined} />
+        actions={manage ? <button className="btn primary" onClick={() => setEdit({})}><Icon name="plus" size={15} /> New reminder</button> : undefined} />
       {meta.data && !meta.data.email_configured && <div className="card card-pad" style={{ marginBottom: 12, borderColor: 'var(--warn)' }}><b>E-mail is not connected.</b> E-mail reminders can be prepared, but nothing is sent until an admin sets the SMTP details on the server.</div>}
       {meta.data && !meta.data.whatsapp_configured && <div className="card card-pad" style={{ marginBottom: 12, borderColor: 'var(--warn)' }}><b>WhatsApp is not connected.</b> Rules can be prepared, but nothing is sent until an admin sets the AiSensy details on the server.</div>}
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'rules', label: 'Rules' }, { id: 'log', label: 'What was sent' }]} />

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api, qs } from '../api';
 import { Async, Badge, Empty, Field, Modal, PageHead, Pager, useAction, useDebounced, useFetch } from '../components/ui';
 
@@ -8,7 +9,7 @@ export default function QuestionBank() {
   const q = useFetch(() => api.get(`/api/bank${qs({ topic, difficulty: diff, q: term, page })}`), [topic, diff, term, page]);
   return (
     <>
-      <PageHead title="Question bank" sub="Write a question once and use it in any quiz. A quiz gets its own copy, so changing a question here never changes a quiz people are already taking." actions={<button className="btn primary" onClick={() => setEdit({})}>＋ New question</button>} />
+      <PageHead title="Question bank" sub="Write a question once and use it in any quiz. A quiz gets its own copy, so changing a question here never changes a quiz people are already taking." actions={<button className="btn primary" onClick={() => setEdit({})}><Icon name="plus" size={15} /> New question</button>} />
       <div className="card"><div className="row wrap" style={{ padding: 12 }}>
         <select className="select" style={{ width: 200 }} aria-label="Topic" value={topic} onChange={(e) => { setTopic(e.target.value); setPage(1); }}><option value="">All topics</option>{(topics.data ?? []).map((t: any) => <option key={t.topic} value={t.topic}>{t.topic} ({t.questions})</option>)}</select>
         <select className="select" style={{ width: 150 }} aria-label="Difficulty" value={diff} onChange={(e) => { setDiff(e.target.value); setPage(1); }}><option value="">Any level</option><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select>
@@ -35,7 +36,7 @@ function QModal({ q, onClose, onDone }: { q: any; onClose: () => void; onDone: (
           <Field label="Level"><select className="select" value={f.difficulty} onChange={(e) => setF({ ...f, difficulty: e.target.value })}><option value="easy">Easy</option><option value="medium">Medium</option><option value="hard">Hard</option></select></Field></div>
         <Field label="Question"><textarea className="input" rows={2} value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} /></Field>
         {f.options.map((o, i) => <div key={i} className="row"><input type="radio" name="ans" checked={f.answer === i} onChange={() => setF({ ...f, answer: i })} aria-label={`Option ${i + 1} is correct`} /><input className="input grow" placeholder={`Option ${i + 1}`} value={o} onChange={(e) => setF({ ...f, options: f.options.map((x, j) => (j === i ? e.target.value : x)) })} /></div>)}
-        {f.options.length < 6 && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setF({ ...f, options: [...f.options, ''] })}>＋ Option</button>}
+        {f.options.length < 6 && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setF({ ...f, options: [...f.options, ''] })}><Icon name="plus" size={15} /> Option</button>}
         <div className="muted small">Tick the circle next to the right answer.</div>{err && <p className="err" role="alert">{err}</p>}
       </div>
     </Modal>

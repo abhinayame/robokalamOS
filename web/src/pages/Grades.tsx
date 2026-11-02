@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { cap, fmtDateTime } from '../format';
@@ -45,7 +46,7 @@ export default function Grades({ room }: { room: any }) {
   return (
     <div className="stack">
       {room.can_manage && <div className="row wrap">
-        <button className="btn primary" onClick={() => setSheet('new')} disabled={!room.writable}>＋ Score an activity</button>
+        <button className="btn primary" onClick={() => setSheet('new')} disabled={!room.writable}><Icon name="plus" size={15} /> Score an activity</button>
         {!room.writable && <span className="muted small">Closed batches cannot get new activities, but existing scores can be corrected below.</span>}
       </div>}
       <div className="card card-pad"><div className="row wrap">
@@ -164,7 +165,7 @@ export function ScoreList({ learnerId }: { learnerId?: string }) {
         <div className="card-head"><h2>Scores</h2><select className="select" style={{ width: 150 }} aria-label="Type" value={type} onChange={(e) => setType(e.target.value)}><option value="">All types</option><option value="assignment">Assignments</option><option value="quiz">Quizzes</option><option value="activity">Activities</option></select></div>
         <Async q={q as any}>{(d: any) => d.data.length ? d.data.map((s: any) => (
           <div key={s.id} className="m-card" style={{ alignItems: 'center' }}>
-            <div className="grow"><b>{s.activity_name}</b><div className="muted small">{s.batch_name} · {s.category || cap(s.source_type)} · {fmtDateTime(s.updated_at)}</div>{s.feedback && <div className="small" style={{ marginTop: 2 }}>💬 {s.feedback}</div>}</div>
+            <div className="grow"><b>{s.activity_name}</b><div className="muted small">{s.batch_name} · {s.category || cap(s.source_type)} · {fmtDateTime(s.updated_at)}</div>{s.feedback && <div className="small" style={{ marginTop: 2 }}><Icon name="chat" size={15} /> {s.feedback}</div>}</div>
             <div style={{ textAlign: 'right' }}><b>{fmt(s.score)}/{fmt(s.max_score)}</b><div><PerfBadge band={s.band} /></div></div>
             <button className="btn ghost sm" onClick={() => setHist(s.id)}>History</button>
           </div>)) : <Empty icon="📊" title="No scores yet">Scores appear once work is graded.</Empty>}</Async>

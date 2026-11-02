@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { useParams } from 'react-router-dom';
 import { api, friendly } from '../api';
 import { BrandMark, useBrand } from '../brand';
@@ -17,7 +18,7 @@ export default function DemoBooking() {
       <div className="login-brand"><BrandMark size={brand.logo_url ? 72 : undefined} /><h1>Book a free demo class</h1>{q.data && <p className="muted" style={{ margin: '4px 0 0' }}>{q.data.organization}</p>}</div>
       {q.error && !q.data && <div className="badge bad" role="alert" style={{ whiteSpace: 'normal', padding: '10px 14px' }}>Online booking is not available right now. Please contact us directly.</div>}
       {q.loading && !q.data && !q.error && <p className="muted">Loading the available slots…</p>}
-      {done && <div className="stack"><div className="badge ok" style={{ whiteSpace: 'normal', padding: '10px 14px', fontSize: 15 }} role="status">✔ Your seat is booked!</div>
+      {done && <div className="stack"><div className="badge ok" style={{ whiteSpace: 'normal', padding: '10px 14px', fontSize: 15 }} role="status"><Icon name="check" size={15} /> Your seat is booked!</div>
         <dl className="kv"><dt>Demo</dt><dd>{done.title}</dd><dt>When</dt><dd>{fmtDateTime(done.starts_at)}</dd>{done.join_url ? <><dt>Join online</dt><dd><a href={done.join_url} target="_blank" rel="noreferrer noopener">{done.join_url}</a></dd></> : done.location ? <><dt>Where</dt><dd>{done.location}</dd></> : null}</dl>
         <p className="muted small" style={{ margin: 0 }}>We will remind you before the class. If you gave an e-mail address, a confirmation is on its way.</p></div>}
       {q.data && !done && (q.data.slots.length === 0 ? <p className="muted">There are no open demo slots right now. Please check back soon.</p> : (

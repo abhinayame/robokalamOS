@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -15,7 +16,7 @@ export default function Courses() {
   const [tab, setTab] = useState<'courses' | 'paths'>('courses'); const [edit, setEdit] = useState<any>(null); const [assign, setAssign] = useState<any>(null); const [prog, setProg] = useState<any>(null); const [lessons, setLessons] = useState<any>(null);
   return (
     <>
-      <PageHead title="Courses" sub="Build a course once, share it with learners or with the staff you are onboarding, and watch who has finished." actions={<>{manage && <button className="btn" onClick={() => nav('/courses/team')}>👥 Team training</button>}{manage && tab === 'courses' ? <button className="btn primary" onClick={() => setEdit({})}>＋ New course</button> : undefined}</>} />
+      <PageHead title="Courses" sub="Build a course once, share it with learners or with the staff you are onboarding, and watch who has finished." actions={<>{manage && <button className="btn" onClick={() => nav('/courses/team')}><Icon name="users" size={15} /> Team training</button>}{manage && tab === 'courses' ? <button className="btn primary" onClick={() => setEdit({})}><Icon name="plus" size={15} /> New course</button> : undefined}</>} />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'courses', label: 'Courses' }, { id: 'paths', label: 'Learning paths' }]} />
       {tab === 'paths' ? <Paths manage={manage} /> : <Async q={q}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="📚" title="No courses yet" action={manage ? <button className="btn primary" onClick={() => setEdit({})}>Create the first course</button> : undefined}>For example: “Welcome to the team” for new teachers.</Empty></div> : (
         <div className="grid cols-3">{list.map((c) => (
@@ -77,10 +78,10 @@ function LessonsModal({ course, onClose }: { course: any; onClose: () => void })
             {ed.questions.map((qq: any, i: number) => (
               <div key={i} className="card card-pad stack-s"><div className="row"><input className="input grow" placeholder={`Question ${i + 1}`} value={qq.q} onChange={(e) => { const qs2 = [...ed.questions]; qs2[i] = { ...qq, q: e.target.value }; setEd({ ...ed, questions: qs2 }); }} /><button className="btn ghost sm" onClick={() => setEd({ ...ed, questions: ed.questions.filter((_: any, k: number) => k !== i) })}>Remove</button></div>
                 {qq.options.map((o: string, j: number) => <div key={j} className="row"><input type="radio" name={`ans${i}`} checked={qq.answer === j} onChange={() => { const qs2 = [...ed.questions]; qs2[i] = { ...qq, answer: j }; setEd({ ...ed, questions: qs2 }); }} aria-label={`Option ${j + 1} is correct`} /><input className="input grow" placeholder={`Option ${j + 1}`} value={o} onChange={(e) => { const op = [...qq.options]; op[j] = e.target.value; const qs2 = [...ed.questions]; qs2[i] = { ...qq, options: op }; setEd({ ...ed, questions: qs2 }); }} /></div>)}
-                {qq.options.length < 6 && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => { const qs2 = [...ed.questions]; qs2[i] = { ...qq, options: [...qq.options, ''] }; setEd({ ...ed, questions: qs2 }); }}>＋ Option</button>}
+                {qq.options.length < 6 && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => { const qs2 = [...ed.questions]; qs2[i] = { ...qq, options: [...qq.options, ''] }; setEd({ ...ed, questions: qs2 }); }}><Icon name="plus" size={15} /> Option</button>}
                 <div className="muted small">Tick the circle next to the right answer. Learners never see which one it is.</div></div>))}
-            <div className="row gap-s wrap"><button className="btn sm" onClick={() => setEd({ ...ed, questions: [...ed.questions, { q: '', options: ['', ''], answer: 0 }] })}>＋ Add a question</button>
-              <button className="btn sm" onClick={() => setPick(true)}>📚 Add from question bank</button>
+            <div className="row gap-s wrap"><button className="btn sm" onClick={() => setEd({ ...ed, questions: [...ed.questions, { q: '', options: ['', ''], answer: 0 }] })}><Icon name="plus" size={15} /> Add a question</button>
+              <button className="btn sm" onClick={() => setPick(true)}><Icon name="library" size={15} /> Add from question bank</button>
               {ed.questions.length > 0 && <button className="btn sm" onClick={() => { const topic = prompt('Save these questions to the bank under which topic?', ''); if (topic && topic.trim().length >= 2) run(async () => { const r = (await api.post('/api/bank/bulk', { topic, questions: ed.questions.filter((x: any) => x.q.trim() && x.options.filter((o: string) => o.trim()).length >= 2) })).data; toast(`${r.added} saved, ${r.skipped} already there.`); }); }}>Save these to the bank</button>}</div></>}
           <label className="row gap-s"><input type="checkbox" checked={ed.required} onChange={(e) => setEd({ ...ed, required: e.target.checked })} /> Required to finish the course</label>
           {err && <p className="err" role="alert">{err}</p>}
@@ -94,7 +95,7 @@ function LessonsModal({ course, onClose }: { course: any; onClose: () => void })
               <button className="btn sm" onClick={() => setEd({ ...blank, ...l, url: l.url ?? '', body: l.body ?? '', minutes: l.minutes ?? '', questions: l.questions ?? [] })}>Edit</button>
               <button className="btn sm" disabled={busy} onClick={() => confirm(`Remove “${l.title}”?`) && run(async () => { await api.del(`/api/lms/lessons/${l.id}`); q.reload(); }, 'Removed.')}>Remove</button></div>))}
           {!c.lessons.length && <Empty icon="📄" title="No lessons yet" />}
-          <div><button className="btn primary" onClick={() => setEd({ ...blank })}>＋ Add a lesson</button></div></div>)}</Async>
+          <div><button className="btn primary" onClick={() => setEd({ ...blank })}><Icon name="plus" size={15} /> Add a lesson</button></div></div>)}</Async>
       )}
     {pick && ed && <BankPicker onClose={() => setPick(false)} onAdd={(qs2) => { setEd({ ...ed, questions: [...ed.questions, ...qs2] }); setPick(false); }} />}
     </Modal>
@@ -136,7 +137,7 @@ export function AssignModal({ course, onClose, onDone }: { course: any; onClose:
 function ProgressModal({ course, manage, onClose }: { course: any; manage: boolean; onClose: () => void }) {
   const q = useFetch(() => api.get(`/api/lms/courses/${course.id}/progress`).then((r) => r.data as any), [course.id]); const { busy, run } = useAction(); const [tab, setTab] = useState<'all' | 'late'>('all');
   return (
-    <Modal wide title={`Progress · ${course.title}`} onClose={onClose} footer={<><button className="btn" onClick={() => api.getFile(`/api/lms/courses/${course.id}/progress.csv`, 'course-progress.csv')}>⬇ CSV</button><button className="btn" onClick={onClose}>Close</button></>}>
+    <Modal wide title={`Progress · ${course.title}`} onClose={onClose} footer={<><button className="btn" onClick={() => api.getFile(`/api/lms/courses/${course.id}/progress.csv`, 'course-progress.csv')}><Icon name="download" size={15} /> CSV</button><button className="btn" onClick={onClose}>Close</button></>}>
       <Async q={q}>{(d: any) => { const rows = d.rows.filter((r: any) => tab === 'all' || r.overdue || (r.status !== 'completed' && r.done === 0)); return (<div className="stack">
         <div className="grid cols-4"><Stat label="Enrolled" value={d.summary.enrolled} /><Stat label="Finished" value={d.summary.completed} /><Stat label="Not started" value={d.summary.not_started} /><Stat label="Overdue" value={d.summary.overdue} sub={`Average ${d.summary.average_percent}%`} /></div>
         <Tabs value={tab} onChange={setTab} tabs={[{ id: 'all', label: 'Everyone' }, { id: 'late', label: 'Needs a nudge' }]} />

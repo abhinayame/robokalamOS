@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -21,7 +22,7 @@ export default function Leads() {
   const totalCount = Object.values(counts).reduce((a, b) => a + b, 0);
   return (
     <>
-      <PageHead title="Leads" sub="A lead is a learner profile in the CRM: converting never copies data." actions={can('crm:manage') ? <button className="btn primary" onClick={() => setAdd(true)}>＋ Add lead</button> : undefined} />
+      <PageHead title="Leads" sub="A lead is a learner profile in the CRM: converting never copies data." actions={can('crm:manage') ? <button className="btn primary" onClick={() => setAdd(true)}><Icon name="plus" size={15} /> Add lead</button> : undefined} />
       <Async q={sum} rows={1}>{(s: any) => (
         <div className="grid cols-4" style={{ marginBottom: 14 }}>
           <Stat label="Leads" value={fmtNum(s.total)} sub={`${s.converted} converted`} />

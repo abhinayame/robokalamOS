@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { ApiError } from '../api';
 import { useBrand } from '../brand';
 import { Modal, useToast } from './ui';
@@ -28,7 +29,7 @@ export function ShareModal({ kind, id, title, onClose }: { kind: Kind; id: strin
   return (
     <Modal wide title="Share your achievement" onClose={onClose} footer={<>
       <button className="btn" onClick={onClose}>Close</button>
-      {file && <a className="btn" href={url ?? '#'} download={file.name}>⬇ Download image</a>}
+      {file && <a className="btn" href={url ?? '#'} download={file.name}><Icon name="download" size={15} /> Download image</a>}
       {canShare && <button className="btn primary" onClick={() => (navigator as any).share({ files: [file], text: caption, title: brand.name }).catch(() => undefined)}>Share…</button>}</>}>
       <div className="row wrap" style={{ alignItems: 'flex-start', gap: 20 }}>
         <div style={{ width: format === 'story' ? 220 : 300, flex: 'none' }}>
@@ -48,4 +49,4 @@ export function ShareModal({ kind, id, title, onClose }: { kind: Kind; id: strin
     </Modal>
   );
 }
-export const ShareButton = ({ kind, id, title, onOpen }: { kind: Kind; id: string; title: string; onOpen: (s: { kind: Kind; id: string; title: string }) => void }) => <button className="btn sm" onClick={() => onOpen({ kind, id, title })}>📤 Share</button>;
+export const ShareButton = ({ kind, id, title, onOpen }: { kind: Kind; id: string; title: string; onOpen: (s: { kind: Kind; id: string; title: string }) => void }) => <button className="btn sm" onClick={() => onOpen({ kind, id, title })}><Icon name="share" size={15} /> Share</button>;

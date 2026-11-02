@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -19,7 +20,7 @@ export default function Batches() {
   return (
     <>
       <PageHead title="Batches" sub="Every batch is also a classroom. Learners can belong to as many batches as they need."
-        actions={can('batch:create') && <button className="btn primary" onClick={() => setCreate(true)}>＋ New batch</button>} />
+        actions={can('batch:create') && <button className="btn primary" onClick={() => setCreate(true)}><Icon name="plus" size={15} /> New batch</button>} />
       <Tabs value={status || 'all'} onChange={(t) => setSp(t === 'all' ? {} : { status: t })} tabs={[{ id: 'all', label: 'All' }, { id: 'active', label: 'Active' }, { id: 'upcoming', label: 'Upcoming' }, { id: 'completed', label: 'Completed' }, { id: 'archived', label: 'Archived' }]} />
       <div className="card">
         <div className="row" style={{ padding: 12 }}><input className="input" placeholder="Search by name, code or course…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search batches" /></div>

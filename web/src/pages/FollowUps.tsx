@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -24,7 +25,7 @@ export default function FollowUps() {
           <div className="grow"><Link to={`/learners/${f.learner_id}`}><b>{f.full_name}</b></Link> {f.lead_status && <Badge tone={statusTone(f.lead_status)}>{statusLabel(f.lead_status)}</Badge>}
             <div className="small">{f.note || 'Follow up'}</div>
             <div className="muted small" style={{ color: f.overdue ? 'var(--bad)' : undefined }}>{f.status === 'done' ? `Done ${fmtDateTime(f.completed_at)}` : `${f.overdue ? 'Overdue · ' : ''}${fmtDateTime(f.due_at)}`} · {f.assigned_name} · {fmtMobile(f.mobile)}</div></div>
-          {f.mobile && f.status === 'open' && <a className="btn sm" href={`tel:${f.mobile}`}>📞 Call</a>}
+          {f.mobile && f.status === 'open' && <a className="btn sm" href={`tel:${f.mobile}`}><Icon name="phone" size={15} /> Call</a>}
           {can('crm:manage') && f.status === 'open' && <><button className="btn primary sm" onClick={() => setDone(f)}>Done</button><button className="btn ghost sm danger" onClick={() => confirm('Cancel this follow-up?') && run(async () => { await api.post(`/api/crm/follow-ups/${f.id}/cancel`); q.reload(); }, 'Cancelled')}>Cancel</button></>}
         </div>))}</div> : <div className="card"><Empty icon={bucket === 'done' ? '📋' : '🎉'} title={bucket === 'overdue' ? 'Nothing overdue' : bucket === 'today' ? 'Nothing due today' : bucket === 'upcoming' ? 'Nothing scheduled' : 'Nothing completed yet'}>{bucket === 'upcoming' ? 'Schedule follow-ups from a lead or learner profile.' : 'You are all caught up.'}</Empty></div>}</Async>
       {done && <DoneModal f={done} onClose={() => setDone(null)} onDone={() => { setDone(null); q.reload(); }} />}

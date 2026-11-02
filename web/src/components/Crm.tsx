@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from './Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { cap } from '../format';
@@ -40,7 +41,7 @@ export function TagEditor({ learnerId, tags, onChange }: { learnerId: string; ta
       {!tags.length && <span className="muted small">No tags</span>}
       {can('tag:apply') && (adding
         ? <select className="select" style={{ width: 170 }} autoFocus disabled={busy} aria-label="Add tag" onChange={(e) => e.target.value && apply({ add: [e.target.value] })} onBlur={() => setAdding(false)} defaultValue=""><option value="">Choose a tag…</option>{free.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
-        : <button className="btn ghost sm" onClick={() => setAdding(true)} disabled={!free.length && !!all.data} title={!free.length && all.data ? 'No more tags to add. Create tags under Settings.' : ''}>＋ Tag</button>)}
+        : <button className="btn ghost sm" onClick={() => setAdding(true)} disabled={!free.length && !!all.data} title={!free.length && all.data ? 'No more tags to add. Create tags under Settings.' : ''}><Icon name="plus" size={15} /> Tag</button>)}
     </div>
   );
 }

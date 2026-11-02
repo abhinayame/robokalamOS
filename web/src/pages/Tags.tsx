@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { TAG_COLORS, TagChip } from '../components/Crm';
@@ -11,7 +12,7 @@ export default function Tags() {
   const { run } = useAction();
   return (
     <>
-      <PageHead title="Tags" sub="Reusable labels for learners: High Performer, Needs Attention, Scholarship …" actions={can('tag:manage') ? <button className="btn primary" onClick={() => setEdit('new')}>＋ New tag</button> : undefined} />
+      <PageHead title="Tags" sub="Reusable labels for learners: High Performer, Needs Attention, Scholarship …" actions={can('tag:manage') ? <button className="btn primary" onClick={() => setEdit('new')}><Icon name="plus" size={15} /> New tag</button> : undefined} />
       <Async q={q}>{(rows: any[]) => rows.length ? <div className="card">{rows.map((t) => (
         <div key={t.id} className="m-card" style={{ alignItems: 'center' }}>
           <div className="grow"><TagChip t={t} />{t.description && <div className="muted small">{t.description}</div>}</div>

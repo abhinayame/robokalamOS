@@ -10,6 +10,7 @@ import './styles.css';
 import './premium.css';
 import './tokens.css';
 import './shell.css';
+import './polish.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><BrowserRouter><ToastProvider><AuthProvider><BrandProvider><App /></BrandProvider></AuthProvider></ToastProvider></BrowserRouter></StrictMode>,

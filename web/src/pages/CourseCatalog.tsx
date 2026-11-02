@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { Async, Badge, Empty, PageHead, useDebounced, useFetch } from '../components/ui';
@@ -21,7 +22,7 @@ export default function Catalog() {
           <Link key={c.id} to={`/catalog/${c.id}`} className="card stack" style={{ textDecoration: 'none', color: 'inherit', overflow: 'hidden' }}>
             <div style={{ background: c.color, color: '#fff', padding: '18px 16px', display: 'flex', gap: 12, alignItems: 'center' }}><span style={{ fontSize: 38 }} aria-hidden>{c.icon ?? '📘'}</span><div><div style={{ fontWeight: 700, fontSize: 16 }}>{c.title}</div>{c.instructor_name && <div style={{ opacity: 0.85, fontSize: 12 }}>by {c.instructor_name}</div>}</div></div>
             <div className="card-pad stack-s">{c.summary && <div className="small">{c.summary}</div>}
-              <div className="row gap-s wrap">{c.category && <Badge>{c.category}</Badge>}{c.level && <Badge>{LEVEL[c.level]}</Badge>}{c.gives_certificate && <Badge tone="ok">🎓 Certificate</Badge>}{c.enrolled && <Badge tone="info">Joined</Badge>}</div>
+              <div className="row gap-s wrap">{c.category && <Badge>{c.category}</Badge>}{c.level && <Badge>{LEVEL[c.level]}</Badge>}{c.gives_certificate && <Badge tone="ok"><Icon name="cap" size={15} /> Certificate</Badge>}{c.enrolled && <Badge tone="info">Joined</Badge>}</div>
               <div className="row between small muted"><span>{c.rating ? <><Stars v={c.rating} /> {c.rating} ({c.reviews})</> : 'New'}</span><span>{c.lessons} lessons{c.minutes ? ` · ${duration(c.minutes)}` : ''}</span></div></div>
           </Link>))}</div>)}</Async>
     </>

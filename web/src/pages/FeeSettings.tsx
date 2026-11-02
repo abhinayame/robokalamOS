@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Async, Badge, Empty, Field, Modal, useAction, useFetch, useToast } from '../components/ui';
@@ -76,7 +77,7 @@ function Discounts({ canEdit, owner }: { canEdit: boolean; owner: boolean }) {
   const q = useFetch(() => api.get('/api/fees/discount-presets').then((r) => r.data as any[]), []); const settings = useFetch(() => api.get('/api/fees/receipt-settings').then((r) => r.data as any), []); const [edit, setEdit] = useState<any>(null); const { busy, run } = useAction(); const [limit, setLimit] = useState<string | null>(null);
   const cur = settings.data?.discount_limit_percent as number | null | undefined; const shown = limit ?? (cur == null ? '' : String(cur));
   return (
-    <div className="card"><div className="card-head"><h2>Discounts</h2>{canEdit && <button className="btn primary sm" onClick={() => setEdit({})}>＋ New saved discount</button>}</div>
+    <div className="card"><div className="card-head"><h2>Discounts</h2>{canEdit && <button className="btn primary sm" onClick={() => setEdit({})}><Icon name="plus" size={15} /> New saved discount</button>}</div>
       <div className="card-pad stack">
         <p className="muted small" style={{ margin: 0 }}>Save the discounts you give often (sibling, early bird, scholarship). The accounts team can then pick one when giving a fee or changing it later, and the reason is recorded.</p>
         <Async q={q} rows={2}>{(rows: any[]) => !rows.length ? <Empty icon="🏷️" title="No saved discounts yet" /> : <div>{rows.map((p) => <div key={p.id} className="m-card" style={{ alignItems: 'center', opacity: p.active ? 1 : 0.55 }}><span className="grow"><b>{p.name}</b> <span className="muted small">{p.kind === 'percent' ? `${Number(p.value)}% off` : `${fmtMoney(p.value)} off`}</span>{!p.active && <> <Badge>Off</Badge></>}</span>{canEdit && <><button className="btn sm" onClick={() => setEdit(p)}>Edit</button><button className="btn sm" disabled={busy} onClick={() => confirm(`Delete “${p.name}”? Fees that already used it keep their discount.`) && run(async () => { await api.del(`/api/fees/discount-presets/${p.id}`); q.reload(); }, 'Deleted.')}>Delete</button></>}</div>)}</div>}</Async>

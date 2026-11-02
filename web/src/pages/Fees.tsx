@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -111,7 +112,7 @@ function Plans({ onChanged }: { onChanged: () => void }) {
   const { run } = useAction();
   return (
     <div className="card">
-      <div className="card-head"><h2>Fee plans</h2>{can('fee:manage') && <button className="btn primary sm" onClick={() => setModal('new')}>＋ New plan</button>}</div>
+      <div className="card-head"><h2>Fee plans</h2>{can('fee:manage') && <button className="btn primary sm" onClick={() => setModal('new')}><Icon name="plus" size={15} /> New plan</button>}</div>
       <Async q={q}>{(plans: any[]) => !plans.length ? <Empty icon="🧾" title="No fee plans yet" action={can('fee:manage') ? <button className="btn primary" onClick={() => setModal('new')}>Create the first plan</button> : undefined}>A plan is a price split into installments, for example “Robotics term fee: ₹4,000 now, ₹3,000 after 30 days”. Give it to a whole batch in one step.</Empty> : (
         <div className="table-wrap"><table className="t"><thead><tr><th>Plan</th><th>Installments</th><th className="right">Total</th><th>Given to</th><th /></tr></thead><tbody>
           {plans.map((p) => <tr key={p.id} style={p.status === 'archived' ? { opacity: 0.6 } : undefined}><td><b>{p.name}</b>{p.status === 'archived' && <> <Badge>Archived</Badge></>}<br /><span className="muted small">{p.description}</span></td>
@@ -144,7 +145,7 @@ function PlanModal({ onClose, onDone }: { onClose: () => void; onDone: () => voi
               <input className="input" style={{ width: 110 }} inputMode="numeric" value={it.due_days} aria-label="Due after days" title="Due after (days)" onChange={(e) => setItems(items.map((x, j) => (j === k ? { ...x, due_days: e.target.value.replace(/\D/g, '') } : x)))} /><span className="muted small">days</span>
               {items.length > 1 && <button className="btn sm ghost" onClick={() => setItems(items.filter((_, j) => j !== k))} aria-label="Remove installment">✕</button>}
             </div>))}
-          <button className="btn sm" onClick={() => setItems([...items, { label: `Installment ${items.length + 1}`, amount: '', due_days: String(items.length * 30) }])}>＋ Add installment</button></div>
+          <button className="btn sm" onClick={() => setItems([...items, { label: `Installment ${items.length + 1}`, amount: '', due_days: String(items.length * 30) }])}><Icon name="plus" size={15} /> Add installment</button></div>
       </div>
     </Modal>
   );

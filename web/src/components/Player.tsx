@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Icon } from './Icon';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { Async, Badge, Empty, Field, Modal, Progress, Tabs, useAction, useFetch, useToast } from './ui';
@@ -74,7 +75,7 @@ function LessonView({ d, lesson: l, preview, next, prev, onGo, onChange, onDone 
         <div className="row between wrap"><h2 style={{ margin: 0 }}>{ICON[l.kind]} {l.title}</h2><div className="row gap-s">{l.minutes ? <span className="muted small">{l.minutes} min</span> : null}{l.done && <Badge tone="ok">Done ✓</Badge>}{!l.required && <Badge>Optional</Badge>}</div></div>
         {l.kind === 'text' && l.body && <Markdown text={l.body} />}
         {l.kind === 'video' && <>{l.url && <VideoEmbed url={l.url} title={l.title} />}{l.body && <Markdown text={l.body} />}</>}
-        {l.kind === 'link' && <>{l.body && <Markdown text={l.body} />}{l.url && <div><a className="btn" href={l.url} target="_blank" rel="noreferrer noopener">🔗 Open the link</a></div>}</>}
+        {l.kind === 'link' && <>{l.body && <Markdown text={l.body} />}{l.url && <div><a className="btn" href={l.url} target="_blank" rel="noreferrer noopener"><Icon name="link" size={15} /> Open the link</a></div>}</>}
         {l.kind === 'file' && <>{l.body && <Markdown text={l.body} />}<FileLinks files={l.files ?? []} />{!l.files?.length && <div className="muted small">No files yet.</div>}</>}
         {l.kind === 'quiz' && <Quiz courseId={courseId} lesson={l} preview={preview} onChange={onChange} onDone={onDone} />}
         {l.kind === 'assignment' && <Assignment courseId={courseId} lesson={l} preview={preview} onChange={onChange} onDone={onDone} />}
@@ -167,10 +168,10 @@ function Celebration({ d, r, preview, onClose }: { d: any; r: any; preview: bool
       <div className="stack" style={{ textAlign: 'center' }}>
         <div style={{ fontSize: 64 }} aria-hidden>🏆</div><h2 style={{ margin: 0 }}>{d.course.title}</h2>
         {r.grade != null && <div>Your quiz grade: <b>{r.grade}%</b></div>}
-        {r.certificate_code && <div className="banner">🎓 Your certificate <code>{r.certificate_code}</code> is ready in <Link to="/my-certificates" onClick={onClose}>My certificates</Link>.</div>}
+        {r.certificate_code && <div className="banner"><Icon name="cap" size={15} /> Your certificate <code>{r.certificate_code}</code> is ready in <Link to="/my-certificates" onClick={onClose}>My certificates</Link>.</div>}
         {d.course.xp_reward > 0 && !preview && <div>+{d.course.xp_reward} XP added to your profile ⚡</div>}
-        {r.path_unlocked?.length > 0 && <div className="banner">🧭 Next on your path: <b>{r.path_unlocked[0]}</b></div>}
-        {r.path_finished?.length > 0 && <div className="banner">🧭 You completed the path <b>{r.path_finished[0]}</b>!</div>}
+        {r.path_unlocked?.length > 0 && <div className="banner"><Icon name="compass" size={15} /> Next on your path: <b>{r.path_unlocked[0]}</b></div>}
+        {r.path_finished?.length > 0 && <div className="banner"><Icon name="compass" size={15} /> You completed the path <b>{r.path_finished[0]}</b>!</div>}
         <div><div className="muted small">How was the course?</div><div role="radiogroup" aria-label="Rating" style={{ fontSize: 30 }}>{[1, 2, 3, 4, 5].map((n) => <button key={n} type="button" role="radio" aria-checked={rating === n} aria-label={`${n} star${n === 1 ? '' : 's'}`} onClick={() => setRating(n)} style={{ background: 'none', border: 0, cursor: 'pointer', color: n <= rating ? '#f5a524' : '#cbd5e1' }}>★</button>)}</div>
           {rating > 0 && !sent && <><textarea className="input" rows={2} placeholder="Tell others what you liked (optional)" value={comment} onChange={(e) => setComment(e.target.value)} /><button className="btn sm primary" style={{ marginTop: 6 }} disabled={busy} onClick={() => run(async () => { await api.put(`/api/learn/courses/${d.course.id}/review`, { rating, comment: comment || null }); setSent(true); }, 'Thank you for the review!')}>Send review</button></>}{sent && <div className="muted small">Thanks! 💛</div>}</div>
       </div>

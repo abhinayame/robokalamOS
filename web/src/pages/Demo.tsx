@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -17,7 +18,7 @@ export default function Demo() {
   const reload = () => { slots.reload(); bookings.reload(); };
   return (
     <>
-      <PageHead title="Demo classes" sub="Offer free trial classes. Parents book a seat on a public page, and every booking becomes a lead in the CRM." actions={manage ? <button className="btn primary" onClick={() => setModal(true)}>＋ New demo slot</button> : undefined} />
+      <PageHead title="Demo classes" sub="Offer free trial classes. Parents book a seat on a public page, and every booking becomes a lead in the CRM." actions={manage ? <button className="btn primary" onClick={() => setModal(true)}><Icon name="plus" size={15} /> New demo slot</button> : undefined} />
       <Async q={settings}>{(s: any) => (
         <div className="card card-pad stack" style={{ marginBottom: 16 }}>
           <div className="row between wrap">

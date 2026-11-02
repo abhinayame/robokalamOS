@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { fmtDateTime } from '../format';
@@ -58,10 +59,10 @@ function Author({ z, reload }: { z: any; reload: () => void }) {
                 <input className="input" placeholder={`Option ${k + 1}`} disabled={locked} value={o} onChange={(e) => set(i, { options: d.options.map((x, j) => (j === k ? e.target.value : x)) })} />
                 {!locked && d.options.length > 2 && <button className="btn ghost sm" aria-label="Remove option" onClick={() => set(i, { options: d.options.filter((_, j) => j !== k), single: d.single === k ? 0 : d.single > k ? d.single - 1 : d.single, multi: d.multi.filter((x) => x !== k).map((x) => (x > k ? x - 1 : x)) })}>✕</button>}
               </div>))}
-            {!locked && d.options.length < 8 && <div><button className="btn sm" onClick={() => set(i, { options: [...d.options, ''] })}>＋ Option</button></div>}
+            {!locked && d.options.length < 8 && <div><button className="btn sm" onClick={() => set(i, { options: [...d.options, ''] })}><Icon name="plus" size={15} /> Option</button></div>}
             <span className="muted small">Tick the correct {d.kind === 'single' ? 'option' : 'options; learners must select exactly these to earn the marks'}.</span></>}
         </div>))}
-      {!locked && <div><button className="btn" onClick={() => { setQs([...qs, blank()]); setDirty(true); }}>＋ Add question</button></div>}
+      {!locked && <div><button className="btn" onClick={() => { setQs([...qs, blank()]); setDirty(true); }}><Icon name="plus" size={15} /> Add question</button></div>}
       {!qs.length && locked && <div className="card"><Empty icon="❓" title="No questions">This quiz has no questions.</Empty></div>}
       {z.published && <Attempts id={z.id} />}
     </div>

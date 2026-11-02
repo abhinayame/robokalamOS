@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api, qs } from '../api';
 import { cap, fmtDateTime } from '../format';
 import { Async, Badge, Empty, Field, Modal, Stat, useAction, useFetch } from '../components/ui';
@@ -63,7 +64,7 @@ export default function RoomAttendance({ room }: { room: any }) {
   return (
     <div className="stack">
       {room.can_manage && <div className="row wrap">
-        {canEdit && <><button className="btn primary" onClick={() => setForm('one')}>＋ Schedule a class</button><button className="btn" onClick={() => setForm('gen')}>Generate from batch schedule</button></>}
+        {canEdit && <><button className="btn primary" onClick={() => setForm('one')}><Icon name="plus" size={15} /> Schedule a class</button><button className="btn" onClick={() => setForm('gen')}>Generate from batch schedule</button></>}
         <button className="btn" onClick={() => setReport(true)}>Attendance report</button></div>}
       {!room.can_manage && <AttendanceSummary />}
       <Async q={q as any}>{(d: any) => d.data.length ? (

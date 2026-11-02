@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -94,10 +95,10 @@ function PostCard({ p, room, onChange }: { p: any; room: any; onChange: () => vo
       {p.body && <p style={{ whiteSpace: 'pre-wrap', margin: '8px 0' }}>{p.body}</p>}
       {p.url && <p><a href={p.url} target="_blank" rel="noopener noreferrer nofollow">{p.url}</a></p>}
       {r?.type === 'assignment' && <Link to={`/assignments/${r.id}`} className="m-card" style={{ border: '1px solid var(--line)', borderRadius: 8, marginTop: 8, color: 'inherit' }}>
-        <div className="grow"><b>📝 New assignment: {r.title}</b><div className="muted small">{r.due_at ? `Due ${fmtDateTime(r.due_at)}` : 'No due date'} · {r.max_marks} marks</div></div>{r.state && <Badge tone={STATE_TONE[r.state]}>{r.state}</Badge>}</Link>}
-      {r?.type === 'material' && <div className="m-card" style={{ border: '1px solid var(--line)', borderRadius: 8, marginTop: 8 }}><div className="grow"><b>📚 New material: {r.title}</b>
+        <div className="grow"><b><Icon name="clipboard" size={15} /> New assignment: {r.title}</b><div className="muted small">{r.due_at ? `Due ${fmtDateTime(r.due_at)}` : 'No due date'} · {r.max_marks} marks</div></div>{r.state && <Badge tone={STATE_TONE[r.state]}>{r.state}</Badge>}</Link>}
+      {r?.type === 'material' && <div className="m-card" style={{ border: '1px solid var(--line)', borderRadius: 8, marginTop: 8 }}><div className="grow"><b><Icon name="library" size={15} /> New material: {r.title}</b>
         <div style={{ marginTop: 6 }}>{r.external_url && <a href={r.external_url} target="_blank" rel="noopener noreferrer nofollow">Open link</a>}{r.file && <FileLinks files={[r.file]} />}</div></div></div>}
-      {p.comments_enabled && <><button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setOpen(!open)}>💬 {p.comment_count} comment{p.comment_count === 1 ? '' : 's'}</button>{open && <Comments room={room} postId={p.id} onChange={onChange} />}</>}
+      {p.comments_enabled && <><button className="btn ghost sm" style={{ marginTop: 6 }} onClick={() => setOpen(!open)}><Icon name="chat" size={15} /> {p.comment_count} comment{p.comment_count === 1 ? '' : 's'}</button>{open && <Comments room={room} postId={p.id} onChange={onChange} />}</>}
     </div>
   );
 }
@@ -137,7 +138,7 @@ function Classwork({ room }: { room: any }) {
       const total = d.materials.length + d.assignments.length;
       return (
         <div className="stack">
-          {canEdit && <div className="row wrap"><button className="btn primary" onClick={() => setModal('assignment')}>＋ Assignment</button><button className="btn" onClick={() => setModal('quiz')}>＋ Quiz</button><button className="btn" onClick={() => setModal('material')}>＋ Material</button><button className="btn" onClick={() => setModal('topic')}>＋ Topic</button></div>}
+          {canEdit && <div className="row wrap"><button className="btn primary" onClick={() => setModal('assignment')}><Icon name="plus" size={15} /> Assignment</button><button className="btn" onClick={() => setModal('quiz')}><Icon name="plus" size={15} /> Quiz</button><button className="btn" onClick={() => setModal('material')}><Icon name="plus" size={15} /> Material</button><button className="btn" onClick={() => setModal('topic')}><Icon name="plus" size={15} /> Topic</button></div>}
           {!total && !d.topics.length && <div className="card"><Empty icon="📚" title="No classwork yet">{canEdit ? 'Add materials and assignments for your class.' : 'Your teacher has not added classwork yet.'}</Empty></div>}
           {groups.map((g: any) => {
             const mats = d.materials.filter((m: any) => (m.topic_id ?? null) === g.id);
@@ -149,13 +150,13 @@ function Classwork({ room }: { room: any }) {
                 {!mats.length && !asg.length && <div className="m-card muted small">Nothing in this topic yet.</div>}
                 {asg.map((a: any) => (
                   <div className="m-card" key={a.id} style={{ alignItems: 'center' }}>
-                    <Link to={`/assignments/${a.id}`} className="grow" style={{ color: 'inherit' }}><b>📝 {a.title}</b><div className="muted small">{a.due_at ? `Due ${fmtDateTime(a.due_at)}` : 'No due date'} · {a.max_marks} marks</div></Link>
+                    <Link to={`/assignments/${a.id}`} className="grow" style={{ color: 'inherit' }}><b><Icon name="clipboard" size={15} /> {a.title}</b><div className="muted small">{a.due_at ? `Due ${fmtDateTime(a.due_at)}` : 'No due date'} · {a.max_marks} marks</div></Link>
                     {room.can_manage ? <Badge tone={a.to_review ? 'warn' : ''}>{a.submitted_count}/{a.learners_total} handed in{a.to_review ? ` · ${a.to_review} to review` : ''}</Badge> : a.state && <Badge tone={STATE_TONE[a.state]}>{a.state}</Badge>}
                     {canEdit && <><MoveSelect topics={d.topics} value={a.topic_id} onChange={(t) => move('assignment', a.id, t)} /><button className="btn ghost sm danger" onClick={() => delItem('assignments', a.id)}>Delete</button></>}
                   </div>))}
                 {mats.map((m: any) => (
                   <div className="m-card" key={m.id} style={{ alignItems: 'center' }}>
-                    <div className="grow"><b>📚 {m.title}</b>{m.description && <div className="muted small">{m.description}</div>}
+                    <div className="grow"><b><Icon name="library" size={15} /> {m.title}</b>{m.description && <div className="muted small">{m.description}</div>}
                       <div style={{ marginTop: 4 }}>{m.external_url && <a href={m.external_url} target="_blank" rel="noopener noreferrer nofollow">Open {m.kind === 'video' ? 'video' : 'link'}</a>} <FileLinks files={m.files} /></div></div>
                     {canEdit && <><MoveSelect topics={d.topics} value={m.topic_id} onChange={(t) => move('material', m.id, t)} /><button className="btn ghost sm danger" onClick={() => delItem('materials', m.id)}>Delete</button></>}
                   </div>))}
@@ -163,7 +164,7 @@ function Classwork({ room }: { room: any }) {
           })}
           {(quizzes.data?.length ?? 0) > 0 && <div className="card"><div className="card-head"><h2>Quizzes</h2></div>{quizzes.data.map((z: any) => (
             <Link key={z.id} to={`/quizzes/${z.id}`} className="m-card" style={{ alignItems: 'center', color: 'inherit' }}>
-              <div className="grow"><b>❓ {z.title}</b><div className="muted small">{z.question_count} questions · {z.total_marks} marks{z.time_limit_minutes ? ` · ${z.time_limit_minutes} min` : ''}{z.closes_at ? ` · closes ${fmtDateTime(z.closes_at)}` : ''}</div></div>
+              <div className="grow"><b><Icon name="help" size={15} /> {z.title}</b><div className="muted small">{z.question_count} questions · {z.total_marks} marks{z.time_limit_minutes ? ` · ${z.time_limit_minutes} min` : ''}{z.closes_at ? ` · closes ${fmtDateTime(z.closes_at)}` : ''}</div></div>
               {room.can_manage ? <><Badge tone={z.published ? 'ok' : 'warn'}>{z.published ? 'Published' : 'Draft'}</Badge><Badge>{z.taken} taken</Badge></> : z.my?.attempts ? <Badge tone="ok">Best {z.my.best}/{z.my.max}</Badge> : <Badge>Not taken</Badge>}
             </Link>))}</div>}
           {modal === 'quiz' && <QuizModal batchId={room.id} topics={d.topics} onClose={() => setModal(null)} />}
@@ -284,7 +285,7 @@ function RoomAchievements({ room }: { room: any }) {
   const own = room.my_learner_ids?.[0] as string | undefined;
   return (
     <div className="stack">
-      {room.can_manage && can('gamification:award') && <div className="row wrap"><button className="btn primary" onClick={() => setModal('xp')}>⚡ Award XP</button><button className="btn" onClick={() => setModal('badge')}>🏅 Award badge</button></div>}
+      {room.can_manage && can('gamification:award') && <div className="row wrap"><button className="btn primary" onClick={() => setModal('xp')}><Icon name="bolt" size={15} /> Award XP</button><button className="btn" onClick={() => setModal('badge')}><Icon name="medal" size={15} /> Award badge</button></div>}
       {own && <><XpCard key={`x${tick}`} learnerId={own} /><h3 style={{ margin: '4px 0' }}>My badges here</h3><BadgeWall key={`b${tick}`} learnerId={own} /></>}
       <Leaderboard key={`l${tick}`} scope="batch" id={room.id} />
       {modal === 'xp' && <AwardXpModal batches={[{ id: room.id, name: room.name }]} learners={learners} onClose={() => setModal(null)} onDone={done} />}

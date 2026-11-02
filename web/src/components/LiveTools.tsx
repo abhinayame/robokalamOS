@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from './Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { fmtDateTime } from '../format';
@@ -55,7 +56,7 @@ function Polls({ room, isLearner }: { room: any; isLearner: boolean }) {
   const q = useFetch(() => api.get(`/api/polls?batch_id=${room.id}`).then((r) => r.data as any[]), [room.id]); const [add, setAdd] = useState(false); const { busy, run } = useAction();
   useEffect(() => { const t = setInterval(q.reload, 10000); return () => clearInterval(t); }, [q.reload]);
   return (
-    <div className="card"><div className="card-head"><h2>Polls</h2>{room.can_manage && room.writable && <button className="btn primary sm" onClick={() => setAdd(true)}>＋ Ask a question</button>}</div>
+    <div className="card"><div className="card-head"><h2>Polls</h2>{room.can_manage && room.writable && <button className="btn primary sm" onClick={() => setAdd(true)}><Icon name="plus" size={15} /> Ask a question</button>}</div>
       <Async q={q}>{(list: any[]) => !list.length ? <Empty icon="📊" title="No polls yet">{room.can_manage ? 'Ask the class a quick question and watch the answers come in.' : 'Your teacher can ask the class a question here.'}</Empty> : (
         <div className="stack" style={{ padding: 14 }}>{list.map((p) => (
           <div key={p.id} className="card card-pad stack-s">
@@ -80,7 +81,7 @@ function PollModal({ room, onClose, onDone }: { room: any; onClose: () => void; 
     <Modal title="Ask the class" onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy || !ok} onClick={() => run(async () => { await api.post('/api/polls', { batch_id: room.id, question, options: opts.map((o) => o.trim()).filter(Boolean) }); onDone(); onClose(); }, 'Poll sent to the class.')}>Send</button></>}>
       <div className="stack"><Field label="Question"><input className="input" value={question} onChange={(e) => setQ(e.target.value)} autoFocus /></Field>
         {opts.map((o, i) => <Field key={i} label={`Option ${i + 1}`}><input className="input" value={o} onChange={(e) => setOpts(opts.map((x, j) => (j === i ? e.target.value : x)))} /></Field>)}
-        {opts.length < 6 && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setOpts([...opts, ''])}>＋ Option</button>}
+        {opts.length < 6 && <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setOpts([...opts, ''])}><Icon name="plus" size={15} /> Option</button>}
         <p className="muted small" style={{ margin: 0 }}>Learners are notified. Answers are anonymous; you only see counts.</p></div>
     </Modal>
   );
