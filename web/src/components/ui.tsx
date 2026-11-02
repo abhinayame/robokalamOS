@@ -1,6 +1,6 @@
 import { Icon, IconTile, EMOJI_ICON, type Hue } from './Icon';
 import { Sparkline } from './kit';
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { cloneElement, createContext, isValidElement, useCallback, useContext, useEffect, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { friendly, ApiError } from '../api';
 import { cap, initials, statusTone } from '../format';
 
@@ -56,8 +56,8 @@ export const StatusBadge = ({ s }: { s: string }) => <Badge tone={statusTone(s)}
 export const Avatar = ({ name, url, lg }: { name: string; url?: string | null; lg?: boolean }) => (
   <span className={`avatar ${lg ? 'lg' : ''}`} aria-hidden>{url ? <img src={url} alt="" referrerPolicy="no-referrer" /> : initials(name)}</span>
 );
-export const Progress = ({ value, tone = '' }: { value: number; tone?: string }) => (
-  <div className={`progress ${tone}`} role="progressbar" aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.min(100, Math.max(0, value))}%` }} /></div>
+export const Progress = ({ value, tone = '', label = 'Progress' }: { value: number; tone?: string; label?: string }) => (
+  <div className={`progress ${tone}`} role="progressbar" aria-label={label} aria-valuenow={Math.round(value)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.min(100, Math.max(0, value))}%` }} /></div>
 );
 /** A number that counts up to its value when it appears (plain text for anything that is not a simple number). */
 export function CountUp({ value }: { value: ReactNode }) {
@@ -84,12 +84,33 @@ export const Stat = ({ label, value, sub, icon, hue, trend, onOpen }: { label: s
 export const PageHead = ({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) => (
   <div className="page-head"><div><h1>{title}</h1>{sub && <p>{sub}</p>}</div><div className="row wrap">{actions}</div></div>
 );
-export const Field = ({ label, error, hint, children, className = '' }: { label: string; error?: string; hint?: string; children: ReactNode; className?: string }) => (
-  <div className={`field ${className}`}><label>{label}</label>{children}{hint && !error && <span className="hint">{hint}</span>}{error && <span className="err" role="alert">{error}</span>}</div>
-);
+/** A labelled form control. When the child is a single input/select/textarea, the label is tied to it (click to focus, read by screen readers). */
+export const Field = ({ label, error, hint, children, className = '' }: { label: string; error?: string; hint?: string; children: ReactNode; className?: string }) => {
+  const auto = useId();
+  const one = isValidElement(children) && typeof children.type === 'string' && ['input', 'select', 'textarea'].includes(children.type) ? (children as ReactElement<any>) : null;
+  const id = one ? (one.props.id ?? `f${auto}`) : undefined;
+  return (
+    <div className={`field ${className}`}><label htmlFor={id}>{label}</label>{one ? cloneElement(one, { id, 'aria-invalid': error ? true : one.props['aria-invalid'] }) : children}{hint && !error && <span className="hint">{hint}</span>}{error && <span className="err" role="alert">{error}</span>}</div>
+  );
+};
+
+/** Marks a horizontally scrolling strip with data-fade="start|end|both" so CSS can hint that more items are hidden. */
+function useOverflowFade<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const upd = () => { const more = el.scrollWidth - el.clientWidth > 2; const s = el.scrollLeft > 2; const e = el.scrollLeft < el.scrollWidth - el.clientWidth - 2;
+      const v = !more ? '' : s && e ? 'both' : s ? 'start' : 'end'; if ((el.dataset.fade ?? '') !== v) { if (v) el.dataset.fade = v; else delete el.dataset.fade; } };
+    upd(); el.addEventListener('scroll', upd, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(upd) : null; ro?.observe(el);
+    return () => { el.removeEventListener('scroll', upd); ro?.disconnect(); };
+  }, []);
+  return ref;
+}
 
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string; badge?: ReactNode }[]; value: T; onChange: (t: T) => void }) {
-  return <div className="tabs" role="tablist">{tabs.map((t) => (
+  const ref = useOverflowFade<HTMLDivElement>();
+  return <div className="tabs" role="tablist" ref={ref}>{tabs.map((t) => (
     <button key={t.id} role="tab" aria-selected={value === t.id} className={`tab ${value === t.id ? 'active' : ''}`} onClick={() => onChange(t.id)}>{t.label}{t.badge != null && <> <Badge>{t.badge}</Badge></>}</button>
   ))}</div>;
 }

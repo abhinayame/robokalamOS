@@ -13,8 +13,8 @@
   --t-fast: 120ms; --t-base: 220ms; --t-slow: 380ms; --t-hero: 600ms;
   --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
   /* pastel tile hues */
-  --p-violet: #ECE4FF; --p-violet-ink: #5B2BC4; --p-peach: #FFE6D6; --p-peach-ink: #C2501B; --p-mint: #D9F6E8; --p-mint-ink: #12805A;
-  --p-butter: #FFF1C2; --p-butter-ink: #9A6B00; --p-sky: #DCEEFF; --p-sky-ink: #1B64B8; --p-rose: #FFDDE8; --p-rose-ink: #C21F57; --p-slate: #E9E7F0; --p-slate-ink: #5B5470;
+  --p-violet: #ECE4FF; --p-violet-ink: #5B2BC4; --p-peach: #FFE6D6; --p-peach-ink: #A33F0C; --p-mint: #D9F6E8; --p-mint-ink: #0F7350;
+  --p-butter: #FFF1C2; --p-butter-ink: #805A00; --p-sky: #DCEEFF; --p-sky-ink: #1B64B8; --p-rose: #FFDDE8; --p-rose-ink: #C21F57; --p-slate: #E9E7F0; --p-slate-ink: #5B5470;
 }
 html { font-family: var(--font); }
 body, button, input, select, textarea { font-family: var(--font); }

@@ -1,0 +1,35 @@
+/* Phase 22 step 5: fee ledger (learner 360, my fees). */
+.fee-sum { display: flex; flex-wrap: wrap; gap: 18px 28px; align-items: center; padding: 18px 20px; position: relative; overflow: hidden; }
+.fee-sum::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--p-butter-ink); }
+.fee-sum.is-late::before { background: var(--bad, #E5484D); } .fee-sum.is-clear::before { background: #12A06E; }
+.fee-main { display: flex; flex-direction: column; gap: 4px; min-width: 200px; }
+.fee-l { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.fee-big { font-size: clamp(30px, 4vw, 40px); font-weight: 800; letter-spacing: -.035em; line-height: 1.05; font-variant-numeric: tabular-nums; }
+.fee-sum.is-late .fee-big { color: var(--bad, #E5484D); }
+.fee-pill { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: var(--r-pill); font-size: 12.5px; font-weight: 700; }
+.fee-pill.late { background: var(--p-rose); color: var(--p-rose-ink); } .fee-pill.ok { background: var(--p-mint); color: var(--p-mint-ink); }
+.fee-side { flex: 1 1 280px; display: flex; flex-direction: column; gap: 10px; }
+.fee-facts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.fee-facts > div { display: flex; flex-direction: column; padding: 10px 12px; border-radius: var(--r-md); background: color-mix(in srgb, var(--brand) 5%, #fff); min-width: 0; }
+.fee-facts span { font-size: 12px; font-weight: 600; color: var(--ink-2); } .fee-facts b { font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; } .fee-facts em { font-style: normal; font-size: 11px; color: var(--muted); }
+.fee-bar { height: 8px; border-radius: var(--r-pill); background: color-mix(in srgb, #12A06E 14%, #fff); overflow: hidden; }
+.fee-bar > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #12A06E, color-mix(in srgb, #12A06E 50%, var(--gold))); transform-origin: left; animation: barin var(--t-hero) var(--ease) backwards; }
+table.t tr.due-row > td:first-child { box-shadow: inset 4px 0 0 var(--dr, transparent); font-weight: 700; }
+tr.due-row.is-overdue { --dr: var(--bad, #E5484D); } tr.due-row.is-partial { --dr: #E59A00; } tr.due-row.is-due { --dr: var(--p-sky-ink); } tr.due-row.is-paid { --dr: #12A06E; } tr.due-row.is-cancelled { --dr: var(--muted); opacity: .7; }
+table.receipts td.mono { font-weight: 700; letter-spacing: .02em; }
+@media (max-width: 640px) {
+  .fee-sum { padding: 16px; } .fee-facts b { font-size: 14px; } .fee-facts em { display: none; }
+  table.tc tr.due-row > td:first-child { box-shadow: none; } table.tc > tbody > tr.due-row { border-left: 5px solid var(--dr, var(--line)); }
+  table.tc.receipts > tbody > tr { border-radius: 6px; border-style: solid; background: repeating-linear-gradient(0deg, transparent 0 23px, color-mix(in srgb, var(--line) 35%, transparent) 23px 24px), var(--surface);
+    -webkit-mask: radial-gradient(circle 6px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat, radial-gradient(circle 6px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat;
+            mask: radial-gradient(circle 6px at 0 50%, transparent 98%, #000) left / 51% 100% no-repeat, radial-gradient(circle 6px at 100% 50%, transparent 98%, #000) right / 51% 100% no-repeat; }
+  table.tc.receipts > tbody > tr > td:first-child { border-bottom-style: dashed; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+}
+
+/* Learner 360 header: soft brand wash, bigger avatar ring, stats as tiles */
+.profile-head { position: relative; overflow: hidden; background: radial-gradient(120% 160% at 100% 0%, color-mix(in srgb, var(--brand) 12%, transparent), transparent 55%), radial-gradient(80% 120% at 0% 100%, color-mix(in srgb, var(--accent) 8%, transparent), transparent 60%), var(--surface); }
+.profile-head .avatar.lg { width: 64px; height: 64px; font-size: 22px; box-shadow: 0 0 0 3px #fff, 0 0 0 5px color-mix(in srgb, var(--brand) 35%, transparent), var(--sh-2); }
+.profile-head h2 { font-size: 22px; font-weight: 800; letter-spacing: -.02em; margin: 0; }
+.profile-head .stats > div { padding: 8px 14px; border-radius: var(--r-md); background: color-mix(in srgb, var(--brand) 6%, #fff); min-width: 92px; }
+.profile-head .stats b { font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) { .profile-head .stats { gap: 8px !important; border-top: 0; } .profile-head .stats > div { flex: 1; min-width: 0; padding: 8px 10px; } }

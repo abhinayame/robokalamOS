@@ -63,7 +63,7 @@ export default function Grades({ room }: { room: any }) {
         return (<>
           {own && <SummaryStats s={own.summary} />}
           <div className="card table-wrap">
-            <table className="t" style={{ minWidth: 520 }}>
+            <table className="t keep-table" style={{ minWidth: 520 }}>
               <thead><tr><th style={{ position: 'sticky', left: 0, background: 'var(--card)' }}>Learner</th>
                 {d.columns.map((c: any) => <th key={c.key} title={`${cap(c.type)} · ${c.category}`}>{c.name}<div className="muted small">/{fmt(c.max)}</div></th>)}
                 <th>Total</th><th>Avg %</th><th>Done</th><th>Level</th><th>Trend</th></tr></thead>

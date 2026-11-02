@@ -6,6 +6,9 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { Avatar } from './ui';
 import { Icon, iconFor } from './Icon';
+import { useTableCards } from './tableCards';
+
+const mainEl = () => document.getElementById('main');
 
 interface Item { to: string; label: string; icon: string; perm?: string; roles?: string[]; end?: boolean }
 interface Group { label: string; items: Item[] }
@@ -45,6 +48,7 @@ const GROUPS: Group[] = [
 ];
 
 export default function Layout(): ReactNode {
+  useTableCards(mainEl);
   const { me, can, hasRole, logout, offline, activeOrg, chooseOrg } = useAuth();
   const { brand } = useBrand();
   const inst = useInstall();
@@ -77,7 +81,7 @@ export default function Layout(): ReactNode {
             <div className="nav-label">{g.label}</div>
             {g.items.map((i) => {
               const [path, search] = i.to.split('?');
-              const active = i.end ? loc.pathname === path && (loc.search === (search ? `?${search}` : '')) : search ? loc.pathname === path && loc.search === `?${search}` : loc.pathname.startsWith(path) && !(path === '/batches' && loc.search);
+              const active = i.end ? loc.pathname === path && (loc.search === (search ? `?${search}` : '')) : search ? loc.pathname === path && loc.search === `?${search}` : (loc.pathname === path || loc.pathname.startsWith(`${path}/`)) && !(path === '/batches' && loc.search);
               return <NavLink key={i.to} to={i.to} className={`nav-link ${active ? 'active' : ''}`}><span className="nav-ico" aria-hidden><Icon name={iconFor(i.icon)} size={19} /></span>{i.label}</NavLink>;
             })}
           </nav>
