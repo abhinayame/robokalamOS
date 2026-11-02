@@ -52,20 +52,19 @@ export function CategoryTile({ icon, hue = 'violet', label, to }: { icon: string
 }
 
 /** A glass KPI inside a hero banner: big numeral, calm label, optional trend line. */
-export function HeroKpi({ label, value, sub, trend, to }: { label: string; value: ReactNode; sub?: ReactNode; trend?: number[]; to?: string }) {
-  const body = <><span className="hk-l">{label}</span><b className="hk-v">{value}</b>{sub && <span className="hk-s">{sub}</span>}{trend && trend.length > 1 && <Sparkline points={trend} width={96} height={26} />}</>;
+export function HeroKpi({ label, value, sub, trend, to, onOpen }: { label: string; value: ReactNode; sub?: ReactNode; trend?: number[]; to?: string; onOpen?: () => void }) {
+  const body = <><span className="hk-l">{label}</span><b className="hk-v">{value}</b>{sub && <span className="hk-s">{sub}</span>}{trend && trend.length > 1 && <Sparkline points={trend} width={96} height={26} />}{onOpen && <span className="hk-more">See details <Icon name="chevron" size={12} /></span>}</>;
+  if (onOpen) return <button type="button" className="hero-kpi" onClick={onOpen} aria-label={`${label}: show details`}>{body}</button>;
   return to ? <Link className="hero-kpi" to={to}>{body}</Link> : <div className="hero-kpi">{body}</div>;
 }
 
 /** One idea per card: a coloured action card with a count, a sentence and a single call to action. */
-export function AttentionCard({ icon, hue = 'violet', count, title, sub, cta, to }: { icon: string; hue?: Hue; count: ReactNode; title: string; sub?: ReactNode; cta: string; to: string }) {
-  return (
-    <Link className={`attn-card at-${hue}`} to={to}>
-      <div className="attn-top"><IconTile name={icon} hue={hue} size="md" /><b className="attn-n">{count}</b></div>
-      <div className="attn-t">{title}</div>{sub && <div className="attn-s">{sub}</div>}
-      <span className="attn-cta">{cta} <Icon name="arrow-right" size={14} /></span>
-    </Link>
-  );
+export function AttentionCard({ icon, hue = 'violet', count, title, sub, cta, to, onOpen }: { icon: string; hue?: Hue; count: ReactNode; title: string; sub?: ReactNode; cta: string; to?: string; onOpen?: () => void }) {
+  const body = <>
+    <div className="attn-top"><IconTile name={icon} hue={hue} size="md" /><b className="attn-n">{count}</b></div>
+    <div className="attn-t">{title}</div>{sub && <div className="attn-s">{sub}</div>}
+    <span className="attn-cta">{cta} <Icon name="arrow-right" size={14} /></span></>;
+  return onOpen ? <button type="button" className={`attn-card at-${hue}`} onClick={onOpen}>{body}</button> : <Link className={`attn-card at-${hue}`} to={to ?? '/'}>{body}</Link>;
 }
 
 /** A titled group of tiles or cards (horizontal scroller on phones when `scroll`). */

@@ -28,6 +28,8 @@ LMS · virtual classroom · student information system · gamification · parent
 | **19 Team training** | Assign courses by role or person, take a course yourself, chapters with sections, automatic assignment for new hires and batches, team training matrix, due-date reminders | ✅ [`PHASE-19`](docs/PHASE-19-LMS-TEAM.md) |
 | **20 Restore & polish** | Programs & Courses page restored (teachers can add too), regression guard, school details and e-mail log screens, premium animated UI | ✅ [`PHASE-20`](docs/PHASE-20-RESTORE-AND-POLISH.md) |
 | **21 Fees pro** | Per-fee discounts (saved, limited), correct or cancel payments with history, three receipt designs, course levels and a learner journey with move-up and shareable level badges | ✅ [`PHASE-21`](docs/PHASE-21-FEES-PRO.md) |
+| **22 UI redesign** | Design tokens, duotone icon set, new shell, redesigned dashboards (hero KPIs, needs-attention cards, quick actions, learner level card) | ✅ [`PHASE-22`](docs/PHASE-22-UI-REDESIGN.md) |
+| **23 Dashboard periods & details** | Week / month / quarter / half-year / year / custom period on dashboards; every number opens the records behind it (e.g. who paid) with CSV | ✅ [`PHASE-23`](docs/PHASE-23-DASHBOARD-PERIODS-DETAILS.md) |
 | **11 Live classes** | Zoom meetings from the schedule, automatic attendance from who joined, recordings | ✅ [`PHASE-11`](docs/PHASE-11-LIVE-CLASSES.md) |
 | **10 Fees, reminders, import** | Fee plans, installments, payments, receipts, Razorpay payment links, automatic WhatsApp reminders, CSV import | ✅ [`PHASE-10`](docs/PHASE-10-FEES-REMINDERS-IMPORT.md) |
 | **9 Production hardening** | Security audit, observability, system status, backups, performance, Postman, runbooks | ✅ [`PHASE-9`](docs/PHASE-9-HARDENING.md) |

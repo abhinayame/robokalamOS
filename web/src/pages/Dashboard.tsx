@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { createContext, useContext, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -6,21 +6,33 @@ import { fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtSchedule } from '../format';
 import { BarRow } from '../components/Charts';
 import { AttentionCard, CategoryTile, HeroBanner, HeroKpi, ProgressRing, Pill, Section } from '../components/kit';
 import { Icon, IconTile } from '../components/Icon';
-import { Async, Avatar, Badge, CountUp, Empty, PageHead, Progress, Stat, StatusBadge, Tabs, useFetch } from '../components/ui';
+import { Async, Avatar, Badge, CountUp, Empty, PageHead, Progress, Stat, StatusBadge, Tabs, useFetch, usePersistentState } from '../components/ui';
+import { DetailsSheet, PeriodPicker, periodPhrase, periodQs, type Period } from '../components/DashDetails';
+
+/** What every dashboard section needs to know about the chosen period, and how to open the records behind a number. */
+type Dash = { period: Period; phrase: string; open?: (metric: string) => void; canOpen?: (metric: string) => boolean };
+const DashCtx = createContext<Dash>({ period: { period: 'month' }, phrase: 'this month' });
+const useDash = () => useContext(DashCtx);
+/** Only offer "see details" for numbers the person is allowed to drill into (the server checks again). */
+const METRIC_PERM: Record<string, string> = { collected: 'fee:read', outstanding: 'fee:read', overdue: 'fee:read', learners: 'learner:read', new_learners: 'learner:read', without_batch: 'learner:read', batches: 'batch:read', teachers: 'teacher:read', leads: 'crm:read' };
 
 const pct = (v: number | null | undefined) => (v == null ? '—' : `${v}%`);
 
 export default function Dashboard() {
   const { me, hasRole, activeOrg, can } = useAuth();
   const [view, setView] = useState<string | undefined>();
-  const q = useFetch(() => api.get(`/api/dashboard${view ? `?view=${view}` : ''}`).then((r) => r.data), [view, activeOrg]);
+  const [period, setPeriod] = usePersistentState<Period>('rk.dashboard.period', { period: 'month' });
+  const [drill, setDrill] = useState<string | null>(null);
+  const qs = `${view ? `view=${view}&` : ''}${periodQs(period)}`;
+  const q = useFetch(() => api.get(`/api/dashboard?${qs}`).then((r) => r.data), [qs, activeOrg]);
   if (hasRole('super_admin') && !me?.organization && !activeOrg) {
     return <><PageHead title="Platform" sub="Choose an organization from the top bar to work inside it, or manage organizations." /><Empty icon="building" title="No organization selected" action={<Link className="btn primary" to="/organizations">Manage organizations</Link>}>You are signed in as the platform owner.</Empty></>;
   }
   const d: any = q.data;
   const learnerish = hasRole('learner', 'parent');
+  const dash: Dash = { period, phrase: periodPhrase(period, d?.period), open: setDrill, canOpen: (m) => !METRIC_PERM[m] || can(METRIC_PERM[m]) };
   return (
-    <>
+    <DashCtx.Provider value={dash}>
       <HeroBanner kicker={me?.roles.map((r) => r.replace('_', ' ')).join(' · ')} title={`Welcome, ${me?.full_name.split(' ')[0] ?? ''}`} sub={me?.organization?.name}
         art={learnerish ? 'rocket' : 'sparkle'}
         actions={learnerish ? <><Link className="btn primary" to="/classroom"><Icon name="school" size={16} /> Classroom</Link><Link className="btn" to="/learn"><Icon name="book" size={16} /> My courses</Link><Link className="btn" to="/assignments"><Icon name="clipboard" size={16} /> Work</Link></>
@@ -30,14 +42,24 @@ export default function Dashboard() {
       </HeroBanner>
       <Async q={q}>{(d: any) => (
         <div className="stack dash">
-          {d.available_views.length > 1 && <Tabs tabs={d.available_views.map((v: string) => ({ id: v, label: v[0].toUpperCase() + v.slice(1) }))} value={d.view} onChange={setView} />}
+          {(d.available_views.length > 1 || d.view === 'admin' || d.view === 'teacher') && <div className="dash-toolbar">
+            {d.available_views.length > 1 ? <Tabs tabs={d.available_views.map((v: string) => ({ id: v, label: v[0].toUpperCase() + v.slice(1) }))} value={d.view} onChange={setView} /> : <span />}
+            {(d.view === 'admin' || d.view === 'teacher') && <PeriodPicker value={period} onChange={setPeriod} />}
+          </div>}
           {d.view === 'admin' && <AdminView d={d} />}
           {d.view === 'teacher' && <TeacherView d={d} />}
           {(d.view === 'learner' || d.view === 'parent') && <ChildrenView d={d} parent={d.view === 'parent'} />}
         </div>
       )}</Async>
-    </>
+      {drill && <DetailsSheet metric={drill} period={period} onClose={() => setDrill(null)} />}
+    </DashCtx.Provider>
   );
+}
+
+/** `onOpen` for a tile, or undefined when the person may not see that metric's records. */
+function useOpener() {
+  const { open, canOpen } = useDash();
+  return (m: string) => (open && canOpen?.(m) ? () => open(m) : undefined);
 }
 
 function Classes({ items, title }: { items: any[]; title: string }) {
@@ -54,25 +76,26 @@ function Classes({ items, title }: { items: any[]; title: string }) {
 }
 
 function AdminKpis({ d }: { d: any }) {
-  const k = d.kpis;
+  const k = d.kpis; const { period, phrase } = useDash(); const op = useOpener();
+  const collectedLabel = period.period === 'month' ? 'Collected this month' : `Collected ${phrase}`;
   return (
     <div className="hero-kpis" role="group" aria-label="Key numbers">
-      <HeroKpi label="Total learners" value={<CountUp value={d.learners.total} />} sub={<>{fmtNum(d.learners.active)} active · {fmtNum(d.learners.inactive)} inactive</>} trend={d.enrollment_trend.map((t: any) => t.learners)} to="/learners" />
-      {k?.fees && <HeroKpi label="Collected this month" value={fmtMoney(k.fees.collected_this_month)} sub="Payments recorded" to="/fees" />}
-      {k?.fees && <HeroKpi label="Fees outstanding" value={fmtMoney(k.fees.outstanding)} sub={<>{fmtMoney(k.fees.overdue)} overdue</>} to="/fees" />}
-      {k && <HeroKpi label="Attendance" value={pct(k.attendance_pct)} sub="Present or late, of marked classes" />}
+      <HeroKpi label="Total learners" value={<CountUp value={d.learners.total} />} sub={<>{fmtNum(d.learners.active)} active · {fmtNum(d.learners.inactive)} inactive</>} trend={d.enrollment_trend.map((t: any) => t.learners)} to="/learners" onOpen={op('learners')} />
+      {k?.fees && <HeroKpi label={collectedLabel} value={fmtMoney(k.fees.collected ?? k.fees.collected_this_month)} sub={k.fees.payers != null ? `${fmtNum(k.fees.payments)} payments · ${fmtNum(k.fees.payers)} people` : 'Payments recorded'} to="/fees" onOpen={op('collected')} />}
+      {k?.fees && <HeroKpi label="Fees outstanding" value={fmtMoney(k.fees.outstanding)} sub={<>{fmtMoney(k.fees.overdue)} overdue · as of today</>} to="/fees" onOpen={op('outstanding')} />}
+      {k && <HeroKpi label="Attendance" value={pct(k.attendance_pct)} sub={`Present or late, ${phrase}`} onOpen={op('attendance')} />}
     </div>
   );
 }
 
 function AdminView({ d }: { d: any }) {
-  const { can } = useAuth();
+  const { can } = useAuth(); const { phrase } = useDash(); const op = useOpener();
   const max = Math.max(1, ...d.enrollment_trend.map((t: any) => t.learners));
   const k = d.kpis;
   const attention = [
-    k?.fees && k.fees.overdue > 0 && <AttentionCard key="fees" icon="wallet" hue="rose" count={fmtMoney(k.fees.overdue)} title="Fees overdue" sub={`${fmtMoney(k.fees.outstanding)} outstanding in total`} cta="Collect fees" to="/fees" />,
-    d.learners.without_batch > 0 && <AttentionCard key="nobatch" icon="alert" hue="butter" count={fmtNum(d.learners.without_batch)} title="Learners not in any batch" sub={<>{fmtNum(d.learners.without_batch)} active learners are not in any batch.</>} cta="Review them" to="/learners?no_batch=true" />,
-    k && k.pending_evaluations > 0 && <AttentionCard key="eval" icon="clipboard" hue="peach" count={fmtNum(k.pending_evaluations)} title="Submissions to review" sub="Waiting for a teacher’s evaluation" cta="Open classroom" to="/classroom" />,
+    k?.fees && k.fees.overdue > 0 && <AttentionCard key="fees" icon="wallet" hue="rose" count={fmtMoney(k.fees.overdue)} title="Fees overdue" sub={`${fmtMoney(k.fees.outstanding)} outstanding in total`} cta="See who owes" to="/fees" onOpen={op('overdue')} />,
+    d.learners.without_batch > 0 && <AttentionCard key="nobatch" icon="alert" hue="butter" count={fmtNum(d.learners.without_batch)} title="Learners not in any batch" sub={<>{fmtNum(d.learners.without_batch)} active learners are not in any batch.</>} cta="Review them" to="/learners?no_batch=true" onOpen={op('without_batch')} />,
+    k && k.pending_evaluations > 0 && <AttentionCard key="eval" icon="clipboard" hue="peach" count={fmtNum(k.pending_evaluations)} title="Submissions to review" sub="Waiting for a teacher’s evaluation" cta="See the work" to="/classroom" onOpen={op('pending_evaluations')} />,
     k?.crm && k.crm.open > 0 && <AttentionCard key="crm" icon="target" hue="violet" count={fmtNum(k.crm.open)} title="Open leads" sub={`${fmtNum(k.crm.converted)} converted so far`} cta="Follow up" to="/crm/follow-ups" />,
   ].filter(Boolean);
   const tiles: [string, string, any, string, boolean][] = [
@@ -90,16 +113,17 @@ function AdminView({ d }: { d: any }) {
       {tiles.some((t) => t[4]) && <Section title="Quick actions"><div className="cat-grid">{tiles.filter((t) => t[4]).map(([ic, label, hue, to]) => <CategoryTile key={label} icon={ic} label={label} hue={hue} to={to} />)}</div></Section>}
       <Section title="At a glance">
         <div className="grid cols-4 glance">
-          <Stat label="Batches" value={fmtNum(d.batches.total)} sub={<>{d.batches.active} active · {d.batches.upcoming} upcoming</>} />
-          <Stat label="Teachers" value={fmtNum(d.teachers)} />
-          <Stat label="Active batch memberships" value={fmtNum(d.active_memberships)} sub={<>{fmtNum(d.learners.multi_batch)} learners in 2+ batches</>} />
+          {k?.new_learners != null && <Stat label="New learners" value={fmtNum(k.new_learners)} sub={phrase} icon="user" hue="violet" onOpen={op('new_learners')} />}
+          <Stat label="Batches" value={fmtNum(d.batches.total)} sub={<>{d.batches.active} active · {d.batches.upcoming} upcoming</>} onOpen={op('batches')} />
+          <Stat label="Teachers" value={fmtNum(d.teachers)} onOpen={op('teachers')} />
+          <Stat label="Active batch memberships" value={fmtNum(d.active_memberships)} sub={<>{fmtNum(d.learners.multi_batch)} learners in 2+ batches</>} onOpen={op('batches')} />
           {k && <>
-            <Stat label="Average score" value={pct(k.avg_score_pct)} sub={`${fmtNum(k.scores_recorded)} scores recorded`} />
-            <Stat label="Waiting for evaluation" value={fmtNum(k.pending_evaluations)} />
-            <Stat label="Classes in the next 7 days" value={fmtNum(k.upcoming_classes_7d)} />
-            <Stat label="Total XP" value={fmtNum(k.total_xp)} />
-            <Stat label="Badges awarded" value={fmtNum(k.badges_awarded)} />
-            {k.crm && <Stat label="CRM leads" value={fmtNum(k.crm.leads)} sub={<Link to="/crm">{k.crm.open} open · {k.crm.converted} converted</Link>} />}
+            <Stat label="Average score" value={pct(k.avg_score_pct)} sub={`${fmtNum(k.scores_recorded)} scores · ${phrase}`} onOpen={op('scores')} />
+            <Stat label="Waiting for evaluation" value={fmtNum(k.pending_evaluations)} onOpen={op('pending_evaluations')} />
+            <Stat label="Classes in the next 7 days" value={fmtNum(k.upcoming_classes_7d)} onOpen={op('classes')} />
+            <Stat label="Total XP" value={fmtNum(k.total_xp)} sub={phrase} onOpen={op('xp')} />
+            <Stat label="Badges awarded" value={fmtNum(k.badges_awarded)} sub={phrase} onOpen={op('badges')} />
+            {k.crm && <Stat label="CRM leads" value={fmtNum(k.crm.leads)} sub={k.crm.new_in_period != null ? `${fmtNum(k.crm.new_in_period)} new · ${fmtNum(k.crm.converted_in_period)} converted ${phrase}` : `${k.crm.open} open · ${k.crm.converted} converted`} onOpen={op('leads')} />}
             {k.campaigns && <Stat label="WhatsApp campaigns" value={fmtNum(k.campaigns.total)} sub={<Link to="/communication">{k.campaigns.active} running</Link>} />}
           </>}
         </div>
@@ -129,17 +153,19 @@ function AdminView({ d }: { d: any }) {
 }
 
 function TeacherKpis({ d }: { d: any }) {
+  const { phrase } = useDash(); const op = useOpener();
   return (
     <div className="hero-kpis" role="group" aria-label="Key numbers">
-      <HeroKpi label="My learners (unique)" value={<CountUp value={d.unique_learners} />} sub={<>{fmtNum(d.batch_memberships)} batch memberships</>} />
+      <HeroKpi label="My learners (unique)" value={<CountUp value={d.unique_learners} />} sub={<>{fmtNum(d.batch_memberships)} batch memberships</>} onOpen={op('learners')} />
       <HeroKpi label="Classes today" value={d.today_sessions.length || d.today_classes.length} sub={`${d.my_batches.length} batches`} />
-      <HeroKpi label="Attendance" value={pct(d.attendance_pct)} />
-      <HeroKpi label="Average score" value={pct(d.avg_score_pct)} />
+      <HeroKpi label="Attendance" value={pct(d.attendance_pct)} sub={phrase} onOpen={op('attendance')} />
+      <HeroKpi label="Average score" value={pct(d.avg_score_pct)} sub={phrase} onOpen={op('scores')} />
     </div>
   );
 }
 
 function TeacherView({ d }: { d: any }) {
+  const op = useOpener();
   const first = d.my_batches[0]?.id; const cls = first ? `/classroom/${first}` : '/classroom';
   const unmarked = d.today_sessions.filter((c: any) => !c.marked).length;
   const attention = [
@@ -157,8 +183,8 @@ function TeacherView({ d }: { d: any }) {
       </Section>
       <Section title="At a glance">
         <div className="grid cols-4 glance">
-          <Stat label="My batches" value={d.my_batches.length} />
-          <Stat label="Waiting for evaluation" value={fmtNum(d.pending_evaluations_total)} />
+          <Stat label="My batches" value={d.my_batches.length} onOpen={op('batches')} />
+          <Stat label="Waiting for evaluation" value={fmtNum(d.pending_evaluations_total)} onOpen={op('pending_evaluations')} />
           <Stat label="Assignments" value={fmtNum(d.assignments_total)} />
           <Stat label="Badges awarded (30 days)" value={fmtNum(d.badges_awarded_30d)} />
         </div>

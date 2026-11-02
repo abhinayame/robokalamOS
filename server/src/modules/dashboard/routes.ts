@@ -6,6 +6,8 @@ import { ok, parse, wrap } from '../../lib/http.js';
 import { batchScope, learnerScope } from '../../lib/scope.js';
 import { orgIdOf, requireOrg, requirePerm } from '../../middleware/auth.js';
 import { adminKpis, childProgress, teacherExtras } from '../analytics/dashboard.js';
+import { orgTimezone, periodQuery, publicRange, resolveRange } from './period.js';
+import { detailsRouter } from './details.js';
 
 const router = Router();
 router.use(requireOrg);
@@ -124,9 +126,12 @@ async function childView(req: Request, ids: string[]) {
   });
 }
 
+router.use('/details', detailsRouter);
+
 router.get('/', requirePerm('dashboard:view'), wrap(async (req, res) => {
   const u = req.user!;
-  const { view } = parse(z.object({ view: z.enum(['admin', 'teacher', 'learner', 'parent']).optional() }), req.query);
+  const { view, ...pq } = parse(z.object({ view: z.enum(['admin', 'teacher', 'learner', 'parent']).optional() }).merge(periodQuery), req.query);
+  const range = resolveRange(pq, await orgTimezone(orgIdOf(req)));
   const available: string[] = [];
   const staff = u.isSuperAdmin || u.roles.some((r) => ['org_admin', 'branch_admin', 'counsellor', 'accountant'].includes(r));
   if (staff) available.push('admin');
@@ -137,10 +142,10 @@ router.get('/', requirePerm('dashboard:view'), wrap(async (req, res) => {
   if (!chosen) throw forbidden();
   if (!available.includes(chosen)) throw badRequest('That dashboard is not available for your account.');
   let data: unknown;
-  if (chosen === 'admin') { const [view, kpis] = await Promise.all([adminView(req), adminKpis(req)]); data = { ...view, kpis }; }   // independent aggregates: run side by side
-  else if (chosen === 'teacher') data = { ...(await teacherView(req)), ...(await teacherExtras(req)) };
+  if (chosen === 'admin') { const [view, kpis] = await Promise.all([adminView(req), adminKpis(req, range)]); data = { ...view, kpis }; }   // independent aggregates: run side by side
+  else if (chosen === 'teacher') data = { ...(await teacherView(req)), ...(await teacherExtras(req, range)) };
   else { const kids = await childView(req, u.access.ownLearnerIds); data = { children: await Promise.all(kids.map(async (k: any) => ({ ...k, progress: await childProgress(k.id, orgIdOf(req)) }))) }; }
-  ok(res, { view: chosen, available_views: available, ...(data as object) });
+  ok(res, { view: chosen, available_views: available, ...(range ? { period: publicRange(range) } : {}), ...(data as object) });
 }));
 
 export default router;
