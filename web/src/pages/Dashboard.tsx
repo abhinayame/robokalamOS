@@ -4,12 +4,14 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtSchedule } from '../format';
 import { BarRow } from '../components/Charts';
+import { HeroBanner, ProgressRing, Pill } from '../components/kit';
+import { Icon } from '../components/Icon';
 import { Async, Avatar, Badge, Empty, PageHead, Progress, Stat, StatusBadge, Tabs, useFetch } from '../components/ui';
 
 const pct = (v: number | null | undefined) => (v == null ? '—' : `${v}%`);
 
 export default function Dashboard() {
-  const { me, hasRole, activeOrg } = useAuth();
+  const { me, hasRole, activeOrg, can } = useAuth();
   const [view, setView] = useState<string | undefined>();
   const q = useFetch(() => api.get(`/api/dashboard${view ? `?view=${view}` : ''}`).then((r) => r.data), [view, activeOrg]);
   if (hasRole('super_admin') && !me?.organization && !activeOrg) {
@@ -17,7 +19,10 @@ export default function Dashboard() {
   }
   return (
     <>
-      <PageHead title={`Welcome, ${me?.full_name.split(' ')[0] ?? ''}`} sub={me?.organization?.name} />
+      <HeroBanner kicker={me?.roles.map((r) => r.replace('_', ' ')).join(' · ')} title={`Welcome, ${me?.full_name.split(' ')[0] ?? ''}`} sub={me?.organization?.name}
+        art={hasRole('learner', 'parent') ? 'rocket' : 'sparkle'}
+        actions={hasRole('learner', 'parent') ? <><Link className="btn primary" to="/classroom"><Icon name="school" size={16} /> Classroom</Link><Link className="btn" to="/learn"><Icon name="book" size={16} /> My courses</Link><Link className="btn" to="/assignments"><Icon name="clipboard" size={16} /> Work</Link></>
+          : <>{can('learner:read') && <Link className="btn primary" to="/learners"><Icon name="users" size={16} /> Learners</Link>}{can('fee:read') && <Link className="btn" to="/fees"><Icon name="wallet" size={16} /> Fees</Link>}{can('classroom:read') && <Link className="btn" to="/classroom"><Icon name="school" size={16} /> Classroom</Link>}{can('report:read') && <Link className="btn" to="/reports"><Icon name="bars" size={16} /> Reports</Link>}</>} />
       <Async q={q}>{(d: any) => (
         <div className="stack">
           {d.available_views.length > 1 && <Tabs tabs={d.available_views.map((v: string) => ({ id: v, label: v[0].toUpperCase() + v.slice(1) }))} value={d.view} onChange={setView} />}
@@ -153,6 +158,12 @@ function ChildrenView({ d, parent }: { d: any; parent: boolean }) {
         </div>
       </div>
       {kid.progress && <div className="progress-card"><div className="l" style={{ marginBottom: 6 }}>MY PROGRESS</div>
+        <div className="ring-row">
+          <ProgressRing value={kid.progress.attendance_pct ?? 0} label={pct(kid.progress.attendance_pct)} sub="attendance" />
+          <ProgressRing value={kid.progress.avg_score_pct ?? 0} label={pct(kid.progress.avg_score_pct)} sub="avg score" />
+          <ProgressRing value={kid.progress.assignments.total ? (kid.progress.assignments.done / kid.progress.assignments.total) * 100 : 0} label={`${kid.progress.assignments.done}/${kid.progress.assignments.total}`} sub="work done" />
+          <div className="ring-meta"><Pill hue="butter" icon="bolt">{fmtNum(kid.progress.xp)} XP</Pill><Pill hue="violet" icon="medal">{kid.progress.level}</Pill><Pill hue="rose" icon="star">{kid.progress.badges} badges</Pill></div>
+        </div>
         <div className="grid cols-4">
           <div><div className="l">XP</div><div className="v">{fmtNum(kid.progress.xp)}</div></div>
           <div><div className="l">Level</div><div className="v" style={{ fontSize: 20 }}>{kid.progress.level}</div></div>

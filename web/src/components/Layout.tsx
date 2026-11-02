@@ -5,6 +5,7 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Avatar } from './ui';
+import { Icon, iconFor } from './Icon';
 
 interface Item { to: string; label: string; icon: string; perm?: string; roles?: string[]; end?: boolean }
 interface Group { label: string; items: Item[] }
@@ -77,16 +78,16 @@ export default function Layout(): ReactNode {
             {g.items.map((i) => {
               const [path, search] = i.to.split('?');
               const active = i.end ? loc.pathname === path && (loc.search === (search ? `?${search}` : '')) : search ? loc.pathname === path && loc.search === `?${search}` : loc.pathname.startsWith(path) && !(path === '/batches' && loc.search);
-              return <NavLink key={i.to} to={i.to} className={`nav-link ${active ? 'active' : ''}`}><span className="nav-ico" aria-hidden>{i.icon}</span>{i.label}</NavLink>;
+              return <NavLink key={i.to} to={i.to} className={`nav-link ${active ? 'active' : ''}`}><span className="nav-ico" aria-hidden><Icon name={iconFor(i.icon)} size={19} /></span>{i.label}</NavLink>;
             })}
           </nav>
         ))}
-        <div className="nav-group"><NavLink to="/account" className="nav-link"><span className="nav-ico" aria-hidden>⚙️</span>My account</NavLink></div>
+        <div className="nav-group"><NavLink to="/account" className="nav-link"><span className="nav-ico" aria-hidden><Icon name="gear" size={19} /></span>My account</NavLink></div>
       </aside>
       <div className="main">
         {offline && <div className="offline-bar" role="status">You’re offline. Changes can’t be saved until your connection returns.</div>}
         <header className="topbar">
-          <button className="btn menu-btn" onClick={() => setOpen(true)} aria-label="Open menu">☰</button>
+          <button className="btn menu-btn" onClick={() => setOpen(true)} aria-label="Open menu"><Icon name="menu" size={20} /></button>
           <div className="grow" style={{ fontWeight: 700 }}>{me?.organization?.name ?? (hasRole('super_admin') ? 'Platform' : '')}</div>
           {hasRole('super_admin') && (
             <select className="select" style={{ width: 200 }} value={activeOrg ?? ''} aria-label="Active organization" onChange={(e) => { chooseOrg(e.target.value || null); nav('/'); setTimeout(() => location.reload(), 0); }}>
@@ -95,14 +96,14 @@ export default function Layout(): ReactNode {
           )}
           <Bell />
           <div className="row gap-s"><Avatar name={me?.full_name ?? '?'} /><div className="small user-meta" style={{ lineHeight: 1.2 }}><b>{me?.full_name}</b><br /><span className="muted">{me?.roles.map((r) => r.replace('_', ' ')).join(', ')}</span></div></div>
-          {inst.canInstall && !inst.standalone && <button className="btn sm" onClick={inst.install} title="Install this app on your device">⬇ Install app</button>}
-          <button className="btn sm" onClick={() => logout().then(() => nav('/login'))}>Sign out</button>
+          {inst.canInstall && !inst.standalone && <button className="btn sm" onClick={inst.install} title="Install this app on your device"><Icon name="download" size={15} /> Install app</button>}
+          <button className="btn sm" onClick={() => logout().then(() => nav('/login'))}><Icon name="logout" size={15} /> Sign out</button>
         </header>
         <main className="content" id="main"><div className="page" key={loc.pathname}><Outlet /></div></main>
       </div>
       <nav className="bottom-nav" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }} aria-label="Quick navigation">
-        {bottom.map((b) => <NavLink key={b.to} to={b.to} end={b.end} className={({ isActive }) => (isActive ? 'active' : '')}><span className="ico" aria-hidden>{b.icon}</span>{b.label}</NavLink>)}
-        <button onClick={() => setOpen(true)}><span className="ico" aria-hidden>☰</span>More</button>
+        {bottom.map((b) => <NavLink key={b.to} to={b.to} end={b.end} className={({ isActive }) => (isActive ? 'active' : '')}><span className="ico" aria-hidden><Icon name={iconFor(b.icon)} size={22} /></span>{b.label}</NavLink>)}
+        <button onClick={() => setOpen(true)}><span className="ico" aria-hidden><Icon name="menu" size={22} /></span>More</button>
       </nav>
     </div>
   );

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { api } from '../api';
 
 /** Unread count, refreshed every minute and when the tab regains focus. */
+import { Icon } from './Icon';
 export function Bell() {
   const [n, setN] = useState(0);
   useEffect(() => {
@@ -13,5 +14,5 @@ export function Bell() {
     document.addEventListener('visibilitychange', f); window.addEventListener('rk:notifications', load);
     return () => { live = false; clearInterval(t); document.removeEventListener('visibilitychange', f); window.removeEventListener('rk:notifications', load); };
   }, []);
-  return <Link to="/notifications" className="btn sm" aria-label={n ? `${n} unread notifications` : 'Notifications'} style={{ position: 'relative' }}>🔔{n > 0 && <span className="badge bad" style={{ position: 'absolute', top: -6, right: -6, minWidth: 18, textAlign: 'center' }}>{n > 99 ? '99+' : n}</span>}</Link>;
+  return <Link to="/notifications" className="btn sm" aria-label={n ? `${n} unread notifications` : 'Notifications'} style={{ position: 'relative' }}><Icon name="bell" size={18} />{n > 0 && <span className="badge bad" style={{ position: 'absolute', top: -6, right: -6, minWidth: 18, textAlign: 'center' }}>{n > 99 ? '99+' : n}</span>}</Link>;
 }

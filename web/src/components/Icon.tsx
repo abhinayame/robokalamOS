@@ -126,6 +126,9 @@ export const EMOJI_ICON: Record<string, [string, Hue]> = {
   '📝': ['clipboard', 'peach'], '📅': ['calendar', 'sky'], '🗓️': ['calendar', 'sky'], '👥': ['users', 'violet'], '👨‍👩‍👧': ['family', 'rose'], '🧑‍🧒': ['family', 'rose'], '🔎': ['search', 'sky'], '🔒': ['lock', 'slate'], '⭐': ['star', 'butter'],
   '🤖': ['robot', 'violet'], '🎯': ['target', 'rose'], '🎉': ['party', 'butter'], '📊': ['bars', 'sky'], '⚡': ['bolt', 'butter'], '🧭': ['compass', 'mint'], '🏁': ['flag', 'mint'], '✅': ['check', 'mint'], '⚠️': ['alert', 'butter'],
   '❓': ['help', 'slate'], '🖼️': ['portfolio', 'peach'], '🏫': ['school', 'violet'], '🔁': ['repeat', 'sky'], '🎈': ['party', 'rose'], '📈': ['trending', 'mint'], '👩‍🏫': ['cap', 'violet'], '🏷️': ['tag', 'peach'], '🔑': ['key', 'slate'],
-  '🎨': ['palette', 'rose'], '⏰': ['alarm', 'peach'], '🩺': ['pulse', 'mint'], '🏢': ['building', 'slate'], '💼': ['briefcase', 'slate'], '📥': ['download', 'sky'], '📤': ['share', 'sky'], '🧱': ['layers', 'violet'], '📄': ['file', 'slate'],
+  '🎨': ['palette', 'rose'], '⏰': ['alarm', 'peach'], '🩺': ['pulse', 'mint'], '🏢': ['building', 'slate'], '💼': ['briefcase', 'slate'], '📥': ['download', 'sky'], '📤': ['share', 'sky'], '🧱': ['layers', 'violet'], '📄': ['file', 'slate'], '🗂️': ['layers', 'violet'], '⚙️': ['gear', 'slate'], '▦': ['grid', 'violet'], '●': ['dot', 'mint'], '◐': ['dot-half', 'butter'], '○': ['ring', 'slate'], '☰': ['menu', 'slate'],
   '🙂': ['user', 'violet'], '🔔': ['bell', 'butter'], '🎁': ['gift', 'rose'], '👋': ['sparkle', 'butter'], '📣': ['megaphone', 'rose'], '🌱': ['sparkle', 'mint'], '🚀': ['rocket', 'violet'], '🔗': ['link', 'sky'], '📎': ['paperclip', 'slate'],
 };
+
+/** Resolve an old emoji/glyph or an icon name to an icon name. */
+export const iconFor = (k: string): string => EMOJI_ICON[k]?.[0] ?? k;
