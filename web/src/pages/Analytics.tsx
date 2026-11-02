@@ -31,7 +31,7 @@ export default function Analytics() {
         <span className="muted small">Applies to attendance, scores, XP and badges.</span></div>
       {ids.length < 2 ? <div className="card"><Empty icon="📈" title="Choose at least two batches">Compare learners, attendance, scores, assignment completion, XP, badges and retention.</Empty></div>
         : <Async q={q as any}>{(d: any) => d ? (
-          <div className="card table-wrap"><table className="t" style={{ minWidth: 520 }}>
+          <div className="card table-wrap"><table className="t keep-table" style={{ minWidth: 520 }}>
             <thead><tr><th>Metric</th>{d.data.map((b: any) => <th key={b.id}>{b.name}<div className="muted small">{b.course_name}</div><StatusBadge s={b.status} /></th>)}</tr></thead>
             <tbody>{ROWS.map((r) => { const vals = d.data.map((b: any) => r.get(b.metrics)); const nums = vals.filter((v: number | null): v is number => v !== null); const top = r.best && nums.length > 1 ? Math.max(...nums) : null;
               return <tr key={r.label}><td><b>{r.label}</b></td>{vals.map((v: number | null, i: number) => <td key={i}>{r.fmt(v)}{top !== null && v === top && nums.filter((x: number) => x === top).length === 1 && <> <Badge tone="ok">best</Badge></>}</td>)}</tr>; })}</tbody></table></div>) : null}</Async>}

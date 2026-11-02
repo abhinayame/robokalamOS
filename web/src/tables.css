@@ -1,0 +1,22 @@
+/* Phase 22 step 6: on phones, data tables become stacked cards: the first cell is the title, the rest are label/value rows.
+   `tc` is added by tableCards.ts to every `table.t` with a header row. Opt out with `keep-table` (wide grids that make sense to scroll). */
+@media (max-width: 640px) {
+  .table-wrap:has(> table.tc) { overflow: visible; border: 0; background: transparent; box-shadow: none; }
+  table.tc, table.tc > tbody, table.tc > tbody > tr, table.tc > tbody > tr > td { display: block; width: 100%; }
+  table.tc > thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+  table.tc > tbody > tr { position: relative; margin: 0 0 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); box-shadow: var(--sh-1); }
+  table.tc > tbody > tr > td { display: block; padding: 4px 0; border: 0; text-align: right; min-height: 0; white-space: normal; overflow-wrap: anywhere; }
+  table.tc > tbody > tr > td::after { content: ""; display: table; clear: both; }
+  table.tc > tbody > tr > td::before { content: attr(data-label); float: left; max-width: 45%; margin-right: 12px; text-align: left; font-size: 12px; font-weight: 600; color: var(--muted); line-height: 1.6; }
+  table.tc > tbody > tr > td:first-child { display: block; text-align: left; font-weight: 700; font-size: 15px; padding: 2px 0 6px; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+  table.tc > tbody > tr > td:first-child::before { display: none; }
+  table.tc > tbody > tr > td[data-label=""]::before { display: none; }
+  /* a leading checkbox column (bulk selection) sits in the card's corner instead of being the title */
+  table.tc > tbody > tr > td:first-child:has(> input[type=checkbox]:only-child) { position: absolute; top: 10px; right: 12px; width: auto; border: 0; padding: 0; margin: 0; }
+  table.tc > tbody > tr:has(> td:first-child > input[type=checkbox]:only-child) > td:nth-child(2) { display: block; text-align: left; font-weight: 700; font-size: 15px; padding: 2px 32px 6px 0; margin-bottom: 4px; border-bottom: 1px solid var(--line); }
+  table.tc > tbody > tr:has(> td:first-child > input[type=checkbox]:only-child) > td:nth-child(2)::before { display: none; }
+  table.tc > tbody > tr > td[colspan] { display: block; text-align: center; }
+  table.tc > tbody > tr > td[colspan]::before { display: none; }
+  table.tc td .row { justify-content: flex-end; } table.tc td .progress { margin-left: auto; max-width: 55%; }
+  table.tc tfoot { display: block; } table.tc tfoot tr { display: flex; justify-content: space-between; padding: 8px 14px; }
+}

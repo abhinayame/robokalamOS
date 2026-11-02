@@ -12,6 +12,7 @@ import './tokens.css';
 import './shell.css';
 import './polish.css';
 import './dash.css';
+import './tables.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><BrowserRouter><ToastProvider><AuthProvider><BrandProvider><App /></BrandProvider></AuthProvider></ToastProvider></BrowserRouter></StrictMode>,
