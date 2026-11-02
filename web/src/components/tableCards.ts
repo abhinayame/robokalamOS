@@ -25,7 +25,11 @@ export function useTableCards(root: () => HTMLElement | null) {
   useEffect(() => {
     const el = root(); if (!el || typeof MutationObserver === 'undefined') return;
     let raf = 0;
-    const run = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => el.querySelectorAll<HTMLTableElement>('table.t').forEach(label)); };
+    const run = () => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => {
+      el.querySelectorAll<HTMLTableElement>('table.t').forEach(label);
+      // a table that scrolls sideways must be reachable by keyboard
+      el.querySelectorAll<HTMLElement>('.table-wrap').forEach((w) => { const s = w.scrollWidth > w.clientWidth + 1; if (s && !w.hasAttribute('tabindex')) w.setAttribute('tabindex', '0'); else if (!s && w.getAttribute('tabindex') === '0') w.removeAttribute('tabindex'); });
+    }); };
     run();
     const mo = new MutationObserver(run); mo.observe(el, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });   // React may reset className on re-render
     return () => { mo.disconnect(); cancelAnimationFrame(raf); };

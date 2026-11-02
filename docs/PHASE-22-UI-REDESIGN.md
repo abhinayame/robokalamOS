@@ -22,3 +22,22 @@ Schools that never chose colours (the old built-in navy/amber) now show **Violet
 - **Admin / teacher**: glass KPI strip inside the hero; "Needs attention" action cards (overdue fees, learners without a batch, work to review, open leads — one call to action each, swipeable on phones); quick-action tiles gated by permission; compact "At a glance" stats.
 - **Learner / parent**: child switcher chips, profile card with facts, "Today" strip, level card (XP bar to the next level + progress rings), quick-entry tiles.
 - Compact empty states inside dashboard cards; error states and remaining button/lesson/notification glyphs use the icon set instead of emoji (learner-facing content such as badge and course icons keeps its emoji).
+
+## Step 4 – courses
+- Shared `CourseCard` / `CourseCover`: gradient cover from the course colour, floating course icon, level / joined chips, green rating pill ("New" when unrated), lessons and duration.
+- Catalog: pill search and category tiles. My courses: "Continue learning" hero with a progress ring; course cards with rings.
+- Landing page: gradient hero with fact pills; a sticky join bar on phones.
+- Player: dark header with a progress ring; the outline folds into a "Course content" drawer on phones; bigger next / complete button.
+
+## Step 5 – fees and learner profile
+- Fee ledger (Learner 360 → Fees, My fees): outstanding as a big numeral with an overdue / clear pill, billed / paid / credit tiles, paid progress bar, colour-coded installment rows, receipts as paper slips on phones.
+- Learner 360 header with a soft brand wash and stat tiles. Long tab strips fade the edge that hides more tabs.
+
+## Step 6 – tables on phones
+- Every `table.t` with a header row becomes stacked cards below 640 px (`components/tableCards.ts` copies each header into `data-label`; `tables.css` lays it out). Wide grids opt out with `keep-table` (gradebook, training matrix, batch comparison).
+
+## Step 7 – QA
+- Swept 31 screens × 390 / 768 / 1360 px across admin, teacher, learner and parent (93 checks): no page errors, no horizontal scroll.
+- axe-core (WCAG 2 A/AA, serious + critical) is clean: muted text, status inks and the warning colour were darkened to reach 4.5:1; form labels are now tied to their inputs (`Field`); progress bars have names; links inside running text are underlined; sideways-scrolling tables are keyboard-focusable.
+- Bundle vs. before steps 4–7: +2.3 kB JS and +2.8 kB CSS (gzip).
+- Fixed on the way: the "My courses" menu item no longer lights up on `/learners` pages.

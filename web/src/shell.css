@@ -1,5 +1,5 @@
 /* Shell: light sidebar with icon rows, glass top bar, floating bottom tab bar, hero login. Brand colours still drive every accent. */
-:root { --bg: var(--canvas); --card: var(--surface); --muted: #7a7391; --radius: 16px; --nav-w: 252px; --ink-2: #5b5470; --shadow: var(--sh-1); }
+:root { --bg: var(--canvas); --card: var(--surface); --muted: #6a6483; --radius: 16px; --nav-w: 252px; --ink-2: #5b5470; --shadow: var(--sh-1); }
 body { background-image: radial-gradient(900px 420px at 90% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 62%), radial-gradient(800px 420px at -5% 0%, color-mix(in srgb, var(--brand) 8%, transparent), transparent 60%); }
 .sidebar { background: var(--surface); color: var(--ink); box-shadow: none; border-right: 1px solid var(--line); padding: 18px 12px 28px; }
 .sidebar::before { display: none; }
