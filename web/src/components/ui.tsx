@@ -26,8 +26,8 @@ export const SkeletonRows = ({ n = 6 }: { n?: number }) => (
     {Array.from({ length: n }, (_, i) => <Skeleton key={i} h={34} />)}
   </div>
 );
-export const Empty = ({ icon = '📭', title, children, action }: { icon?: string; title: string; children?: ReactNode; action?: ReactNode }) => (
-  <div className="state"><div className="ico scene" aria-hidden><i className="sc-ring" /><i className="sc-dot d1" /><i className="sc-dot d2" /><IconTile name={EMOJI_ICON[icon]?.[0] ?? (/^[a-z-]+$/.test(icon) ? icon : 'inbox')} hue={EMOJI_ICON[icon]?.[1] ?? 'violet'} size="xl" /></div><h3>{title}</h3>{children && <p style={{ margin: '0 0 12px' }}>{children}</p>}{action}</div>
+export const Empty = ({ icon = '📭', title, children, action, compact }: { icon?: string; title: string; children?: ReactNode; action?: ReactNode; compact?: boolean }) => (
+  <div className={`state ${compact ? 'compact' : ''}`}><div className="ico scene" aria-hidden><i className="sc-ring" /><i className="sc-dot d1" /><i className="sc-dot d2" /><IconTile name={EMOJI_ICON[icon]?.[0] ?? (/^[a-z-]+$/.test(icon) ? icon : 'inbox')} hue={EMOJI_ICON[icon]?.[1] ?? 'violet'} size="xl" /></div><h3>{title}</h3>{children && <p style={{ margin: '0 0 12px' }}>{children}</p>}{action}</div>
 );
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const denied = error instanceof ApiError && error.status === 403;
@@ -35,7 +35,7 @@ export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () =>
   const missing = error instanceof ApiError && error.status === 404;
   return (
     <div className="state" role="alert">
-      <div className="ico" aria-hidden>{denied ? '🔒' : net ? '📡' : missing ? '🔎' : '⚠️'}</div>
+      <div className="ico scene" aria-hidden><i className="sc-ring" /><IconTile name={denied ? 'lock' : net ? 'globe' : missing ? 'search' : 'alert'} hue={denied || missing ? 'slate' : 'peach'} size="xl" /></div>
       <h3>{denied ? 'You don’t have access to this' : net ? 'You’re offline' : missing ? 'We couldn’t find that' : 'We couldn’t load this'}</h3>
       <p style={{ margin: '0 0 12px' }}>{friendly(error)}</p>
       {onRetry && !denied && <button className="btn" onClick={onRetry}>Try again</button>}
