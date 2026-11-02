@@ -17,3 +17,8 @@ Schools that never chose colours (the old built-in navy/amber) now show **Violet
 
 ## Notes for testing
 - Buttons that began with “＋” or an emoji now start with an SVG icon, so text selectors should not include the glyph.
+
+## Step 3 – dashboards
+- **Admin / teacher**: glass KPI strip inside the hero; "Needs attention" action cards (overdue fees, learners without a batch, work to review, open leads — one call to action each, swipeable on phones); quick-action tiles gated by permission; compact "At a glance" stats.
+- **Learner / parent**: child switcher chips, profile card with facts, "Today" strip, level card (XP bar to the next level + progress rings), quick-entry tiles.
+- Compact empty states inside dashboard cards; error states and remaining button/lesson/notification glyphs use the icon set instead of emoji (learner-facing content such as badge and course icons keeps its emoji).

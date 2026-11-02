@@ -76,8 +76,9 @@ const STAT_ICONS: [RegExp, string, Hue][] = [
   [/xp/i, 'bolt', 'butter'], [/badge|level|achiev/i, 'medal', 'rose'], [/lead|crm|convert/i, 'target', 'rose'], [/campaign|whatsapp|message/i, 'chat', 'sky'], [/course|lesson|learn|enrol|certif/i, 'book', 'violet'],
   [/assignment|submission|homework/i, 'clipboard', 'peach'], [/project|portfolio/i, 'portfolio', 'peach'], [/discount|offer/i, 'percent', 'rose'], [/receipt|invoice/i, 'receipt', 'mint'],
 ];
-export const Stat = ({ label, value, sub, icon, hue, trend }: { label: string; value: ReactNode; sub?: ReactNode; icon?: string; hue?: Hue; trend?: number[] }) => {
+export const Stat = ({ label, value, sub, icon, hue, trend, onOpen }: { label: string; value: ReactNode; sub?: ReactNode; icon?: string; hue?: Hue; trend?: number[]; onOpen?: () => void }) => {
   const auto = STAT_ICONS.find(([re]) => re.test(label)); const ic = icon ?? auto?.[1] ?? 'sparkle'; const hu = hue ?? auto?.[2] ?? 'violet';
+  if (onOpen) return <button type="button" className="card stat" onClick={onOpen} aria-label={`${label}: show details`}><div className="stat-top"><IconTile name={ic} hue={hu} size="sm" />{trend && <Sparkline points={trend} />}</div><div className="v"><CountUp value={value} /></div><div className="l">{label}</div>{sub && <div className="s">{sub}</div>}<span className="stat-more">See details <Icon name="chevron" size={12} /></span></button>;
   return <div className="card stat"><div className="stat-top"><IconTile name={ic} hue={hu} size="sm" />{trend && <Sparkline points={trend} />}</div><div className="v"><CountUp value={value} /></div><div className="l">{label}</div>{sub && <div className="s">{sub}</div>}</div>;
 };
 export const PageHead = ({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) => (
