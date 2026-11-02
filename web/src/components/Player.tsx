@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon, LessonIcon } from './Icon';
+import { ProgressRing } from './kit';
+import { coverStyle } from './CourseCard';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { Async, Badge, Empty, Field, Modal, Progress, Tabs, useAction, useFetch, useToast } from './ui';
@@ -14,7 +16,7 @@ const shuffled = <T,>(a: T[], seed: number) => { const r = [...a]; let s = seed 
 export default function Player({ preview = false }: { preview?: boolean }) {
   const { id } = useParams(); const nav = useNavigate();
   const q = useFetch(() => api.get(preview ? `/api/lms/courses/${id}/preview` : `/api/learn/courses/${id}`).then((r) => r.data as any), [id]);
-  const [open, setOpen] = useState<string | null>(null); const [done, setDone] = useState<any>(null);
+  const [open, setOpen] = useState<string | null>(null); const [done, setDone] = useState<any>(null); const [outline, setOutline] = useState(false);
   return (
     <Async q={q}>{(d: any) => {
       const lessons: any[] = d.lessons; const firstOpen = lessons.find((l) => !l.done && !l.locked) ?? lessons[0]; const cur = lessons.find((l) => l.id === (open ?? firstOpen?.id)); const i = lessons.findIndex((l) => l.id === cur?.id);
@@ -23,14 +25,16 @@ export default function Player({ preview = false }: { preview?: boolean }) {
       return (
         <>
           {preview && <div className="banner warn" role="status" style={{ marginBottom: 10 }}><Icon name="eye" size={15} /> <b>Preview.</b> This is how learners see the course. Nothing you do here is saved. <Link to={`/courses/${c.id}`}>Back to the studio</Link></div>}
-          <div className="card card-pad" style={{ borderTop: `5px solid ${c.color}`, marginBottom: 12 }}>
-            <div className="row between wrap"><div><button className="btn ghost sm" onClick={() => nav(preview ? `/courses/${c.id}` : '/learn')}>← {preview ? 'Studio' : 'My courses'}</button><h1 style={{ margin: '4px 0' }}>{c.icon ? `${c.icon} ` : ''}{c.title}</h1>{c.summary && <div className="muted">{c.summary}</div>}</div>
-              <div style={{ minWidth: 220 }}><Progress value={d.percent} tone={d.enrollment.status === 'completed' ? 'ok' : ''} /><div className="muted small" style={{ marginTop: 4 }}>{d.done}/{d.total} required lessons{d.grade != null ? ` · quiz grade ${d.grade}%` : ''}{c.min_grade ? ` (need ${c.min_grade}%)` : ''}{d.enrollment.due_at && d.enrollment.status !== 'completed' ? ` · due ${fmtDate(d.enrollment.due_at)}` : ''}</div>
+          <div className="player-head" style={coverStyle(c.color)}>
+            <i className="cc-glow" aria-hidden />
+            <div className="player-head-row"><div className="player-title"><button className="btn ghost sm player-back" onClick={() => nav(preview ? `/courses/${c.id}` : '/learn')}><Icon name="chevron" size={14} style={{ transform: 'rotate(180deg)' }} /> {preview ? 'Studio' : 'My courses'}</button>
+                <div className="row" style={{ gap: 12, alignItems: 'center' }}>{c.icon && <span className="player-icon" aria-hidden>{c.icon}</span>}<h1>{c.title}</h1></div>{c.summary && <div className="player-sum">{c.summary}</div>}</div>
+              <div className="player-progress"><ProgressRing value={d.percent ?? 0} size={72} stroke={8} label={`${Math.round(d.percent ?? 0)}%`} /><div className="small">{d.done}/{d.total} required lessons{d.grade != null ? ` · quiz grade ${d.grade}%` : ''}{c.min_grade ? ` (need ${c.min_grade}%)` : ''}{d.enrollment.due_at && d.enrollment.status !== 'completed' ? ` · due ${fmtDate(d.enrollment.due_at)}` : ''}</div>
                 {d.enrollment.status === 'completed' && <Badge tone="ok">Finished ✓{c.gives_certificate ? ' · certificate in My certificates' : ''}</Badge>}</div></div>
             {!preview && <Announcements courseId={c.id} />}
           </div>
-          <div className="row wrap" style={{ alignItems: 'flex-start', gap: 16 }}>
-            <Sidebar d={d} cur={cur} onPick={go} />
+          <div className="row wrap player-body" style={{ alignItems: 'flex-start', gap: 16 }}>
+            <Sidebar d={d} cur={cur} onPick={(l) => { go(l); setOutline(false); }} open={outline} onToggle={() => setOutline(!outline)} />
             <div className="grow" style={{ minWidth: 280 }}>{cur ? <LessonView key={cur.id} d={d} lesson={cur} preview={preview} next={next} prev={prev} onGo={go} onChange={q.reload} onDone={(r) => setDone(r)} /> : <div className="card"><Empty icon="📭" title="No lessons yet" /></div>}</div>
           </div>
           {done && <Celebration d={d} r={done} preview={preview} onClose={() => { setDone(null); q.reload(); }} />}
@@ -38,19 +42,22 @@ export default function Player({ preview = false }: { preview?: boolean }) {
   );
 }
 
-function Sidebar({ d, cur, onPick }: { d: any; cur: any; onPick: (l: any) => void }) {
+function Sidebar({ d, cur, onPick, open, onToggle }: { d: any; cur: any; onPick: (l: any) => void; open: boolean; onToggle: () => void }) {
   const mods: any[] = d.modules; const chapters = mods.filter((m) => !m.parent_id);
   const groups: { id: string | null; title: string; depth: number; lessons: any[] }[] = [{ id: null, title: mods.length ? 'Start here' : 'Lessons', depth: 0, lessons: d.lessons.filter((l: any) => !l.module_id) }];
   for (const m of chapters) { groups.push({ id: m.id, title: m.title, depth: 0, lessons: d.lessons.filter((l: any) => l.module_id === m.id) }); for (const x of mods.filter((y) => y.parent_id === m.id)) groups.push({ id: x.id, title: x.title, depth: 1, lessons: d.lessons.filter((l: any) => l.module_id === x.id) }); }
   const num = new Map<string, number>(); d.lessons.forEach((l: any, i: number) => num.set(l.id, i + 1));
   return (
-    <nav aria-label="Course content" className="card" style={{ width: 290, flex: 'none', maxWidth: '100%' }}>
+    <nav aria-label="Course content" className={`card outline ${open ? 'open' : ''}`} style={{ width: 290, flex: 'none', maxWidth: '100%' }}>
+      <button type="button" className="outline-toggle" aria-expanded={open} onClick={onToggle}><Icon name="menu" size={16} /> <span className="grow">Course content</span><span className="muted small">{d.done}/{d.total}</span><Icon name="chevron" size={16} style={{ transform: open ? 'rotate(-90deg)' : 'rotate(90deg)' }} /></button>
+      <div className="outline-list">
       {groups.map((g) => { if (!g.lessons.length) return null; const doneN = g.lessons.filter((l: any) => l.done).length; return (
-        <div key={g.id ?? 'none'}><div className="card-pad" style={{ background: 'var(--bg-soft, #f4f7fb)', borderBottom: '1px solid var(--line, #e3e8ef)', paddingLeft: 16 + g.depth * 14 }}><b>{g.depth ? '↳ ' : ''}{g.title}</b><div className="muted small">{doneN}/{g.lessons.length} done</div></div>
+        <div key={g.id ?? 'none'}><div className="card-pad" style={{ background: 'var(--bg-soft, #f4f7fb)', borderBottom: '1px solid var(--line, #e3e8ef)', paddingLeft: 16 + g.depth * 14 }}><b>{g.title}</b><div className="muted small">{doneN}/{g.lessons.length} done</div></div>
           {g.lessons.map((l: any) => (
             <button key={l.id} className="m-card" disabled={l.locked} aria-current={cur?.id === l.id ? 'true' : undefined} title={l.locked ? 'Finish the lessons before this one to unlock it' : undefined} onClick={() => onPick(l)}
               style={{ width: '100%', textAlign: 'left', border: 0, cursor: l.locked ? 'not-allowed' : 'pointer', background: cur?.id === l.id ? 'var(--bg-soft, #eef3f9)' : 'none', opacity: l.locked ? 0.55 : 1, paddingLeft: 16 + g.depth * 14 }}>
               <LessonIcon kind={l.kind} done={l.done} locked={l.locked} /><span className="grow">{num.get(l.id)}. {l.title}{!l.required && <span className="muted small"> (optional)</span>}{l.minutes ? <span className="muted small"> · {l.minutes} min</span> : null}</span></button>))}</div>); })}
+      </div>
     </nav>
   );
 }
@@ -70,7 +77,7 @@ function LessonView({ d, lesson: l, preview, next, prev, onGo, onChange, onDone 
   });
   return (
     <div className="stack">
-      <div className="card card-pad stack">
+      <div className="card card-pad stack lesson-card">
         <div className="row between wrap"><h2 className="row gap-s" style={{ margin: 0 }}><LessonIcon kind={l.kind} /> {l.title}</h2><div className="row gap-s">{l.minutes ? <span className="muted small">{l.minutes} min</span> : null}{l.done && <Badge tone="ok">Done ✓</Badge>}{!l.required && <Badge>Optional</Badge>}</div></div>
         {l.kind === 'text' && l.body && <Markdown text={l.body} />}
         {l.kind === 'video' && <>{l.url && <VideoEmbed url={l.url} title={l.title} />}{l.body && <Markdown text={l.body} />}</>}
@@ -79,9 +86,9 @@ function LessonView({ d, lesson: l, preview, next, prev, onGo, onChange, onDone 
         {l.kind === 'quiz' && <Quiz courseId={courseId} lesson={l} preview={preview} onChange={onChange} onDone={onDone} />}
         {l.kind === 'assignment' && <Assignment courseId={courseId} lesson={l} preview={preview} onChange={onChange} onDone={onDone} />}
         <div className="row between wrap" style={{ marginTop: 6 }}>
-          <button className="btn" disabled={!prev} onClick={() => prev && onGo(prev)}>← Previous</button>
-          <div className="row gap-s">{!['quiz', 'assignment'].includes(l.kind) && <button className="btn primary" disabled={busy || l.done} onClick={markDone}>{l.done ? 'Done ✓' : next ? 'Mark complete and continue' : 'Mark complete'}</button>}
-            {next && (l.done || ['quiz', 'assignment'].includes(l.kind)) && <button className="btn" onClick={() => onGo(next)}>Next →</button>}</div></div>
+          <button className="btn" disabled={!prev} onClick={() => prev && onGo(prev)}><Icon name="chevron" size={15} style={{ transform: 'rotate(180deg)' }} /> Previous</button>
+          <div className="row gap-s">{!['quiz', 'assignment'].includes(l.kind) && <button className="btn primary big-next" disabled={busy || l.done} onClick={markDone}>{l.done ? 'Done ✓' : next ? 'Mark complete and continue' : 'Mark complete'}</button>}
+            {next && (l.done || ['quiz', 'assignment'].includes(l.kind)) && <button className={`btn ${l.done ? 'primary big-next' : ''}`} onClick={() => onGo(next)}>Next <Icon name="chevron" size={15} /></button>}</div></div>
       </div>
       {!preview && <div className="card"><Tabs value={tab} onChange={setTab} tabs={[{ id: 'notes', label: 'My notes' }, { id: 'qa', label: 'Questions' }]} />{tab === 'notes' ? <Notes courseId={courseId} lessonId={l.id} /> : <QA courseId={courseId} lessonId={l.id} />}</div>}
     </div>
