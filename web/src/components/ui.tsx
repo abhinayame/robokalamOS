@@ -88,8 +88,23 @@ export const Field = ({ label, error, hint, children, className = '' }: { label:
   <div className={`field ${className}`}><label>{label}</label>{children}{hint && !error && <span className="hint">{hint}</span>}{error && <span className="err" role="alert">{error}</span>}</div>
 );
 
+/** Marks a horizontally scrolling strip with data-fade="start|end|both" so CSS can hint that more items are hidden. */
+function useOverflowFade<T extends HTMLElement>() {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    const el = ref.current; if (!el) return;
+    const upd = () => { const more = el.scrollWidth - el.clientWidth > 2; const s = el.scrollLeft > 2; const e = el.scrollLeft < el.scrollWidth - el.clientWidth - 2;
+      const v = !more ? '' : s && e ? 'both' : s ? 'start' : 'end'; if ((el.dataset.fade ?? '') !== v) { if (v) el.dataset.fade = v; else delete el.dataset.fade; } };
+    upd(); el.addEventListener('scroll', upd, { passive: true });
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(upd) : null; ro?.observe(el);
+    return () => { el.removeEventListener('scroll', upd); ro?.disconnect(); };
+  }, []);
+  return ref;
+}
+
 export function Tabs<T extends string>({ tabs, value, onChange }: { tabs: { id: T; label: string; badge?: ReactNode }[]; value: T; onChange: (t: T) => void }) {
-  return <div className="tabs" role="tablist">{tabs.map((t) => (
+  const ref = useOverflowFade<HTMLDivElement>();
+  return <div className="tabs" role="tablist" ref={ref}>{tabs.map((t) => (
     <button key={t.id} role="tab" aria-selected={value === t.id} className={`tab ${value === t.id ? 'active' : ''}`} onClick={() => onChange(t.id)}>{t.label}{t.badge != null && <> <Badge>{t.badge}</Badge></>}</button>
   ))}</div>;
 }

@@ -42,3 +42,8 @@
 }
 @keyframes sheet { from { transform: translateY(100%); } to { transform: none; } }
 .tab::after, .tab.active::after { display: none; } .tab:hover { background: transparent; } .tab.active:hover, .tab[aria-selected="true"]:hover { background: var(--surface); }
+/* scrolling tab strips: fade the edge that hides more tabs */
+.tabs { scrollbar-width: none; } .tabs::-webkit-scrollbar { display: none; } .tabs > .tab { flex: none; }
+.tabs[data-fade="end"] { -webkit-mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(90deg, #000 calc(100% - 48px), transparent); }
+.tabs[data-fade="start"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 48px); mask-image: linear-gradient(90deg, transparent, #000 48px); }
+.tabs[data-fade="both"] { -webkit-mask-image: linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent); mask-image: linear-gradient(90deg, transparent, #000 48px, #000 calc(100% - 48px), transparent); }

@@ -81,7 +81,7 @@ export default function Layout(): ReactNode {
             <div className="nav-label">{g.label}</div>
             {g.items.map((i) => {
               const [path, search] = i.to.split('?');
-              const active = i.end ? loc.pathname === path && (loc.search === (search ? `?${search}` : '')) : search ? loc.pathname === path && loc.search === `?${search}` : loc.pathname.startsWith(path) && !(path === '/batches' && loc.search);
+              const active = i.end ? loc.pathname === path && (loc.search === (search ? `?${search}` : '')) : search ? loc.pathname === path && loc.search === `?${search}` : (loc.pathname === path || loc.pathname.startsWith(`${path}/`)) && !(path === '/batches' && loc.search);
               return <NavLink key={i.to} to={i.to} className={`nav-link ${active ? 'active' : ''}`}><span className="nav-ico" aria-hidden><Icon name={iconFor(i.icon)} size={19} /></span>{i.label}</NavLink>;
             })}
           </nav>

@@ -77,33 +77,39 @@ export function FeeLedger({ learnerId, learnerName, staff }: { learnerId: string
   const open = d.fees.filter((x: any) => x.status === 'active').flatMap((x: any) => x.installments.filter((i: any) => i.status === 'pending' || i.status === 'partial').map((i: any) => ({ ...i, fee: x.title })));
   return (
     <div className="stack">
-      <div className="grid cols-4">
-        <Stat label="Billed" value={fmtMoney(d.totals.billed)} /><Stat label="Paid" value={fmtMoney(d.totals.paid)} />
-        <Stat label="Outstanding" value={fmtMoney(d.totals.outstanding)} sub={Number(d.totals.overdue) > 0 ? <span className="err">{fmtMoney(d.totals.overdue)} overdue</span> : 'Nothing overdue'} />
-        <Stat label="Credit" value={fmtMoney(d.totals.credit)} sub="Paid ahead / extra" />
+      <div className={`card fee-sum ${Number(d.totals.overdue) > 0 ? 'is-late' : Number(d.totals.outstanding) > 0 ? '' : 'is-clear'}`}>
+        <div className="fee-main">
+          <span className="fee-l">Outstanding</span>
+          <b className="fee-big">{fmtMoney(d.totals.outstanding)}</b>
+          {Number(d.totals.overdue) > 0 ? <span className="fee-pill late"><Icon name="alarm" size={13} /> {fmtMoney(d.totals.overdue)} overdue</span> : <span className="fee-pill ok"><Icon name="check" size={13} /> Nothing overdue</span>}
+        </div>
+        <div className="fee-side">
+          <div className="fee-facts"><div><span>Billed</span><b>{fmtMoney(d.totals.billed)}</b></div><div><span>Paid</span><b>{fmtMoney(d.totals.paid)}</b></div><div><span>Credit</span><b>{fmtMoney(d.totals.credit)}</b><em>Paid ahead / extra</em></div></div>
+          {Number(d.totals.billed) > 0 && <div className="fee-bar" role="progressbar" aria-label="Share of the fees paid" aria-valuenow={Math.round((Number(d.totals.paid) / Number(d.totals.billed)) * 100)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${Math.min(100, (Number(d.totals.paid) / Number(d.totals.billed)) * 100)}%` }} /></div>}
+        </div>
       </div>
       <div className="row wrap">
         {staff?.record && open.length > 0 && <button className="btn primary" onClick={() => setModal({ kind: 'pay' })}><Icon name="plus" size={15} /> Record payment</button>}
-        {open.length > 0 && <button className="btn" disabled={busy} onClick={() => payNow()}>{staff ? 'Copy payment link' : `Pay ${fmtMoney(d.totals.outstanding)} now`}</button>}
+        {open.length > 0 && <button className={`btn ${staff ? '' : 'primary big-next'}`} disabled={busy} onClick={() => payNow()}>{staff ? <><Icon name="link" size={15} /> Copy payment link</> : <><Icon name="card" size={16} /> {`Pay ${fmtMoney(d.totals.outstanding)} now`}</>}</button>}
         {staff?.manage && <button className="btn" onClick={() => { setF({ title: '', amount: '', due: todayStr() }); setModal({ kind: 'charge' }); }}><Icon name="plus" size={15} /> Add charge</button>}
       </div>
-      {!d.fees.length ? <div className="card"><Empty icon="🧾" title="No fees yet">{staff?.manage ? 'Assign a fee plan from Fees → Plans, or add a one-off charge.' : 'Nothing has been billed yet.'}</Empty></div> : d.fees.map((fe: any) => (
+      {!d.fees.length ? <div className="card"><Empty compact icon="receipt" title="No fees yet">{staff?.manage ? 'Assign a fee plan from Fees → Plans, or add a one-off charge.' : 'Nothing has been billed yet.'}</Empty></div> : d.fees.map((fe: any) => (
         <div className="card" key={fe.id}>
           <div className="card-head"><h2>{fe.title}</h2><span className="row gap-s">{fe.batch_name && <span className="muted small">{fe.batch_name}</span>}{fe.status === 'cancelled' ? <Badge tone="bad">Cancelled</Badge> : <span className="muted small">{fmtMoney(fe.net_amount)}{Number(fe.discount_amount) > 0 ? ` after ${fmtMoney(fe.discount_amount)} discount` : ''}</span>}
-            {staff?.discount && fe.status === 'active' && <button className="btn sm" onClick={() => setModal({ kind: 'discount', f: fe })}>{Number(fe.discount_amount) > 0 ? '% Change discount' : '% Give discount'}</button>}
+            {staff?.discount && fe.status === 'active' && <button className="btn sm" onClick={() => setModal({ kind: 'discount', f: fe })}>{Number(fe.discount_amount) > 0 ? 'Change discount' : 'Give discount'}</button>}
             {Number(fe.discount_amount) > 0 && staff && <button className="btn ghost sm" onClick={() => setModal({ kind: 'dhist', f: fe })}>History</button>}
             {staff?.manage && fe.status === 'active' && <button className="btn sm" onClick={() => { setF({ reason: '' }); setModal({ kind: 'cancel', f: fe }); }}>Cancel fee</button>}</span></div>
-          {(fe.level_label || Number(fe.discount_amount) > 0) && <div className="card-pad row wrap gap-s" style={{ paddingBottom: 0 }}>{fe.level_label && <Badge tone="info">{fe.level_label}</Badge>}{Number(fe.discount_amount) > 0 && <Badge tone="ok">Discount {fmtMoney(fe.discount_amount)}{fe.discount_type === 'percent' ? ` (${Number(fe.discount_value)}%)` : ''}{fe.discount_reason ? ` · ${fe.discount_reason}` : ''}</Badge>}</div>}
+          {(fe.level_label || Number(fe.discount_amount) > 0) && <div className="card-pad row wrap gap-s" style={{ paddingBottom: 0 }}>{fe.level_label && <Badge tone="info">{fe.level_label}</Badge>}{Number(fe.discount_amount) > 0 && <Badge tone="ok"><Icon name="percent" size={12} /> Discount {fmtMoney(fe.discount_amount)}{fe.discount_type === 'percent' ? ` (${Number(fe.discount_value)}%)` : ''}{fe.discount_reason ? ` · ${fe.discount_reason}` : ''}</Badge>}</div>}
           <div className="table-wrap"><table className="t"><thead><tr><th>Installment</th><th>Due</th><th className="right">Amount</th><th className="right">Paid</th><th>Status</th><th /></tr></thead><tbody>
-            {fe.installments.map((i: any) => <tr key={i.id}><td>{i.label}</td><td className="nowrap">{fmtDate(i.due_date)}</td><td className="right">{fmtMoney(i.amount)}</td><td className="right">{fmtMoney(i.paid_amount)}</td>
+            {fe.installments.map((i: any) => <tr key={i.id} className={`due-row ${i.status === 'paid' ? 'is-paid' : i.status === 'cancelled' ? 'is-cancelled' : i.overdue ? 'is-overdue' : i.status === 'partial' ? 'is-partial' : 'is-due'}`}><td>{i.label}</td><td className="nowrap">{fmtDate(i.due_date)}</td><td className="right">{fmtMoney(i.amount)}</td><td className="right">{fmtMoney(i.paid_amount)}</td>
               <td>{i.status === 'paid' ? <Badge tone="ok">Paid</Badge> : i.status === 'cancelled' ? <Badge tone="bad">Cancelled</Badge> : i.overdue ? <Badge tone="bad">Overdue</Badge> : i.status === 'partial' ? <Badge tone="warn">Part paid</Badge> : <Badge>Due</Badge>}</td>
               <td className="right">{staff?.manage && fe.status === 'active' && i.status !== 'cancelled' && <button className="btn sm" onClick={() => { setF({ amount: String(Number(i.amount)), due: String(i.due_date).slice(0, 10), reason: '' }); setModal({ kind: 'adjust', i }); }}>Adjust</button>}
                 {!staff && (i.status === 'pending' || i.status === 'partial') && <button className="btn sm" disabled={busy} onClick={() => payNow([i.id])}>Pay</button>}</td></tr>)}
           </tbody></table></div>
         </div>))}
-      <div className="card">
+      {(d.fees.length > 0 || d.payments.length > 0) && <div className="card">
         <div className="card-head"><h2>Payments & receipts</h2></div>
-        {!d.payments.length ? <Empty icon="💳" title="No payments yet" /> : <div className="table-wrap"><table className="t"><thead><tr><th>Receipt</th><th>Date</th><th>Method</th><th className="right">Amount</th><th /></tr></thead><tbody>
+        {!d.payments.length ? <Empty compact icon="card" title="No payments yet" /> : <div className="table-wrap"><table className="t receipts"><thead><tr><th>Receipt</th><th>Date</th><th>Method</th><th className="right">Amount</th><th /></tr></thead><tbody>
           {d.payments.map((p: any) => <tr key={p.id}><td className="mono">{p.receipt_no}</td><td className="nowrap">{fmtDateTime(p.paid_at)}</td><td>{cap(p.method)}{p.provider === 'razorpay' && <> <Badge tone="info">online</Badge></>} <PayBadge p={p} />{p.status === 'voided' && p.void_reason && <div className="small muted">{p.void_reason}</div>}</td>
             <td className="right" style={p.status === 'voided' ? { textDecoration: 'line-through', opacity: 0.6 } : undefined}>{fmtMoney(p.amount)}{Number(p.refunded_amount) > 0 && p.status !== 'voided' && <div className="small err">−{fmtMoney(p.refunded_amount)} refunded</div>}</td>
             <td className="right nowrap"><button className="btn sm" onClick={() => run(() => api.getFile(`/api/fees/payments/${p.id}/receipt.pdf`, `${p.receipt_no}.pdf`, true))}>Receipt</button>
@@ -112,7 +118,7 @@ export function FeeLedger({ learnerId, learnerName, staff }: { learnerId: string
               {staff?.edit && p.status !== 'voided' && p.provider !== 'razorpay' && Number(p.refunded_amount) === 0 && <> <button className="btn sm" onClick={() => setModal({ kind: 'void', p })}>Cancel</button></>}
               {staff && p.revision > 0 && <> <button className="btn ghost sm" onClick={() => setModal({ kind: 'phist', p })}>History</button></>}</td></tr>)}
         </tbody></table></div>}
-      </div>
+      </div>}
 
       {modal?.kind === 'discount' && <DiscountModal fee={modal.f} onClose={() => setModal(null)} onDone={done} />}
       {modal?.kind === 'dhist' && <DiscountHistory fee={modal.f} onClose={() => setModal(null)} />}

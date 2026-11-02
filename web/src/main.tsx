@@ -14,6 +14,7 @@ import './polish.css';
 import './dash.css';
 import './tables.css';
 import './lms.css';
+import './fees.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode><BrowserRouter><ToastProvider><AuthProvider><BrandProvider><App /></BrandProvider></AuthProvider></ToastProvider></BrowserRouter></StrictMode>,
