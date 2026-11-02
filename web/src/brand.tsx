@@ -18,9 +18,12 @@ function setLink(rel: string, href: string, extra: Record<string, string> = {}) 
 /** Put the organization's look on the page: colors, title, icon, installable-app manifest. */
 function apply(b: Brand) {
   const r = document.documentElement.style;
-  r.setProperty('--brand', b.color); r.setProperty('--accent', b.accent); r.setProperty('--accent-soft', `color-mix(in srgb, ${b.accent} 16%, white)`);
+  // The server's built-in navy/amber is the "no theme chosen" default, which now shows as the Violet Pop theme.
+  const legacy = b.color.toLowerCase() === '#12263f' && b.accent.toLowerCase() === '#f5a524';
+  const color = legacy ? '#4B1D8F' : b.color; const accent = legacy ? '#FF3D7F' : b.accent;
+  r.setProperty('--brand', color); r.setProperty('--accent', accent); r.setProperty('--accent-soft', `color-mix(in srgb, ${accent} 16%, white)`);
   document.title = b.default ? b.name : b.app_name;
-  document.head.querySelector('meta[name="theme-color"]')?.setAttribute('content', b.color);
+  document.head.querySelector('meta[name="theme-color"]')?.setAttribute('content', color);
   if (b.logo_url) { setLink('icon', b.logo_url, { type: 'image/png' }); setLink('apple-touch-icon', b.logo_url); } else { setLink('icon', '/favicon.svg', { type: 'image/svg+xml' }); setLink('apple-touch-icon', '/icons/apple-touch-icon.png'); }
   setLink('manifest', b.manifest_url);
 }

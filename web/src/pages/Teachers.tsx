@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { Avatar, Badge, Empty, ErrorState, Field, Modal, PageHead, Pager, SkeletonRows, StatusBadge, fieldErrors, useAction, useDebounced, useFetch, useToast } from '../components/ui';
@@ -16,7 +17,7 @@ export default function Teachers() {
   const rows: any[] = list.data?.data ?? [];
   return (
     <>
-      <PageHead title="Teachers" actions={can('user:manage') && <button className="btn primary" onClick={() => setAdd(true)}>＋ Add teacher</button>} />
+      <PageHead title="Teachers" actions={can('user:manage') && <button className="btn primary" onClick={() => setAdd(true)}><Icon name="plus" size={15} /> Add teacher</button>} />
       <div className="card">
         <div className="row" style={{ padding: 12 }}><input className="input" placeholder="Search teachers…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search teachers" /></div>
         {list.error && !list.data ? <ErrorState error={list.error} onRetry={list.reload} /> : !list.data ? <SkeletonRows /> : !rows.length ? <Empty icon="🎓" title="No teachers yet" action={can('user:manage') ? <button className="btn primary" onClick={() => setAdd(true)}>Add a teacher</button> : undefined}>Teachers can be assigned to batches once added.</Empty> : (

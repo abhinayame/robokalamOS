@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { ShareModal } from '../components/ShareModal';
 import { api } from '../api';
 import { Async, Empty, PageHead, useFetch } from '../components/ui';
@@ -12,7 +13,7 @@ export function CertificateList({ q, shareable }: { q: ReturnType<typeof useFetc
       <div className="stack">{list.map((c) => (
         <div className="card card-pad" key={c.id}><div className="row between wrap">
           <div><b style={{ fontSize: 16 }}>{c.title}</b> {c.revoked_at && <Badge tone="bad">Revoked</Badge>}<br /><span className="muted small">{c.recipient_name} · {[c.course_name, c.batch_name].filter(Boolean).join(' · ')} · {fmtDate(c.issued_on)} · code <code>{c.code}</code></span></div>
-          <button className="btn primary sm" onClick={() => api.getFile(`/api/certificates/${c.id}/pdf`, `${c.code}.pdf`, true)}>Open PDF</button>{shareable && !c.revoked_at && <button className="btn sm" onClick={() => setShare(c)}>📤 Share</button>}
+          <button className="btn primary sm" onClick={() => api.getFile(`/api/certificates/${c.id}/pdf`, `${c.code}.pdf`, true)}>Open PDF</button>{shareable && !c.revoked_at && <button className="btn sm" onClick={() => setShare(c)}><Icon name="share" size={15} /> Share</button>}
         </div></div>))}</div>)}</Async>
   {share && <ShareModal kind="certificate" id={share.id} title={share.course_name ?? share.title} onClose={() => setShare(null)} />}</>);
 }

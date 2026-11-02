@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { Avatar, Badge, Empty, ErrorState, Field, Modal, PageHead, Pager, SkeletonRows, StatusBadge, fieldErrors, useAction, useDebounced, useFetch, useToast } from '../components/ui';
@@ -21,7 +22,7 @@ export default function Users() {
   const [pw, setPw] = useState<{ email: string; pw: string } | null>(null);
   return (
     <>
-      <PageHead title="Staff & roles" sub="Who can do what. Role changes are recorded in the audit log." actions={<button className="btn primary" onClick={() => setAdd(true)}>＋ Add staff</button>} />
+      <PageHead title="Staff & roles" sub="Who can do what. Role changes are recorded in the audit log." actions={<button className="btn primary" onClick={() => setAdd(true)}><Icon name="plus" size={15} /> Add staff</button>} />
       <div className="card">
         <div className="row" style={{ padding: 12 }}><input className="input" placeholder="Search staff…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search staff" /></div>
         {list.error && !list.data ? <ErrorState error={list.error} onRetry={list.reload} /> : !list.data ? <SkeletonRows /> : !rows.length ? <Empty title="No staff found" /> : (

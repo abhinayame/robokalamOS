@@ -1,4 +1,5 @@
 import { PushToggle } from '../components/PushToggle';
+import { Icon } from '../components/Icon';
 import { useInstall } from '../brand';
 import { useEffect, useState } from 'react';
 import { api } from '../api';
@@ -48,7 +49,7 @@ export default function Account() {
         <div className="card card-pad stack" style={{ marginTop: 16 }}>
           <h2 style={{ margin: 0 }}>Install the app</h2>
           <p className="muted" style={{ margin: 0 }}>Open it from your home screen like any other app: full screen, quick to start.</p>
-          {inst.canInstall ? <div><button className="btn primary" onClick={inst.install}>⬇ Install app</button></div> : <p style={{ margin: 0 }}>On iPhone or iPad: tap the <b>Share</b> button in Safari, then <b>Add to Home Screen</b>.</p>}
+          {inst.canInstall ? <div><button className="btn primary" onClick={inst.install}><Icon name="download" size={15} /> Install app</button></div> : <p style={{ margin: 0 }}>On iPhone or iPad: tap the <b>Share</b> button in Safari, then <b>Add to Home Screen</b>.</p>}
         </div>)}
     </>
   );

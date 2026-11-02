@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Empty, ErrorState, Field, Modal, PageHead, SkeletonRows, StatusBadge, Tabs, fieldErrors, useAction, useFetch, useToast } from '../components/ui';
@@ -16,7 +17,7 @@ export default function Catalog() {
   const manage = can(tab === 'branches' ? 'branch:manage' : 'catalog:manage');
   return (
     <>
-      <PageHead title="Programs, courses & branches" sub="The structure every batch hangs from: Organization → Branch → Program → Course → Batch." actions={manage && <button className="btn primary" onClick={() => setEdit('new')}>＋ New {LABEL[tab].toLowerCase()}</button>} />
+      <PageHead title="Programs, courses & branches" sub="The structure every batch hangs from: Organization → Branch → Program → Course → Batch." actions={manage && <button className="btn primary" onClick={() => setEdit('new')}><Icon name="plus" size={15} /> New {LABEL[tab].toLowerCase()}</button>} />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'programs', label: 'Programs' }, { id: 'courses', label: 'Courses' }, { id: 'branches', label: 'Branches' }]} />
       <div className="card">
         <div className="row between" style={{ padding: 12 }}><span className="muted small">{q.data?.length ?? 0} {tab}</span><label className="row gap-s small"><input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show archived</label></div>

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from './Icon';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
 import { fmtDate, fmtDateTime } from '../format';
@@ -20,7 +21,7 @@ export function XpCard({ learnerId }: { learnerId?: string }) {
           <div style={{ textAlign: 'right' }}><div style={{ fontSize: 28, fontWeight: 800 }}>{o.xp} XP</div><div className="muted small">{o.xp_last_7_days >= 0 ? '+' : ''}{o.xp_last_7_days} this week · {o.badges} badge{o.badges === 1 ? '' : 's'}</div></div>
         </div>
         <Progress value={o.progress_pct} tone="ok" />
-        <div className="row between wrap"><div className="muted small">{o.next ? `${o.xp_to_next} XP to ${o.next.name}` : 'Top level reached 🎉'}</div>{!can('gamification:award') && <button className="btn sm" onClick={() => setShare(true)}>📤 Share my XP</button>}</div>
+        <div className="row between wrap"><div className="muted small">{o.next ? `${o.xp_to_next} XP to ${o.next.name}` : 'Top level reached 🎉'}</div>{!can('gamification:award') && <button className="btn sm" onClick={() => setShare(true)}><Icon name="share" size={15} /> Share my XP</button>}</div>
         {share && <ShareModal kind="xp" id={o.learner.id} title={`Level ${o.level.level_no}`} onClose={() => setShare(false)} />}
       </div>)}</Async>
   );
@@ -41,7 +42,7 @@ export function BadgeWall({ learnerId, onRevoked }: { learnerId?: string; onRevo
           {b.description && <div className="small">{b.description}</div>}
           {b.reason && <div className="small">“{b.reason}”</div>}
           <div className="muted small">{fmtDate(b.awarded_at)} · by {b.awarded_by}{b.batch_name ? ` · ${b.batch_name}` : ''}</div>
-          {can('gamification:award') ? <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => revoke(b.id)}>Revoke</button> : <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => setShare({ id: b.id, title: b.name })}>📤 Share</button>}
+          {can('gamification:award') ? <button className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => revoke(b.id)}>Revoke</button> : <button className="btn sm" style={{ alignSelf: 'flex-start' }} onClick={() => setShare({ id: b.id, title: b.name })}><Icon name="share" size={15} /> Share</button>}
         </div>))}{share && <ShareModal kind="badge" id={share.id} title={share.title} onClose={() => setShare(null)} />}</div>
     ) : <div className="card"><Empty icon="🏅" title="No badges yet">Badges your teachers award will appear here.</Empty></div>}</Async>
   );
@@ -80,7 +81,7 @@ export function Leaderboard({ scope = 'batch', id }: { scope?: 'batch' | 'course
 const Row = ({ r }: { r: any }) => (
   <div className="m-card" style={{ alignItems: 'center', background: r.is_me ? 'var(--info-soft)' : undefined }}>
     <b style={{ width: 34 }}>{r.rank <= 3 ? ['🥇', '🥈', '🥉'][r.rank - 1] : `#${r.rank}`}</b><span className="grow">{r.full_name}{r.is_me && <> <Badge tone="info">You</Badge></>}</span>
-    {r.badges > 0 && <span className="muted small">🏅 {r.badges}</span>}<b>{r.xp} XP</b></div>
+    {r.badges > 0 && <span className="muted small"><Icon name="medal" size={15} /> {r.badges}</span>}<b>{r.xp} XP</b></div>
 );
 
 /** Award XP to one or many learners. Teachers must pick a classroom; admins may leave it blank. */

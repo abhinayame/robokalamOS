@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from './Icon';
 import { api } from '../api';
 import { BankPicker } from '../pages/Courses';
 import { FilePicker, type FileRef } from './Files';
@@ -50,10 +51,10 @@ export function LessonEditor({ courseId, modules, lesson, defaultModule, onClose
           {f.questions.map((q: Q, i: number) => (
             <div key={i} className="card card-pad stack-s"><div className="row"><input className="input grow" placeholder={`Question ${i + 1}`} value={q.q} onChange={(e) => setQ(i, { q: e.target.value })} /><button type="button" className="btn ghost sm" onClick={() => set({ questions: f.questions.filter((_: Q, j: number) => j !== i) })}>Remove</button></div>
               {q.options.map((o, j) => <div key={j} className="row"><input type="radio" name={`ans${i}`} checked={q.answer === j} onChange={() => setQ(i, { answer: j })} aria-label={`Option ${j + 1} is correct`} /><input className="input grow" placeholder={`Option ${j + 1}`} value={o} onChange={(e) => setQ(i, { options: q.options.map((x, k) => (k === j ? e.target.value : x)) })} /></div>)}
-              {q.options.length < 6 && <button type="button" className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setQ(i, { options: [...q.options, ''] })}>＋ Option</button>}
+              {q.options.length < 6 && <button type="button" className="btn ghost sm" style={{ alignSelf: 'flex-start' }} onClick={() => setQ(i, { options: [...q.options, ''] })}><Icon name="plus" size={15} /> Option</button>}
               <input className="input" placeholder="Why is it right? (shown after the quiz, optional)" value={q.explanation ?? ''} onChange={(e) => setQ(i, { explanation: e.target.value })} />
               <div className="muted small">Tick the circle next to the right answer. Learners never see which one it is until the quiz allows it.</div></div>))}
-          <div className="row gap-s wrap"><button type="button" className="btn sm" onClick={() => set({ questions: [...f.questions, { q: '', options: ['', ''], answer: 0, explanation: '' }] })}>＋ Add a question</button><button type="button" className="btn sm" onClick={() => setPick(true)}>📚 Add from question bank</button></div></>}
+          <div className="row gap-s wrap"><button type="button" className="btn sm" onClick={() => set({ questions: [...f.questions, { q: '', options: ['', ''], answer: 0, explanation: '' }] })}><Icon name="plus" size={15} /> Add a question</button><button type="button" className="btn sm" onClick={() => setPick(true)}><Icon name="library" size={15} /> Add from question bank</button></div></>}
         <div className="row wrap"><Field label="Module"><select className="select" value={f.module_id} onChange={(e) => set({ module_id: e.target.value })}><option value="">No module</option>{modules.map((m) => <option key={m.id} value={m.id}>{m.title}</option>)}</select></Field>
           <label className="row gap-s" style={{ alignSelf: 'flex-end', paddingBottom: 8 }}><input type="checkbox" checked={f.required} onChange={(e) => set({ required: e.target.checked })} /> Required to finish the course</label></div>
         {err && <p className="err" role="alert">{err}</p>}

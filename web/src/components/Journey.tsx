@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from './Icon';
 import { api } from '../api';
 import { Badge3D } from './Badge3D';
 import { Confetti } from './Celebrate';
@@ -16,7 +17,7 @@ export function Journey({ learnerId, learnerName, canPromote, canShare = true }:
       <div className="stack">
         <div className="grid cols-4"><Stat label="With us for" value={tenure(j.months_with_us)} sub={`since ${fmtDate(j.since)}`} /><Stat label="Current level" value={j.current_level ? `Level ${j.current_level}` : '—'} sub={`${j.levels_finished} finished`} /><Stat label="Certificates" value={j.certificates} /><Stat label="Paid so far" value={fmtMoney(j.fees.paid)} sub={Number(j.fees.discount) > 0 ? `${fmtMoney(j.fees.discount)} given as discounts` : `of ${fmtMoney(j.fees.net)} billed`} /></div>
         {canPromote && <div><button className="btn primary" onClick={() => setPromote(true)}>⬆ Move up a level</button></div>}
-        {j.level_badges.length > 0 && <div className="card card-pad"><h2 style={{ margin: '0 0 8px' }}>Level badges</h2><div className="row wrap" style={{ gap: 18 }}>{j.level_badges.map((b: any) => <div key={b.id} className="stack-s" style={{ alignItems: 'center', textAlign: 'center' }}><Badge3D name={b.name} size={76} glyph="trophy" animated /><b className="small">{b.name}</b>{canShare && <button className="btn sm" onClick={() => setShare({ id: b.id, title: b.name })}>📤 Share</button>}</div>)}</div></div>}
+        {j.level_badges.length > 0 && <div className="card card-pad"><h2 style={{ margin: '0 0 8px' }}>Level badges</h2><div className="row wrap" style={{ gap: 18 }}>{j.level_badges.map((b: any) => <div key={b.id} className="stack-s" style={{ alignItems: 'center', textAlign: 'center' }}><Badge3D name={b.name} size={76} glyph="trophy" animated /><b className="small">{b.name}</b>{canShare && <button className="btn sm" onClick={() => setShare({ id: b.id, title: b.name })}><Icon name="share" size={15} /> Share</button>}</div>)}</div></div>}
         <div className="card"><div className="card-head"><h2>Levels and batches</h2></div>
           {!j.steps.length ? <Empty icon="🧭" title="Not in a batch yet" /> : <ol className="timeline" style={{ padding: '16px 16px 4px 36px' }}>{j.steps.map((s: any) => (
             <li key={s.id}><div className="row between wrap"><div><b>{s.level_no ? `Level ${s.level_no} · ` : ''}{s.course_name}</b> <Badge tone={s.status === 'active' ? 'ok' : s.status === 'completed' ? 'info' : ''}>{s.status === 'active' ? 'Studying now' : cap(s.status)}</Badge><div className="muted small">{s.batch_name} · {s.program_name}</div></div>
@@ -61,7 +62,7 @@ function PromoteModal({ learnerId, learnerName, onClose, onDone }: { learnerId: 
 /** The celebration after a learner moves up: confetti, the new badge, and a button to share it as a picture. */
 export function LevelUp({ r, onShare, onClose }: { r: any; onShare: () => void; onClose: () => void }) {
   return (
-    <Modal title="🎉 Level up!" onClose={onClose} footer={<>{r.badge?.learner_badge_id && <button className="btn" onClick={onShare}>📤 Share the badge</button>}<button className="btn primary" onClick={onClose}>Done</button></>}>
+    <Modal title="🎉 Level up!" onClose={onClose} footer={<>{r.badge?.learner_badge_id && <button className="btn" onClick={onShare}><Icon name="share" size={15} /> Share the badge</button>}<button className="btn primary" onClick={onClose}>Done</button></>}>
       <div className="celebrate" style={{ textAlign: 'center' }}><Confetti />
         {r.badge && <div className="pop-in" style={{ display: 'grid', placeItems: 'center' }}><Badge3D name={r.badge.name} size={140} glyph="trophy" animated /></div>}
         <h2 style={{ margin: '8px 0 2px' }}>{r.to.level_no ? `Welcome to Level ${r.to.level_no}!` : `Welcome to ${r.to.course_name}!`}</h2>

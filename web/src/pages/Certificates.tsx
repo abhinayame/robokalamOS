@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -21,7 +22,7 @@ export default function Certificates() {
   return (
     <>
       <PageHead title="Certificates" sub="Design a certificate once, then give it to a whole batch. Each one gets a code and QR that anyone can check on the public verify page."
-        actions={manage ? <button className="btn primary" onClick={() => setEdit({})}>＋ New design</button> : undefined} />
+        actions={manage ? <button className="btn primary" onClick={() => setEdit({})}><Icon name="plus" size={15} /> New design</button> : undefined} />
       <Tabs value={tab} onChange={setTab} tabs={[{ id: 'issued', label: 'Issued' }, { id: 'designs', label: 'Designs', badge: designs.data?.length }, { id: 'auto', label: 'Automation' }]} />
       {tab === 'designs' && <Async q={designs}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="🎓" title="No designs yet" action={manage ? <button className="btn primary" onClick={() => setEdit({})}>Create the first design</button> : undefined}>Say what the certificate says, who signs it, then issue it to a batch.</Empty></div> : (
         <div className="stack">{list.map((d) => (

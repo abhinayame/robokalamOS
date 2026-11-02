@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -38,8 +39,8 @@ function StatusBanner() {
   const s = q.data;
   if (!s) return null;
   const problems = [!s.configured && 'WhatsApp is not connected: AISENSY_API_KEY is not set on the server, so nothing can be sent.', s.configured && !s.webhook_configured && 'Delivery tracking is off: AISENSY_WEBHOOK_SECRET is not set, so messages will stay “sent” and never show delivered or read.', !s.worker_enabled && 'The sender is switched off (COMMS_WORKER=false) on this server.'].filter(Boolean) as string[];
-  if (!problems.length) return <div className="banner" role="status" style={{ marginBottom: 12 }}><div>✅ WhatsApp is connected · sending up to {s.rate_per_second} messages per second{s.webhook_path ? <> · webhook <code>{s.webhook_path}</code></> : ''}</div></div>;
-  return <div className="banner" role="alert" style={{ marginBottom: 12, background: 'var(--warn-soft, #fff4d6)', color: 'var(--warn, #7a5b00)' }}><div>{problems.map((p) => <div key={p}>⚠️ {p}</div>)}<div className="small">An admin sets these in the hosting dashboard (Environment variables). They are never shown here.</div></div></div>;
+  if (!problems.length) return <div className="banner" role="status" style={{ marginBottom: 12 }}><div><Icon name="check" size={15} /> WhatsApp is connected · sending up to {s.rate_per_second} messages per second{s.webhook_path ? <> · webhook <code>{s.webhook_path}</code></> : ''}</div></div>;
+  return <div className="banner" role="alert" style={{ marginBottom: 12, background: 'var(--warn-soft, #fff4d6)', color: 'var(--warn, #7a5b00)' }}><div>{problems.map((p) => <div key={p}><Icon name="alert" size={15} /> {p}</div>)}<div className="small">An admin sets these in the hosting dashboard (Environment variables). They are never shown here.</div></div></div>;
 }
 
 /* ------------------------------------------------------------------ campaigns */
@@ -53,7 +54,7 @@ function Campaigns() {
     <div className="stack">
       <StatusBanner />
       <div className="row wrap">
-        {can('comms:campaign') && <button className="btn primary" onClick={() => setWizard('new')}>＋ New campaign</button>}
+        {can('comms:campaign') && <button className="btn primary" onClick={() => setWizard('new')}><Icon name="plus" size={15} /> New campaign</button>}
         <select className="select" style={{ width: 170 }} aria-label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }}><option value="">All statuses</option>{['draft', 'scheduled', 'processing', 'completed', 'partially_failed', 'failed', 'cancelled'].map((s) => <option key={s} value={s}>{cap(s.replace('_', ' '))}</option>)}</select>
       </div>
       <Async q={q as any}>{(d: any) => d.data.length ? <div className="card">{d.data.map((c: any) => (
@@ -114,7 +115,7 @@ function Announcements() {
   const [open, setOpen] = useState(false);
   return (
     <div className="stack">
-      <div><button className="btn primary" onClick={() => setOpen(true)}>＋ New announcement</button></div>
+      <div><button className="btn primary" onClick={() => setOpen(true)}><Icon name="plus" size={15} /> New announcement</button></div>
       <Async q={q}>{(rows: any[]) => rows.length ? <div className="card">{rows.map((a) => (
         <div key={a.id} className="m-card"><div className="grow"><b>{a.title}</b><div className="small" style={{ whiteSpace: 'pre-wrap' }}>{a.body}</div><div className="muted small">{a.created_by_name} · {fmtDateTime(a.created_at)} · {a.notified_users} people notified from {a.unique_learners} learners{a.streams_posted ? ` · posted to ${a.streams_posted} stream${a.streams_posted === 1 ? '' : 's'}` : ''}</div></div></div>))}</div>
         : <div className="card"><Empty icon="📣" title="No announcements yet">Send an in-app announcement to the learners and parents of your batches.</Empty></div>}</Async>
@@ -160,7 +161,7 @@ function Templates() {
   return (
     <div className="stack">
       <div className="banner"><div>Templates must already be approved (AiSensy, or WhatsApp Manager if you use Meta directly). Enter the <b>API campaign name</b> (AiSensy) or the <b>template name</b> (Meta) exactly as it appears there; the variable names below map to {'{{1}}'}, {'{{2}}'}… in order.</div></div>
-      {can('comms:manage') && <div><button className="btn primary" onClick={() => setEdit('new')}>＋ New template</button></div>}
+      {can('comms:manage') && <div><button className="btn primary" onClick={() => setEdit('new')}><Icon name="plus" size={15} /> New template</button></div>}
       <Async q={q}>{(rows: any[]) => rows.length ? <div className="card">{rows.map((t) => (
         <div key={t.id} className="m-card" style={{ alignItems: 'center' }}>
           <div className="grow"><b>{t.name}</b> <Badge>{cap(t.use_case.replace(/_/g, ' '))}</Badge> {t.status !== 'active' && <Badge tone="warn">inactive</Badge>}

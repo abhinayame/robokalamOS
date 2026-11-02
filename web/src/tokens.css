@@ -1,0 +1,34 @@
+/* Design tokens: colour roles, radii, shadows, motion. --brand/--accent are set per school by BrandProvider; everything else derives from them. */
+:root {
+  --font: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --brand: #4B1D8F; --accent: #FF3D7F;
+  --brand-2: color-mix(in srgb, var(--brand) 62%, #7B2FF7);
+  --hero: linear-gradient(135deg, var(--brand) 0%, var(--brand-2) 100%);
+  --gold: #FFC93C; --ink: #1B1530; --ink-2: #5B5470; --canvas: #F6F4FB; --surface: #fff;
+  --line: color-mix(in srgb, var(--brand) 10%, #e7e3f0);
+  --r-sm: 8px; --r-md: 12px; --r-lg: 16px; --r-xl: 24px; --r-pill: 999px;
+  --sh-1: 0 1px 2px rgba(27,21,48,.06), 0 1px 3px rgba(27,21,48,.04);
+  --sh-2: 0 6px 16px -4px rgba(27,21,48,.12), 0 2px 6px rgba(27,21,48,.05);
+  --sh-3: 0 18px 40px -12px color-mix(in srgb, var(--brand) 35%, transparent);
+  --t-fast: 120ms; --t-base: 220ms; --t-slow: 380ms; --t-hero: 600ms;
+  --ease: cubic-bezier(.22,1,.36,1); --spring: cubic-bezier(.34,1.56,.64,1);
+  /* pastel tile hues */
+  --p-violet: #ECE4FF; --p-violet-ink: #5B2BC4; --p-peach: #FFE6D6; --p-peach-ink: #C2501B; --p-mint: #D9F6E8; --p-mint-ink: #12805A;
+  --p-butter: #FFF1C2; --p-butter-ink: #9A6B00; --p-sky: #DCEEFF; --p-sky-ink: #1B64B8; --p-rose: #FFDDE8; --p-rose-ink: #C21F57; --p-slate: #E9E7F0; --p-slate-ink: #5B5470;
+}
+html { font-family: var(--font); }
+body, button, input, select, textarea { font-family: var(--font); }
+body { background: var(--canvas); color: var(--ink); font-feature-settings: 'ss01', 'cv11'; -webkit-font-smoothing: antialiased; }
+h1, h2, h3 { letter-spacing: -.02em; }
+
+.ic { flex: none; display: inline-block; vertical-align: middle; }
+.icon-tile { display: inline-grid; place-items: center; flex: none; border-radius: var(--r-md); transition: transform var(--t-base) var(--spring); }
+.it-sm { width: 28px; height: 28px; border-radius: 9px; } .it-md { width: 40px; height: 40px; } .it-lg { width: 52px; height: 52px; border-radius: var(--r-lg); } .it-xl { width: 76px; height: 76px; border-radius: var(--r-xl); }
+.it-violet { background: var(--p-violet); color: var(--p-violet-ink); } .it-peach { background: var(--p-peach); color: var(--p-peach-ink); } .it-mint { background: var(--p-mint); color: var(--p-mint-ink); }
+.it-butter { background: var(--p-butter); color: var(--p-butter-ink); } .it-sky { background: var(--p-sky); color: var(--p-sky-ink); } .it-rose { background: var(--p-rose); color: var(--p-rose-ink); } .it-slate { background: var(--p-slate); color: var(--p-slate-ink); }
+:is(.card, .stat, a, button):hover > .icon-tile { transform: scale(1.06) rotate(-3deg); }
+
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } }
+.theme-chip { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px 7px 8px; border: 1.5px solid var(--line); border-radius: var(--r-pill); background: var(--surface); font-weight: 600; font-size: 13px; cursor: pointer; transition: transform var(--t-base) var(--spring), border-color var(--t-fast), box-shadow var(--t-base); }
+.theme-chip:hover { transform: translateY(-1px); box-shadow: var(--sh-2); } .theme-chip.on { border-color: var(--brand); box-shadow: 0 0 0 3px color-mix(in srgb, var(--brand) 18%, transparent); }
+.tc-dots { display: inline-flex; } .tc-dots i { width: 18px; height: 18px; border-radius: 50%; border: 2px solid #fff; } .tc-dots i + i { margin-left: -6px; }

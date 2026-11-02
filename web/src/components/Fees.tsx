@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from './Icon';
 import { api } from '../api';
 import { cap, fmtDate, fmtDateTime, fmtMoney } from '../format';
 import { Badge, Empty, Field, Modal, Stat, fieldErrors, useAction, useFetch, useToast } from './ui';
@@ -82,9 +83,9 @@ export function FeeLedger({ learnerId, learnerName, staff }: { learnerId: string
         <Stat label="Credit" value={fmtMoney(d.totals.credit)} sub="Paid ahead / extra" />
       </div>
       <div className="row wrap">
-        {staff?.record && open.length > 0 && <button className="btn primary" onClick={() => setModal({ kind: 'pay' })}>＋ Record payment</button>}
+        {staff?.record && open.length > 0 && <button className="btn primary" onClick={() => setModal({ kind: 'pay' })}><Icon name="plus" size={15} /> Record payment</button>}
         {open.length > 0 && <button className="btn" disabled={busy} onClick={() => payNow()}>{staff ? 'Copy payment link' : `Pay ${fmtMoney(d.totals.outstanding)} now`}</button>}
-        {staff?.manage && <button className="btn" onClick={() => { setF({ title: '', amount: '', due: todayStr() }); setModal({ kind: 'charge' }); }}>＋ Add charge</button>}
+        {staff?.manage && <button className="btn" onClick={() => { setF({ title: '', amount: '', due: todayStr() }); setModal({ kind: 'charge' }); }}><Icon name="plus" size={15} /> Add charge</button>}
       </div>
       {!d.fees.length ? <div className="card"><Empty icon="🧾" title="No fees yet">{staff?.manage ? 'Assign a fee plan from Fees → Plans, or add a one-off charge.' : 'Nothing has been billed yet.'}</Empty></div> : d.fees.map((fe: any) => (
         <div className="card" key={fe.id}>

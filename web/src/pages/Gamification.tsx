@@ -1,4 +1,5 @@
 import { Badge3D } from '../components/Badge3D';
+import { Icon } from '../components/Icon';
 import { useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -27,7 +28,7 @@ function Badges({ canManage }: { canManage: boolean }) {
   const [edit, setEdit] = useState<any | 'new' | null>(null);
   return (
     <div className="stack">
-      {canManage && <div><button className="btn primary" onClick={() => setEdit('new')}>＋ New badge</button></div>}
+      {canManage && <div><button className="btn primary" onClick={() => setEdit('new')}><Icon name="plus" size={15} /> New badge</button></div>}
       <Async q={q}>{(rows: any[]) => rows.length ? <div className="grid cols-3">{rows.map((b) => (
         <div key={b.id} className="card card-pad stack" style={{ gap: 6, opacity: b.status === 'active' ? 1 : 0.6 }}>
           <div className="row"><Badge3D name={b.name} size={52} /><div className="grow"><b>{b.name}</b><div className="muted small">{b.category || 'General'}</div></div>{b.status !== 'active' && <Badge>{b.status}</Badge>}</div>
@@ -84,7 +85,7 @@ function Levels({ canManage }: { canManage: boolean }) {
             </div>))}
           {err && <div className="err" role="alert">{err}</div>}
           {canManage && <div className="row wrap">
-            {view.length < 20 && <button className="btn sm" onClick={() => setRows([...view, { name: `Level ${view.length + 1}`, min_xp: String((Number(view[view.length - 1].min_xp) || 0) + 500) }])}>＋ Add level</button>}
+            {view.length < 20 && <button className="btn sm" onClick={() => setRows([...view, { name: `Level ${view.length + 1}`, min_xp: String((Number(view[view.length - 1].min_xp) || 0) + 500) }])}><Icon name="plus" size={15} /> Add level</button>}
             <button className="btn primary" disabled={busy || !rows} onClick={save}>Save levels</button>
             {d.meta.custom && <button className="btn" disabled={busy} onClick={reset}>Reset to defaults</button>}
           </div>}

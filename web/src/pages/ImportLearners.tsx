@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import { Badge, Empty, PageHead, Progress, Tabs, useAction, useToast } from '../components/ui';
@@ -60,7 +61,7 @@ export default function ImportLearners() {
               <div><b className={c.error ? 'err' : ''}>{fmtNum(c.error)}</b><span>Rows with problems</span></div>
             </div>
             {job.unknown_columns?.length > 0 && <p className="muted small" style={{ margin: 0 }}>Ignored columns: {job.unknown_columns.join(', ')}.</p>}
-            {job.warnings.map((w: string, i: number) => <p key={i} className="err small" style={{ margin: 0 }}>⚠ {w}</p>)}
+            {job.warnings.map((w: string, i: number) => <p key={i} className="err small" style={{ margin: 0 }}><Icon name="alert" size={15} /> {w}</p>)}
             {c.duplicate > 0 && (
               <fieldset className="stack-s" style={{ border: '1px solid var(--line)', borderRadius: 10, padding: 12 }}>
                 <legend className="small"><b>{c.duplicate} duplicate row(s)</b>{job.existing_duplicates ? ` (${job.existing_duplicates} already in the system)` : ''}: what should happen?</legend>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -49,12 +50,12 @@ function People({ batch, onChange }: { batch: any; onChange: () => void }) {
   const canEnroll = can('batch:enroll') && !['archived', 'completed'].includes(batch.status);
   return (
     <div className="stack">
-      <div className="card"><div className="card-head"><h2>Teachers</h2>{can('batch:assign_teacher') && <button className="btn sm" onClick={() => setAddT(true)}>＋ Assign teacher</button>}</div>
+      <div className="card"><div className="card-head"><h2>Teachers</h2>{can('batch:assign_teacher') && <button className="btn sm" onClick={() => setAddT(true)}><Icon name="plus" size={15} /> Assign teacher</button>}</div>
         {!batch.teachers.length ? <Empty icon="🎓" title="No teacher assigned" /> : batch.teachers.map((t: any) => (
           <div key={t.id} className="m-card" style={{ alignItems: 'center' }}><Avatar name={t.full_name} /><div className="grow"><b>{t.full_name}</b></div><Badge tone={t.role === 'lead' ? 'accent' : ''}>{t.role === 'lead' ? 'Lead' : 'Co-teacher'}</Badge>
             {can('batch:assign_teacher') && <button className="btn sm danger" disabled={busy} onClick={() => confirm(`Remove ${t.full_name} from this batch? They will lose access to its learners.`) && run(() => api.del(`/api/batches/${batch.id}/teachers/${t.id}`).then(onChange), 'Teacher removed')}>Remove</button>}</div>))}</div>
       <div className="card">
-        <div className="card-head"><h2>Learners</h2><div className="row">{canEnroll && <button className="btn primary sm" onClick={() => setAdd(true)}>＋ Add learners</button>}</div></div>
+        <div className="card-head"><h2>Learners</h2><div className="row">{canEnroll && <button className="btn primary sm" onClick={() => setAdd(true)}><Icon name="plus" size={15} /> Add learners</button>}</div></div>
         <div className="row wrap" style={{ padding: 12 }}><input className="input grow" placeholder="Search learners in this batch…" value={q} onChange={(e) => setQ(e.target.value)} aria-label="Search learners" />
           <select className="select" style={{ width: 160 }} value={status} onChange={(e) => setStatus(e.target.value)} aria-label="Membership status"><option value="active">Active</option><option value="left">Left</option><option value="transferred">Moved out</option><option value="completed">Completed</option></select></div>
         <Async q={list} rows={5}>{(r: any) => !r.data.length ? <Empty icon="👥" title={dq ? 'No learners match' : `No ${status} learners`} action={canEnroll && status === 'active' && !dq ? <button className="btn primary" onClick={() => setAdd(true)}>Add learners</button> : undefined} /> : (

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -24,7 +25,7 @@ export default function CourseStudio() {
             <Link className="btn" to="/courses">← All courses</Link>
             <button className="btn" onClick={() => nav(`/learn/preview/${c.id}`)}>👁 Preview</button>
             {manage && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${c.id}/duplicate`)).data; nav(`/courses/${r.id}`); }, 'Copied as a draft.')}>⧉ Copy</button>}
-            {manage && live && c.audience !== 'learners' && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${c.id}/enrol-me`)).data; if (r.already) toast('You are already on this course.'); else toast('Added to your courses.'); }, undefined)}>＋ Take it myself</button>}
+            {manage && live && c.audience !== 'learners' && <button className="btn" disabled={busy} onClick={() => run(async () => { const r = (await api.post(`/api/lms/courses/${c.id}/enrol-me`)).data; if (r.already) toast('You are already on this course.'); else toast('Added to your courses.'); }, undefined)}><Icon name="plus" size={15} /> Take it myself</button>}
             {manage && live && <button className="btn primary" onClick={() => setAssign(true)}>Assign</button>}
             {manage && (live ? <button className="btn" disabled={busy} onClick={() => confirm('Take this course back to draft? People already on it keep their progress but will not see it until it is published again.') && run(async () => { await api.post(`/api/lms/courses/${c.id}/unpublish`); q.reload(); }, 'Back to draft.')}>Unpublish</button>
               : <button className="btn primary" onClick={() => setPub(true)}>Publish…</button>)}
@@ -73,12 +74,12 @@ function Content({ d, manage, reload }: { d: any; manage: boolean; reload: () =>
   const head = (m: any, section: boolean) => (
     <div className="card-head" style={section ? { background: 'var(--bg-soft, #f4f7fb)' } : undefined}><div><h2 style={{ margin: 0, fontSize: section ? 15 : undefined }}>{section ? '↳ ' : ''}{m.title} <span className="muted small">{section ? 'section' : 'chapter'}</span></h2>{m.summary && <div className="muted small">{m.summary}</div>}</div>
       {manage && <div className="row gap-s wrap"><button className="btn ghost sm" aria-label={`Move ${section ? 'section' : 'chapter'} up`} disabled={busy} onClick={() => moveMod(m, -1)}>↑</button><button className="btn ghost sm" aria-label={`Move ${section ? 'section' : 'chapter'} down`} disabled={busy} onClick={() => moveMod(m, 1)}>↓</button>
-        <button className="btn sm" onClick={() => setEd({ module: m.id })}>＋ Lesson</button>{!section && <button className="btn sm" onClick={() => setModForm({ parent_id: m.id })}>＋ Section</button>}<button className="btn sm" onClick={() => setModForm(m)}>Edit</button>
+        <button className="btn sm" onClick={() => setEd({ module: m.id })}><Icon name="plus" size={15} /> Lesson</button>{!section && <button className="btn sm" onClick={() => setModForm({ parent_id: m.id })}><Icon name="plus" size={15} /> Section</button>}<button className="btn sm" onClick={() => setModForm(m)}>Edit</button>
         <button className="btn sm" disabled={busy} onClick={() => confirm(`Remove this ${section ? 'section' : 'chapter'}? Its lessons are kept, just ungrouped.`) && run(async () => { await api.del(`/api/lms/modules/${m.id}`); reload(); }, 'Removed.')}>Remove</button></div>}</div>);
   const loose = d.lessons.filter((l: any) => !l.module_id);
   return (
     <div className="stack">
-      {manage && <div className="row wrap"><button className="btn primary" onClick={() => setEd({ module: lastChapter })}>＋ Add a lesson</button><button className="btn" onClick={() => setModForm({})}>＋ Add a chapter</button><span className="muted small">{d.lessons.length} lessons{total ? ` · about ${total} min` : ''}. Chapters group lessons; a chapter can have sections inside it.</span></div>}
+      {manage && <div className="row wrap"><button className="btn primary" onClick={() => setEd({ module: lastChapter })}><Icon name="plus" size={15} /> Add a lesson</button><button className="btn" onClick={() => setModForm({})}><Icon name="plus" size={15} /> Add a chapter</button><span className="muted small">{d.lessons.length} lessons{total ? ` · about ${total} min` : ''}. Chapters group lessons; a chapter can have sections inside it.</span></div>}
       {loose.length > 0 && <div className="card"><div className="card-head"><h2 style={{ margin: 0 }}>{chapters.length ? 'Not in a chapter' : 'Lessons'}</h2></div>{lessonRows(loose)}</div>}
       {chapters.map((m) => { const secs = mods.filter((x) => x.parent_id === m.id); const own = d.lessons.filter((l: any) => l.module_id === m.id); return (
         <div key={m.id} className="card">{head(m, false)}
@@ -174,7 +175,7 @@ function Learners({ d, manage, onAssign }: { d: any; manage: boolean; onAssign: 
         <div className="grid cols-4"><Stat label="Enrolled" value={p.summary.enrolled} /><Stat label="Finished" value={p.summary.completed} /><Stat label="Not started" value={p.summary.not_started} /><Stat label="Overdue" value={p.summary.overdue} sub={`Average ${p.summary.average_percent}%`} /></div>
         <div className="row wrap gap-s">{manage && d.course.status === 'published' && <button className="btn primary" onClick={onAssign}>Assign to people</button>}
           {manage && <><button className="btn" disabled={busy} onClick={() => nudge('not_started')}>Nudge people who have not started</button><button className="btn" disabled={busy} onClick={() => nudge('overdue')}>Nudge overdue</button><button className="btn" disabled={busy} onClick={() => nudge('inactive')}>Nudge inactive for a week</button></>}
-          <button className="btn" onClick={() => api.getFile(`/api/lms/courses/${d.course.id}/progress.csv`, 'course-progress.csv')}>⬇ CSV</button></div>
+          <button className="btn" onClick={() => api.getFile(`/api/lms/courses/${d.course.id}/progress.csv`, 'course-progress.csv')}><Icon name="download" size={15} /> CSV</button></div>
         {!p.rows.length ? <div className="card"><Empty icon="👥" title="Nobody is enrolled yet">{d.course.enrollment_mode === 'open' && d.course.status === 'published' ? 'People can join from the Course catalog.' : 'Assign the course to batches or staff.'}</Empty></div> : (
           <div className="card table-wrap"><table className="t"><thead><tr><th>Name</th><th>Progress</th><th>Due</th><th>Last activity</th><th /></tr></thead><tbody>{p.rows.map((r: any) => (
             <tr key={r.id}><td>{r.name}<br /><span className="muted small">{r.kind === 'staff' ? 'Staff' : 'Learner'} · {r.ref}</span></td><td style={{ minWidth: 150 }}><Progress value={r.percent} tone={r.status === 'completed' ? 'ok' : ''} /><span className="muted small">{r.done}/{r.total}{r.status === 'completed' ? ' · finished' : ''}</span></td>

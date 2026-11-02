@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { Badge, Empty, ErrorState, Field, Modal, PageHead, SkeletonRows, StatusBadge, fieldErrors, useAction, useFetch } from '../components/ui';
@@ -11,7 +12,7 @@ export default function Organizations() {
   const { busy, run } = useAction();
   return (
     <>
-      <PageHead title="Organizations" sub="Every organization is fully isolated from the others." actions={<button className="btn primary" onClick={() => setAdd(true)}>＋ New organization</button>} />
+      <PageHead title="Organizations" sub="Every organization is fully isolated from the others." actions={<button className="btn primary" onClick={() => setAdd(true)}><Icon name="plus" size={15} /> New organization</button>} />
       <div className="card">{q.error && !q.data ? <ErrorState error={q.error} onRetry={q.reload} /> : !q.data ? <SkeletonRows n={4} /> : !q.data.length ? <Empty icon="🏢" title="No organizations yet" action={<button className="btn primary" onClick={() => setAdd(true)}>Create the first one</button>} /> : (
         <div className="table-wrap"><table className="t"><thead><tr><th>Organization</th><th>Prefix</th><th>Learners</th><th>Batches</th><th>Created</th><th>Status</th><th /></tr></thead><tbody>
           {q.data.map((o) => <tr key={o.id}><td><b>{o.name}</b><div className="muted small">{o.slug}</div></td><td><Badge>{o.code_prefix}</Badge></td><td>{fmtNum(o.learners)}</td><td>{fmtNum(o.batches)}</td><td className="small">{fmtDate(o.created_at)}</td><td><StatusBadge s={o.status} /></td>

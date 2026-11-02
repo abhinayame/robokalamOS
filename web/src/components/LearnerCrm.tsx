@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from './Icon';
 import { api } from '../api';
 import { useAuth } from '../auth';
 import { fmtDateTime } from '../format';
@@ -21,9 +22,9 @@ export default function LearnerCrm({ learnerId }: { learnerId: string }) {
         <div className="card card-pad stack">
           <div className="row between wrap"><h2 style={{ margin: 0 }}>CRM</h2>
             {manage && <div className="row wrap">{d.lead ? <>
-              <button className="btn sm" onClick={() => setModal('activity')}>＋ Log activity</button><button className="btn sm" onClick={() => setModal('followup')}>＋ Follow-up</button><button className="btn sm" onClick={() => setModal('edit')}>Edit lead</button>
+              <button className="btn sm" onClick={() => setModal('activity')}><Icon name="plus" size={15} /> Log activity</button><button className="btn sm" onClick={() => setModal('followup')}><Icon name="plus" size={15} /> Follow-up</button><button className="btn sm" onClick={() => setModal('edit')}>Edit lead</button>
               <button className="btn ghost sm danger" disabled={busy} onClick={() => confirm('Remove from the CRM pipeline? The learner profile is not touched.') && run(async () => { await api.del(`/api/crm/leads/${learnerId}`); q.reload(); }, 'Removed from CRM')}>Remove</button></>
-              : <><button className="btn sm" onClick={() => setModal('activity')}>＋ Log activity</button><button className="btn primary sm" onClick={() => setModal('lead')}>Add to CRM</button></>}</div>}</div>
+              : <><button className="btn sm" onClick={() => setModal('activity')}><Icon name="plus" size={15} /> Log activity</button><button className="btn primary sm" onClick={() => setModal('lead')}>Add to CRM</button></>}</div>}</div>
           {d.lead ? (
             <dl className="kv">
               <dt>Stage</dt><dd><Badge tone={statusTone(d.lead.lead_status)}>{statusLabel(d.lead.lead_status)}</Badge>{d.lead.lost_reason && <span className="muted small"> · {d.lead.lost_reason}</span>}</dd>

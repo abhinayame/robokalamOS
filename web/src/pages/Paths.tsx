@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api } from '../api';
 import { StaffPicker, hasStaff, noStaff, staffBody, type StaffPick } from '../components/StaffPicker';
 import { BatchSelector, type AudienceSummary } from '../components/BatchSelector';
@@ -10,7 +11,7 @@ export default function Paths({ manage }: { manage: boolean }) {
   return (
     <>
       <div className="row between wrap" style={{ marginBottom: 10 }}><p className="muted small" style={{ margin: 0, maxWidth: 640 }}>A path is a journey of several courses in order, for example “Week 1 onboarding → Safety → Teaching basics”. Give it to people once; each course unlocks when they finish the one before.</p>
-        {manage && <button className="btn primary" onClick={() => setEdit({})}>＋ New path</button>}</div>
+        {manage && <button className="btn primary" onClick={() => setEdit({})}><Icon name="plus" size={15} /> New path</button>}</div>
       <Async q={q}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="🧭" title="No learning paths yet" action={manage ? <button className="btn primary" onClick={() => setEdit({})}>Create the first path</button> : undefined} /></div> : (
         <div className="grid cols-3">{list.map((p) => (
           <div key={p.id} className="card card-pad stack"><div className="row between"><b style={{ fontSize: 16 }}>{p.title}</b><Badge tone={p.status === 'published' ? 'ok' : ''}>{p.status}</Badge></div>
@@ -40,7 +41,7 @@ function PathModal({ path, onClose, onDone }: { path: any; onClose: () => void; 
         <b>Courses, in order</b>
         <Async q={detail as any} rows={2}>{() => <div className="stack-s">{ids.map((id, i) => <div key={id} className="m-card" style={{ alignItems: 'center' }}><span className="grow">{i + 1}. {name(id)}</span>
           <button className="btn ghost sm" aria-label="Move up" onClick={() => move(i, -1)} disabled={i === 0}>↑</button><button className="btn ghost sm" aria-label="Move down" onClick={() => move(i, 1)} disabled={i === ids.length - 1}>↓</button><button className="btn ghost sm" onClick={() => setF({ ...f, ids: ids.filter((x) => x !== id) })}>Remove</button></div>)}
-          <select className="select" aria-label="Add a course" value="" onChange={(e) => e.target.value && setF({ ...f, ids: [...ids, e.target.value] })}><option value="">＋ Add a course…</option>{(courses.data ?? []).filter((c: any) => !ids.includes(c.id)).map((c: any) => <option key={c.id} value={c.id}>{c.title} ({c.status})</option>)}</select></div>}</Async>
+          <select className="select" aria-label="Add a course" value="" onChange={(e) => e.target.value && setF({ ...f, ids: [...ids, e.target.value] })}><option value=""><Icon name="plus" size={15} /> Add a course…</option>{(courses.data ?? []).filter((c: any) => !ids.includes(c.id)).map((c: any) => <option key={c.id} value={c.id}>{c.title} ({c.status})</option>)}</select></div>}</Async>
         {err && <p className="err" role="alert">{err}</p>}
       </div>
     </Modal>

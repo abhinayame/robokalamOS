@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api } from '../api';
 import { Async, Badge, Empty, PageHead, useAction, useFetch } from '../components/ui';
@@ -37,7 +38,7 @@ export default function CourseLanding() {
               <div className="card card-pad stack"><h2>Reviews</h2>{!d.reviews.length ? <Empty icon="⭐" title="No reviews yet">Be the first to finish and review it.</Empty> : d.reviews.map((r: any, i: number) => <div key={i}><Stars v={r.rating} /> <b>{r.name}</b> <span className="muted small">· {fmtDate(r.created_at)}</span><div>{r.comment}</div></div>)}</div>
             </div>
             <div className="card card-pad stack" style={{ width: 280, flex: 'none', maxWidth: '100%' }}><h3 style={{ margin: 0 }}>This course</h3>
-              <div className="small stack-s">{c.instructor_name && <div>👩‍🏫 Taught by <b>{c.instructor_name}</b></div>}{c.category && <div>🏷️ {c.category}</div>}{c.gives_certificate && <div>🎓 Certificate when you finish</div>}{c.xp_reward > 0 && <div>⚡ {c.xp_reward} XP for finishing</div>}{c.sequential && <div>🔓 Lessons unlock one by one</div>}{c.min_grade && <div>📝 Quiz grade of {c.min_grade}% to finish</div>}{c.requirements && <div>📋 Before you start: {c.requirements}</div>}</div></div>
+              <div className="small stack-s">{c.instructor_name && <div><Icon name="cap" size={15} /> Taught by <b>{c.instructor_name}</b></div>}{c.category && <div><Icon name="tag" size={15} /> {c.category}</div>}{c.gives_certificate && <div><Icon name="cap" size={15} /> Certificate when you finish</div>}{c.xp_reward > 0 && <div><Icon name="bolt" size={15} /> {c.xp_reward} XP for finishing</div>}{c.sequential && <div>🔓 Lessons unlock one by one</div>}{c.min_grade && <div><Icon name="clipboard" size={15} /> Quiz grade of {c.min_grade}% to finish</div>}{c.requirements && <div>📋 Before you start: {c.requirements}</div>}</div></div>
           </div>
         </>); }}</Async>
   );

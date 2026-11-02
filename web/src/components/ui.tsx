@@ -1,3 +1,5 @@
+import { IconTile, EMOJI_ICON, type Hue } from './Icon';
+import { Sparkline } from './kit';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { friendly, ApiError } from '../api';
 import { cap, initials, statusTone } from '../format';
@@ -25,7 +27,7 @@ export const SkeletonRows = ({ n = 6 }: { n?: number }) => (
   </div>
 );
 export const Empty = ({ icon = '📭', title, children, action }: { icon?: string; title: string; children?: ReactNode; action?: ReactNode }) => (
-  <div className="state"><div className="ico" aria-hidden>{icon}</div><h3>{title}</h3>{children && <p style={{ margin: '0 0 12px' }}>{children}</p>}{action}</div>
+  <div className="state"><div className="ico scene" aria-hidden><i className="sc-ring" /><i className="sc-dot d1" /><i className="sc-dot d2" /><IconTile name={EMOJI_ICON[icon]?.[0] ?? (/^[a-z-]+$/.test(icon) ? icon : 'inbox')} hue={EMOJI_ICON[icon]?.[1] ?? 'violet'} size="xl" /></div><h3>{title}</h3>{children && <p style={{ margin: '0 0 12px' }}>{children}</p>}{action}</div>
 );
 export function ErrorState({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const denied = error instanceof ApiError && error.status === 403;
@@ -68,9 +70,16 @@ export function CountUp({ value }: { value: ReactNode }) {
   }, [target]);
   return <>{target === null ? value : n.toLocaleString('en-IN')}</>;
 }
-export const Stat = ({ label, value, sub }: { label: string; value: ReactNode; sub?: ReactNode }) => (
-  <div className="card stat"><div className="v"><CountUp value={value} /></div><div className="l">{label}</div>{sub && <div className="s">{sub}</div>}</div>
-);
+const STAT_ICONS: [RegExp, string, Hue][] = [
+  [/fee|outstanding|collect|revenue|paid|₹/i, 'wallet', 'mint'], [/learner|student|child|member/i, 'users', 'violet'], [/batch/i, 'layers', 'sky'], [/teacher|staff/i, 'cap', 'peach'],
+  [/attend|present/i, 'check', 'mint'], [/score|average|grade|mark/i, 'bars', 'sky'], [/evaluat|pending|waiting|due|open/i, 'clock', 'butter'], [/class|session|today|week|day/i, 'calendar', 'sky'],
+  [/xp/i, 'bolt', 'butter'], [/badge|level|achiev/i, 'medal', 'rose'], [/lead|crm|convert/i, 'target', 'rose'], [/campaign|whatsapp|message/i, 'chat', 'sky'], [/course|lesson|learn|enrol|certif/i, 'book', 'violet'],
+  [/assignment|submission|homework/i, 'clipboard', 'peach'], [/project|portfolio/i, 'portfolio', 'peach'], [/discount|offer/i, 'percent', 'rose'], [/receipt|invoice/i, 'receipt', 'mint'],
+];
+export const Stat = ({ label, value, sub, icon, hue, trend }: { label: string; value: ReactNode; sub?: ReactNode; icon?: string; hue?: Hue; trend?: number[] }) => {
+  const auto = STAT_ICONS.find(([re]) => re.test(label)); const ic = icon ?? auto?.[1] ?? 'sparkle'; const hu = hue ?? auto?.[2] ?? 'violet';
+  return <div className="card stat"><div className="stat-top"><IconTile name={ic} hue={hu} size="sm" />{trend && <Sparkline points={trend} />}</div><div className="v"><CountUp value={value} /></div><div className="l">{label}</div>{sub && <div className="s">{sub}</div>}</div>;
+};
 export const PageHead = ({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) => (
   <div className="page-head"><div><h1>{title}</h1>{sub && <p>{sub}</p>}</div><div className="row wrap">{actions}</div></div>
 );

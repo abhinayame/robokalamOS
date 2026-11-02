@@ -1,4 +1,5 @@
 import { ShareModal } from './ShareModal';
+import { Icon } from './Icon';
 import { useRef, useState } from 'react';
 import { api } from '../api';
 import { useAuth } from '../auth';
@@ -15,7 +16,7 @@ export function PortfolioGrid({ learnerId, canAdd, learners }: { learnerId: stri
   const [add, setAdd] = useState(false); const [share, setShare] = useState<any>(null); const reviewer = can('portfolio:review'); const mine = hasRole('learner');
   return (
     <div className="stack">
-      {(canAdd ?? (mine || reviewer)) && <div><button className="btn primary" onClick={() => setAdd(true)}>＋ Add a project</button></div>}
+      {(canAdd ?? (mine || reviewer)) && <div><button className="btn primary" onClick={() => setAdd(true)}><Icon name="plus" size={15} /> Add a project</button></div>}
       <Async q={q}>{(list: any[]) => !list.length ? <div className="card"><Empty icon="🤖" title="No projects yet">{mine ? 'Add a photo or video of something you built. A teacher checks it before your family can see it.' : 'Projects appear here once a teacher has published them.'}</Empty></div> : (
         <div className="portfolio-grid">{list.map((it) => (
           <div className="card portfolio-card" key={it.id}>
@@ -29,7 +30,7 @@ export function PortfolioGrid({ learnerId, canAdd, learners }: { learnerId: stri
               {it.status === 'rejected' && it.reject_reason && <p className="err small" style={{ margin: 0 }}>{it.reject_reason}</p>}
               {it.feedback && <p className="small" style={{ margin: 0, padding: 8, background: 'var(--bg-soft, #f3f6fa)', borderRadius: 8 }}><b>{it.feedback_by_name ?? 'Teacher'}:</b> {it.feedback}</p>}
               <div className="row gap-s wrap">
-                {it.status === 'published' && !reviewer && <button className="btn sm" onClick={() => setShare(it)}>📤 Share</button>}
+                {it.status === 'published' && !reviewer && <button className="btn sm" onClick={() => setShare(it)}><Icon name="share" size={15} /> Share</button>}
                 {reviewer && <button className="btn sm" disabled={busy} onClick={() => { const f = prompt('Your comment for the learner', it.feedback ?? ''); if (f !== null) run(async () => { await api.put(`/api/portfolio/${it.id}/feedback`, { feedback: f }); q.reload(); }, 'Comment saved.'); }}>Comment</button>}
                 {(reviewer || (mine && true)) && <button className="btn sm" disabled={busy} onClick={() => { if (confirm(`Remove “${it.title}”?`)) run(async () => { await api.del(`/api/portfolio/${it.id}`); q.reload(); }, 'Project removed.'); }}>Remove</button>}
               </div>

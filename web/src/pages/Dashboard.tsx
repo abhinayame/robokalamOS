@@ -4,12 +4,14 @@ import { api } from '../api';
 import { useAuth } from '../auth';
 import { fmtDate, fmtDateTime, fmtMoney, fmtNum, fmtSchedule } from '../format';
 import { BarRow } from '../components/Charts';
+import { HeroBanner, ProgressRing, Pill } from '../components/kit';
+import { Icon } from '../components/Icon';
 import { Async, Avatar, Badge, Empty, PageHead, Progress, Stat, StatusBadge, Tabs, useFetch } from '../components/ui';
 
 const pct = (v: number | null | undefined) => (v == null ? '—' : `${v}%`);
 
 export default function Dashboard() {
-  const { me, hasRole, activeOrg } = useAuth();
+  const { me, hasRole, activeOrg, can } = useAuth();
   const [view, setView] = useState<string | undefined>();
   const q = useFetch(() => api.get(`/api/dashboard${view ? `?view=${view}` : ''}`).then((r) => r.data), [view, activeOrg]);
   if (hasRole('super_admin') && !me?.organization && !activeOrg) {
@@ -17,7 +19,10 @@ export default function Dashboard() {
   }
   return (
     <>
-      <PageHead title={`Welcome, ${me?.full_name.split(' ')[0] ?? ''}`} sub={me?.organization?.name} />
+      <HeroBanner kicker={me?.roles.map((r) => r.replace('_', ' ')).join(' · ')} title={`Welcome, ${me?.full_name.split(' ')[0] ?? ''}`} sub={me?.organization?.name}
+        art={hasRole('learner', 'parent') ? 'rocket' : 'sparkle'}
+        actions={hasRole('learner', 'parent') ? <><Link className="btn primary" to="/classroom"><Icon name="school" size={16} /> Classroom</Link><Link className="btn" to="/learn"><Icon name="book" size={16} /> My courses</Link><Link className="btn" to="/assignments"><Icon name="clipboard" size={16} /> Work</Link></>
+          : <>{can('learner:read') && <Link className="btn primary" to="/learners"><Icon name="users" size={16} /> Learners</Link>}{can('fee:read') && <Link className="btn" to="/fees"><Icon name="wallet" size={16} /> Fees</Link>}{can('classroom:read') && <Link className="btn" to="/classroom"><Icon name="school" size={16} /> Classroom</Link>}{can('report:read') && <Link className="btn" to="/reports"><Icon name="bars" size={16} /> Reports</Link>}</>} />
       <Async q={q}>{(d: any) => (
         <div className="stack">
           {d.available_views.length > 1 && <Tabs tabs={d.available_views.map((v: string) => ({ id: v, label: v[0].toUpperCase() + v.slice(1) }))} value={d.view} onChange={setView} />}
@@ -67,7 +72,7 @@ function AdminView({ d }: { d: any }) {
         </div>
         <div className="row wrap"><Link className="btn sm" to="/analytics">Compare batches</Link><Link className="btn sm" to="/reports">Reports</Link></div>
       </>}
-      {d.learners.without_batch > 0 && <div className="banner" style={{ borderRadius: 10, border: '1px solid var(--line)' }}>⚠️ {fmtNum(d.learners.without_batch)} active learners are not in any batch. <Link to="/learners?no_batch=true">Review them</Link></div>}
+      {d.learners.without_batch > 0 && <div className="banner" style={{ borderRadius: 10, border: '1px solid var(--line)' }}><Icon name="alert" size={15} /> {fmtNum(d.learners.without_batch)} active learners are not in any batch. <Link to="/learners?no_batch=true">Review them</Link></div>}
       <div className="grid cols-2">
         <div className="card"><div className="card-head"><h2>Fullest batches</h2><Link to="/batches" className="small">All batches</Link></div>
           {!d.top_batches.length ? <Empty title="No batches yet">Create a batch to start enrolling learners.</Empty> : d.top_batches.map((b: any) => (
@@ -107,7 +112,7 @@ function TeacherView({ d }: { d: any }) {
       </div>
       <div className="card card-pad"><b>Quick actions</b><div className="row wrap" style={{ marginTop: 8 }}>
         {d.my_batches.length > 0 && <>
-          <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>＋ Assignment or material</Link><Link className="btn sm" to="/communication">Post announcement</Link>
+          <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}><Icon name="plus" size={15} /> Assignment or material</Link><Link className="btn sm" to="/communication">Post announcement</Link>
           <Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Mark attendance</Link><Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Give score</Link><Link className="btn sm" to={`/classroom/${d.my_batches[0].id}`}>Award badge</Link></>}
         {!d.my_batches.length && <span className="muted small">Quick actions appear once you are assigned to a batch.</span>}</div></div>
       <div className="grid cols-2">
@@ -153,6 +158,12 @@ function ChildrenView({ d, parent }: { d: any; parent: boolean }) {
         </div>
       </div>
       {kid.progress && <div className="progress-card"><div className="l" style={{ marginBottom: 6 }}>MY PROGRESS</div>
+        <div className="ring-row">
+          <ProgressRing value={kid.progress.attendance_pct ?? 0} label={pct(kid.progress.attendance_pct)} sub="attendance" />
+          <ProgressRing value={kid.progress.avg_score_pct ?? 0} label={pct(kid.progress.avg_score_pct)} sub="avg score" />
+          <ProgressRing value={kid.progress.assignments.total ? (kid.progress.assignments.done / kid.progress.assignments.total) * 100 : 0} label={`${kid.progress.assignments.done}/${kid.progress.assignments.total}`} sub="work done" />
+          <div className="ring-meta"><Pill hue="butter" icon="bolt">{fmtNum(kid.progress.xp)} XP</Pill><Pill hue="violet" icon="medal">{kid.progress.level}</Pill><Pill hue="rose" icon="star">{kid.progress.badges} badges</Pill></div>
+        </div>
         <div className="grid cols-4">
           <div><div className="l">XP</div><div className="v">{fmtNum(kid.progress.xp)}</div></div>
           <div><div className="l">Level</div><div className="v" style={{ fontSize: 20 }}>{kid.progress.level}</div></div>
@@ -170,7 +181,7 @@ function ChildrenView({ d, parent }: { d: any; parent: boolean }) {
         <div className="card"><div className="card-head"><h2>Upcoming classes</h2></div>
           {kid.progress.upcoming_classes.length ? kid.progress.upcoming_classes.map((c: any) => <div key={c.id} className="m-card"><div className="grow"><b>{c.batch_name}</b><div className="muted small">{c.title ?? 'Class'} · {fmtDateTime(c.starts_at)}</div></div>{c.has_meeting && <Badge>Join link</Badge>}</div>) : <Empty icon="🗓️" title="No classes scheduled" />}</div>
         <div className="card"><div className="card-head"><h2>Teacher feedback</h2></div>
-          {kid.progress.feedback.length ? kid.progress.feedback.map((f: any, i: number) => <div key={i} className="m-card"><div className="grow"><b>{f.title}</b><div>💬 {f.feedback}</div><div className="muted small">{f.by_teacher} · {fmtDate(f.at)}</div></div></div>) : <Empty icon="💬" title="No feedback yet" />}</div>
+          {kid.progress.feedback.length ? kid.progress.feedback.map((f: any, i: number) => <div key={i} className="m-card"><div className="grow"><b>{f.title}</b><div><Icon name="chat" size={15} /> {f.feedback}</div><div className="muted small">{f.by_teacher} · {fmtDate(f.at)}</div></div></div>) : <Empty icon="💬" title="No feedback yet" />}</div>
       </div>}
       <div className="grid cols-2">
         <Classes items={kid.today_classes.length ? kid.today_classes : kid.upcoming_classes} title={kid.today_classes.length ? 'Today’s classes' : 'Upcoming classes'} />

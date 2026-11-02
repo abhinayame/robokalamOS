@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link, useParams } from 'react-router-dom';
 import { api, qs } from '../api';
 import { useAuth } from '../auth';
@@ -80,7 +81,7 @@ export default function Learner360() {
             {l.login && <><dt>Portal login</dt><dd>{l.login.email} · last seen {fmtDateTime(l.login.last_login_at)}</dd></>}
           </dl></div>}
 
-          {tab === 'parents' && <div className="card"><div className="card-head"><h2>Parents & guardians</h2>{can('parent:manage') && !archived && <button className="btn sm" onClick={() => setModal('parent')}>＋ Link parent</button>}</div>
+          {tab === 'parents' && <div className="card"><div className="card-head"><h2>Parents & guardians</h2>{can('parent:manage') && !archived && <button className="btn sm" onClick={() => setModal('parent')}><Icon name="plus" size={15} /> Link parent</button>}</div>
             {!l.parents.length ? <Empty icon="🧑‍🧒" title="No parent linked">Link a parent so they can follow progress and receive updates.</Empty> : l.parents.map((p: any) => (
               <div key={p.id} className="m-card" style={{ alignItems: 'center' }}><Avatar name={p.full_name} /><div className="grow"><b>{p.full_name}</b> {p.is_primary && <Badge tone="accent">Primary</Badge>} {p.has_login && <Badge tone="info">Has login</Badge>}<div className="muted small">{cap(p.relationship)} · {fmtMobile(p.mobile)} · {p.email ?? 'no email'}</div></div>
                 {can('parent:manage') && <button className="btn sm danger" disabled={busy} onClick={() => confirm(`Unlink ${p.full_name}?`) && run(() => api.del(`/api/learners/${l.id}/parents/${p.id}`).then(q.reload), 'Parent unlinked')}>Unlink</button>}</div>))}</div>}
@@ -226,7 +227,7 @@ function Achv({ l }: { l: any }) {
   const done = () => { setModal(null); setTick(tick + 1); };
   return (
     <div className="stack">
-      {can('gamification:award') && l.status === 'active' && <div className="row wrap"><button className="btn primary" onClick={() => setModal('xp')}>⚡ Award XP</button><button className="btn" onClick={() => setModal('badge')}>🏅 Award badge</button></div>}
+      {can('gamification:award') && l.status === 'active' && <div className="row wrap"><button className="btn primary" onClick={() => setModal('xp')}><Icon name="bolt" size={15} /> Award XP</button><button className="btn" onClick={() => setModal('badge')}><Icon name="medal" size={15} /> Award badge</button></div>}
       <XpCard key={`x${tick}`} learnerId={l.id} /><h3 style={{ margin: '4px 0' }}>Achievement wall</h3><BadgeWall key={`b${tick}`} learnerId={l.id} /><XpHistory key={`h${tick}`} learnerId={l.id} />
       {modal === 'xp' && <AwardXpModal batches={batches} fixedLearner={me} onClose={() => setModal(null)} onDone={done} />}
       {modal === 'badge' && <AwardBadgeModal batches={batches} fixedLearner={me} onClose={() => setModal(null)} onDone={done} />}

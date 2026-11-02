@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { api } from '../api';
 import { fmtDate, fmtDateTime, fmtSchedule } from '../format';
 import { LearnerAnalytics } from '../components/Analytics';
@@ -70,7 +71,7 @@ function Feedback({ learnerId }: { learnerId: string }) {
     <div className="card"><div className="card-head"><h2>Teacher feedback</h2></div>
       <Async q={q} rows={3}>{(rows: any[]) => rows.length ? rows.map((f, i) => (
         <div key={i} className="m-card"><div className="grow"><b>{f.title}</b> {f.score != null && <Badge tone="ok">{f.score}/{f.max_score}</Badge>} {f.kind === 'returned' && <Badge tone="warn">Returned for changes</Badge>}
-          <div style={{ whiteSpace: 'pre-wrap' }}>💬 {f.feedback}</div><div className="muted small">{f.by_teacher ?? 'Teacher'} · {f.batch_name} · {fmtDate(f.at)}</div></div></div>)) : <Empty icon="💬" title="No feedback yet">Feedback from teachers will appear here.</Empty>}</Async></div>
+          <div style={{ whiteSpace: 'pre-wrap' }}><Icon name="chat" size={15} /> {f.feedback}</div><div className="muted small">{f.by_teacher ?? 'Teacher'} · {f.batch_name} · {fmtDate(f.at)}</div></div></div>)) : <Empty icon="💬" title="No feedback yet">Feedback from teachers will appear here.</Empty>}</Async></div>
   );
 }
 

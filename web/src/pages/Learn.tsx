@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Icon } from '../components/Icon';
 import { Link } from 'react-router-dom';
 import { api } from '../api';
 import Player from '../components/Player';
@@ -13,7 +14,7 @@ export function Learn() {
   return (
     <>
       <PageHead title="My courses" sub="Courses your school or team has given you, and the ones you joined. Finish the lessons at your own pace."
-        actions={<><Link className="btn" to="/catalog">🔎 Find courses</Link><Link className="btn" to="/learn/record">My learning record</Link></>} />
+        actions={<><Link className="btn" to="/catalog"><Icon name="search" size={15} /> Find courses</Link><Link className="btn" to="/learn/record">My learning record</Link></>} />
       <MyPaths />
       <Async q={q}>{(list: any[]) => {
         const started = list.filter((c) => c.status !== 'completed' && c.done > 0); const fresh = list.filter((c) => c.status !== 'completed' && c.done === 0); const finished = list.filter((c) => c.status === 'completed');
@@ -43,10 +44,10 @@ function MyPaths() {
   if (!q.data?.length) return null;
   return (
     <div className="stack" style={{ marginBottom: 14 }}>{q.data.map((p) => (
-      <div key={p.id} className="card card-pad stack"><div className="row between wrap"><div><b style={{ fontSize: 16 }}>🧭 {p.title}</b>{p.summary && <div className="muted small">{p.summary}</div>}</div>{p.finished ? <Badge tone="ok">Path finished 🎉</Badge> : <span className="muted small">{p.done}/{p.total} courses</span>}</div>
+      <div key={p.id} className="card card-pad stack"><div className="row between wrap"><div><b style={{ fontSize: 16 }}><Icon name="compass" size={15} /> {p.title}</b>{p.summary && <div className="muted small">{p.summary}</div>}</div>{p.finished ? <Badge tone="ok">Path finished 🎉</Badge> : <span className="muted small">{p.done}/{p.total} courses</span>}</div>
         <Progress value={Math.round((p.done / p.total) * 100)} tone={p.finished ? 'ok' : ''} />
         <div className="row wrap gap-s">{p.steps.map((s: any, i: number) => <span key={s.course_id} className="row gap-s">{i > 0 && <span className="muted">→</span>}
-          {s.state === 'locked' ? <span className="badge" title="Finish the course before this one to unlock it">🔒 {s.title}</span> : <Link className={`badge ${s.state === 'done' ? 'ok' : 'info'}`} to={`/learn/${s.course_id}`}>{s.state === 'done' ? '✓ ' : '▶ '}{s.title}</Link>}</span>)}</div></div>))}</div>
+          {s.state === 'locked' ? <span className="badge" title="Finish the course before this one to unlock it"><Icon name="lock" size={15} /> {s.title}</span> : <Link className={`badge ${s.state === 'done' ? 'ok' : 'info'}`} to={`/learn/${s.course_id}`}>{s.state === 'done' ? '✓ ' : '▶ '}{s.title}</Link>}</span>)}</div></div>))}</div>
   );
 }
 
