@@ -1,4 +1,4 @@
-import { IconTile, EMOJI_ICON, type Hue } from './Icon';
+import { Icon, IconTile, EMOJI_ICON, type Hue } from './Icon';
 import { Sparkline } from './kit';
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { friendly, ApiError } from '../api';
@@ -120,7 +120,7 @@ export function Modal({ title, onClose, children, footer, wide }: { title: strin
   return (
     <div className="overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className={`modal ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
-        <div className="modal-head"><h2>{title}</h2><button className="btn ghost sm" onClick={onClose} aria-label="Close">✕</button></div>
+        <div className="modal-head"><h2>{title}</h2><button className="btn ghost sm" onClick={onClose} aria-label="Close"><Icon name="x" size={16} /></button></div>
         <div className="modal-body">{children}</div>
         {footer && <div className="modal-foot">{footer}</div>}
       </div>

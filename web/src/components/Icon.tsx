@@ -130,5 +130,12 @@ export const EMOJI_ICON: Record<string, [string, Hue]> = {
   '🙂': ['user', 'violet'], '🔔': ['bell', 'butter'], '🎁': ['gift', 'rose'], '👋': ['sparkle', 'butter'], '📣': ['megaphone', 'rose'], '🌱': ['sparkle', 'mint'], '🚀': ['rocket', 'violet'], '🔗': ['link', 'sky'], '📎': ['paperclip', 'slate'],
 };
 
+/** Lesson kinds → icon + tile colour (course player, landing page, studio). */
+export const LESSON_ICON: Record<string, [string, Hue]> = { text: ['file', 'sky'], video: ['play', 'rose'], link: ['link', 'sky'], quiz: ['help', 'butter'], file: ['paperclip', 'slate'], assignment: ['edit', 'peach'] };
+export function LessonIcon({ kind, done, locked }: { kind: string; done?: boolean; locked?: boolean }) {
+  const [n, h] = locked ? ['lock', 'slate'] as [string, Hue] : done ? ['check', 'mint'] as [string, Hue] : LESSON_ICON[kind] ?? ['file', 'slate'];
+  return <IconTile name={n} hue={h} size="sm" className="lesson-ic" />;
+}
+
 /** Resolve an old emoji/glyph or an icon name to an icon name. */
 export const iconFor = (k: string): string => EMOJI_ICON[k]?.[0] ?? k;

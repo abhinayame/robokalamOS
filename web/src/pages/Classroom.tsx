@@ -48,7 +48,7 @@ function Stream({ room }: { room: any }) {
   const canPost = room.can_manage && room.writable;
   return (
     <div className="stack">
-      {canPost && <div className="card card-pad"><button className="btn" onClick={() => setCompose(true)}>✏️ Announce something to your class</button></div>}
+      {canPost && <div className="card card-pad"><button className="btn" onClick={() => setCompose(true)}><Icon name="edit" size={15} /> Announce something to your class</button></div>}
       {compose && <PostModal batchId={room.id} onClose={() => setCompose(false)} onDone={() => { setCompose(false); q.reload(); }} />}
       <Async q={q as any}>{(d: any) => d.data.length ? <>
         {d.data.map((p: any) => <PostCard key={p.id} p={p} room={room} onChange={q.reload} />)}

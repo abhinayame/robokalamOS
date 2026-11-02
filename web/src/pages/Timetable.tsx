@@ -23,7 +23,7 @@ export default function Timetable() {
               <div className="card-pad stack-s">{list.length ? list.map((s: any) => (
                 <Link key={s.id} to={can('classroom:read') ? `/classroom/${s.batch_id}` : '#'} style={{ textDecoration: 'none', color: 'inherit', opacity: s.status === 'cancelled' ? 0.55 : 1 }}>
                   <div className="small"><b>{hm(s.starts_at, d.timezone)}</b> – {hm(s.ends_at, d.timezone)}</div><div>{s.title || s.batch_name}</div>
-                  <div className="muted small">{s.batch_name}{s.has_link ? ' · 🎥 online' : ''}{s.status === 'cancelled' ? ' · cancelled' : ''}</div></Link>)) : <span className="muted small">No classes</span>}</div>
+                  <div className="muted small">{s.batch_name}{s.has_link ? ' · online' : ''}{s.status === 'cancelled' ? ' · cancelled' : ''}</div></Link>)) : <span className="muted small">No classes</span>}</div>
             </div>);
         })}</div>)}</Async>
     </>

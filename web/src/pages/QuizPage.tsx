@@ -136,7 +136,7 @@ function Taking({ attempt, quiz, onDone }: { attempt: any; quiz: any; onDone: (r
     <div className="stack">
       <div className="card card-pad row between" style={{ position: 'sticky', top: 0, zIndex: 5 }}>
         <span>Attempt {attempt.attempt_no} · {answered}/{attempt.questions.length} answered</span>
-        {mm && <b style={{ color: left! < 60000 ? 'var(--bad)' : undefined }} role="timer">⏱ {mm}</b>}
+        {mm && <b style={{ color: left! < 60000 ? 'var(--bad)' : undefined }} role="timer"><Icon name="clock" size={15} /> {mm}</b>}
       </div>
       {attempt.questions.map((q: any, i: number) => (
         <div className="card card-pad stack" key={q.id}>
